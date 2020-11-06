@@ -275,14 +275,13 @@ class Solver:
         while True:
             p = self.select()
             if p is True:
-                break
+                return [(var, self.assignment[self.variables[i]])
+                        for i, var in enumerate(self.vars())]
             if p is False:
                 return None
 
             assert isinstance(p, tuple)
             self.pivot(*p)
-
-        return [(var, self.assignment[self.variables[i]]) for i, var in enumerate(self.vars())]
 
     def debug(self) -> str:
         '''
