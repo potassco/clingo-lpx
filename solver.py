@@ -2,7 +2,7 @@
 A simplistic solver for checking the satisfiability of linear programs.
 '''
 
-from typing import Iterator, List, Mapping, Optional, Tuple, Union
+from typing import Iterator, List, Mapping, Optional, Tuple, Union, Dict
 from dataclasses import dataclass, field
 from enum import Enum
 from fractions import Fraction
@@ -120,6 +120,106 @@ class Equation:
         lhs = ' + '.join(str(x) for x in self.lhs)
         return f'{lhs} {self.op} {self.rhs}'
 
+@dataclass
+class Tableau:
+    '''
+    A sparse matrix with lazy deletion.
+
+    Note: In C++ I would probably implement this with two ordered maps to get a
+    more compact and easier to understand implementation. The interface would
+    be roughly the same though.
+    '''
+    _vals: Dict[Tuple[int, int], Tuple[Fraction, int]] = field(default_factory = dict)
+    _rows: List[List[int]] = field(default_factory = list)
+    _cols: List[List[int]] = field(default_factory = list)
+
+    def _reserve_row(self, i):
+        while len(self._rows) <= i:
+            self._rows.append([])
+
+    def _reserve_col(self, j):
+        while len(self._cols) <= j:
+            self._cols.append([])
+
+    def get(self, i: int, j: int) -> Number:
+        '''
+        Get the value at row i and column j.
+        '''
+        return self._vals.get((i,j), (Fraction(0), 0))[0]
+
+    def set(self, i: int, j: int, v: Number) -> None:
+        '''
+        Set value v at row i and column j.
+        '''
+        old = self._vals.get((i, j))
+        if v == 0:
+            if old is not None and old[0] != 0:
+                self._vals[(i, j)] = (Fraction(0), 3)
+        else:
+            if old is None:
+                self._reserve_row(i)
+                self._rows[i].append(j)
+                self._reserve_col(j)
+                self._cols[j].append(i)
+            elif old[0] == 0:
+                if old[1] & 1 == 0:
+                    self._rows[i].append(j)
+                if old[1] & 2 == 0:
+                    self._cols[j].append(i)
+            self._vals[(i, j)] = (v, 3)
+
+    def row(self, i: int) -> Iterator[Tuple[int, Number]]:
+        '''
+        Return column indices associated with non-zero values.
+        '''
+        self._reserve_row(i)
+        l = 0
+        row = self._rows[i]
+        for k, j in enumerate(row):
+            v, s = self._vals[(i, j)]
+            if v == 0:
+                if s & 1 == 1:
+                    s = s ^ 1
+                if s == 0:
+                    del self._vals[(i, j)]
+                else:
+                    self._vals[(i, j)] = (v, s)
+            else:
+                if l != k:
+                    row[l] = row[k]
+                l += 1
+                yield j, v
+        del row[l:]
+
+    def col(self, j: int) -> Iterator[Tuple[int, Number]]:
+        '''
+        Return row indices associated with non-zero values.
+        '''
+        self._reserve_col(j)
+        l = 0
+        col = self._cols[j]
+        for k, i in enumerate(col):
+            v, s = self._vals[(i, j)]
+            if v == 0:
+                if s & 2 == 2:
+                    s = s ^ 2
+                if s == 0:
+                    del self._vals[(i, j)]
+                else:
+                    self._vals[(i, j)] = (v, s)
+            else:
+                if l != k:
+                    col[l] = col[k]
+                l += 1
+                yield i, v
+        del col[l:]
+
+    def n_rows(self):
+        '''
+        Return the number of rows in the tableau.
+        '''
+        return len(self._rows)
+
 
 @dataclass
 class Solver:
@@ -128,7 +228,7 @@ class Solver:
     satisfiability.
     '''
     equations: List[Equation]
-    tableau: List[List[Number]] = field(default_factory=list)
+    tableau: Tableau = field(default_factory=Tableau)
     lower: Mapping[int, Number] = field(default_factory=dict)
     upper: Mapping[int, Number] = field(default_factory=dict)
     assignment: List[Number] = field(default_factory=list)
@@ -148,9 +248,9 @@ class Solver:
         '''
         Check if the state invariants hold.
         '''
-        for i, row_i in enumerate(self.tableau):
+        for i in range(self.tableau.n_rows()):
             v_i = 0
-            for j, a_ij in enumerate(row_i):
+            for j, a_ij in self.tableau.row(i):
                 v_i += self.assignment[j] * a_ij
 
             if v_i != self.assignment[self.n_basic + i]:
@@ -162,8 +262,7 @@ class Solver:
         '''
         Pivots basic variable x_i and non-basic variable x_j.
         '''
-        row_i = self.tableau[i]
-        a_ij = row_i[j]
+        a_ij = self.tableau.get(i, j)
         assert a_ij != 0
 
         # adjust assignment
@@ -173,29 +272,31 @@ class Solver:
         self.assignment[j] = v
 
         # invert row i
-        for k, a_ik in enumerate(row_i):
+        for k, a_ik in self.tableau.row(i):
             if k == j:
-                row_i[j] = 1 / a_ij
+                self.tableau.set(i, k, 1 / a_ij)
             else:
-                row_i[k] = a_ik / -a_ij
+                self.tableau.set(i, k, a_ik / -a_ij)
 
         # eliminate x_j from rows k != i
-        for k, row_k in enumerate(self.tableau):
-            a_kj = row_k[j]
-            if k == i or a_kj == 0:
+        for k, a_kj in self.tableau.col(j):
+            if k == i:
                 continue
-            v_k = Number(0)
-            for l, a_kl in enumerate(row_k):
+            for l, a_il in self.tableau.row(i):
                 if l == j:
-                    row_k[j] = a_kj / a_ij
+                    a_kl = a_kj / a_ij
                 else:
-                    row_k[l] = a_kl + row_i[l] * a_kj
-                v_k += row_k[l] * self.assignment[l]
+                    a_kl = self.tableau.get(k, l) + a_il * a_kj
+                self.tableau.set(k, l, a_kl)
+            # TODO:
             # at this point we can already check if the basic variable x_k is conflicting
             # and we can identify the best non-basic variable for pivoting
             # for not having to iterate in the select function
             # most notably we can already check if the problem is unsatisfiable here
             # if x_k is conflicting but cannot be adjusted, then the problem is unsatisfiable
+            v_k = Number(0)
+            for l, a_kl in self.tableau.row(k):
+                v_k += a_kl * self.assignment[l]
             self.assignment[self.n_basic + k] = v_k
 
         # swap variables x_i and x_j
@@ -216,7 +317,7 @@ class Solver:
             li = self.lower.get(xi)
             if li is not None and axi < li:
                 for j, xj in nonbasic:
-                    aij = self.tableau[i][j]
+                    aij = self.tableau.get(i, j)
                     axj = self.assignment[xj]
                     if aij > 0 and (xj not in self.upper or axj < self.upper[xj]):
                         return i, j, li
@@ -228,7 +329,7 @@ class Solver:
             ui = self.upper.get(xi)
             if ui is not None and axi > ui:
                 for j, xj in nonbasic:
-                    aij = self.tableau[i][j]
+                    aij = self.tableau.get(i, j)
                     axj = self.assignment[xj]
                     if aij < 0 and (xj not in self.upper or axj < self.upper[xj]):
                         return i, j, ui
@@ -251,13 +352,12 @@ class Solver:
         self.n_basic = n
         self.assignment = (m + n) * [Number(0)]
 
-        self.tableau = []
+        self.tableau = Tableau()
         lower = dict()
         upper = dict()
         for i, x in enumerate(self.equations):
-            self.tableau.append(n * [Number(0)])
             for y in x.lhs:
-                self.tableau[-1][indices[y.var]] += y.co
+                self.tableau.set(i, indices[y.var], self.tableau.get(i, indices[y.var]) + y.co)
 
             if x.op == Operator.LessEqual:
                 upper[n + i] = x.rhs
@@ -287,16 +387,6 @@ class Solver:
 
             assert isinstance(p, tuple)
             self.pivot(*p)
-
-    def debug(self) -> str:
-        '''
-        Return a debug representation of the internal state.
-        '''
-        ret = ' '.join(f'{str(x)}={self.assignment[x]}' for x in self.variables)
-        for row in self.tableau:
-            ret += '\n' + ' '.join(f'{str(x):2}' for x in row)
-        ret += f'\nsat: {self.select() is True}'
-        return ret
 
     def __str__(self) -> str:
         '''

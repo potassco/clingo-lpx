@@ -207,7 +207,7 @@ attr-naming-style=snake_case
 
 # Regular expression matching correct attribute names. Overrides attr-naming-
 # style.
-attr-rgx=^[a-z][a-z0-9]*((_[a-z0-9]+)*_?)?$
+attr-rgx=^_*[a-z][a-z0-9]*((_[a-z0-9]+)*_?)?$
 
 # Bad variable names which should always be refused, separated by a comma.
 bad-names=foo,
