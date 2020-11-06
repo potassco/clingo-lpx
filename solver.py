@@ -181,16 +181,21 @@ class Solver:
 
         # eliminate x_j from rows k != i
         for k, row_k in enumerate(self.tableau):
-            if k == i:
+            a_kj = row_k[j]
+            if k == i or a_kj == 0:
                 continue
             v_k = Number(0)
-            a_kj = row_k[j]
             for l, a_kl in enumerate(row_k):
                 if l == j:
                     row_k[j] = a_kj / a_ij
                 else:
                     row_k[l] = a_kl + row_i[l] * a_kj
                 v_k += row_k[l] * self.assignment[l]
+            # at this point we can already check if the basic variable x_k is conflicting
+            # and we can identify the best non-basic variable for pivoting
+            # for not having to iterate in the select function
+            # most notably we can already check if the problem is unsatisfiable here
+            # if x_k is conflicting but cannot be adjusted, then the problem is unsatisfiable
             self.assignment[self.n_basic + k] = v_k
 
         # swap variables x_i and x_j
