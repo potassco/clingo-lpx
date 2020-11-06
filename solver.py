@@ -2,7 +2,7 @@
 A simplistic solver for checking the satisfiability of linear programs.
 '''
 
-from typing import Iterator, List, Mapping, Optional, Tuple
+from typing import Iterator, List, Mapping, Optional, Tuple, Union
 from dataclasses import dataclass, field
 from enum import Enum
 from fractions import Fraction
@@ -35,11 +35,11 @@ class Operator(Enum):
         '''
         Return a string representation of the operator.
         '''
-        if self.value == Operator.LessEqual.value:
+        if self.value is Operator.LessEqual.value:
             return '<='
-        if self.value == Operator.GreaterEqual.value:
+        if self.value is Operator.GreaterEqual.value:
             return '>='
-        assert self.value == Operator.Equal.value
+        assert self.value is Operator.Equal.value
         return '='
 
 @dataclass
@@ -144,20 +144,6 @@ class Solver:
         return sorted(set(chain(
             chain.from_iterable(x.vars() for x in self.equations))))
 
-    def sat(self) -> bool:
-        '''
-        Whether the problem is satisfiable.
-        '''
-        for i, v in self.lower.items():
-            if self.assignment[self.variables[i]] < v:
-                return False
-
-        for i, v in self.upper.items():
-            if self.assignment[self.variables[i]] > v:
-                return False
-
-        return True
-
     def check(self) -> bool:
         '''
         Check if the state invariants hold.
@@ -213,7 +199,7 @@ class Solver:
         self.n_pivots += 1
         assert self.check()
 
-    def select_pivot(self) -> Optional[Tuple[int, int, Number]]:
+    def select(self) -> Union[bool, Tuple[int, int, Number]]:
         '''
         Select pivot point using Bland's rule.
         '''
@@ -232,6 +218,8 @@ class Solver:
                     if aij < 0 and (xj not in self.upper or axj > self.lower[xj]):
                         return i, j, li
 
+                return False
+
             ui = self.upper.get(xi)
             if ui is not None and axi > ui:
                 for j, xj in nonbasic:
@@ -242,7 +230,9 @@ class Solver:
                     if aij > 0 and (xj not in self.upper or axj > self.lower[xj]):
                         return i, j, ui
 
-        return None
+                return False
+
+        return True
 
     def prepare(self) -> None:
         '''
@@ -282,11 +272,14 @@ class Solver:
         '''
         Solve the (previously prepared) problem.
         '''
-        while not self.sat():
-            p = self.select_pivot()
-            if p is None:
+        while True:
+            p = self.select()
+            if p is True:
+                break
+            if p is False:
                 return None
 
+            assert isinstance(p, tuple)
             self.pivot(*p)
 
         return [(var, self.assignment[self.variables[i]]) for i, var in enumerate(self.vars())]
@@ -298,7 +291,7 @@ class Solver:
         ret = ' '.join(f'{str(x)}={self.assignment[x]}' for x in self.variables)
         for row in self.tableau:
             ret += '\n' + ' '.join(f'{str(x):2}' for x in row)
-        ret += f'\nsat: {self.sat()}'
+        ret += f'\nsat: {self.select() is True}'
         return ret
 
     def __str__(self) -> str:
