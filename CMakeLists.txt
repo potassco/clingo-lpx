@@ -20,6 +20,7 @@ set(source-group
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_solving.cc")
 source_group("${ide_source_group}" FILES ${source-group})
