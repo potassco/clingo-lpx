@@ -18,8 +18,6 @@ std::ostream &operator<<(std::ostream &out, Operator const &op) {
     return out;
 }
 
-using Number = mpq_class;
-
 std::ostream &operator<<(std::ostream &out, Term const &term) {
     if (term.co == -1) {
         out << "-";
