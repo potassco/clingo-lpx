@@ -321,7 +321,7 @@ class Solver:
                     axj = self.assignment[xj]
                     if aij > 0 and (xj not in self.upper or axj < self.upper[xj]):
                         return i, j, li
-                    if aij < 0 and (xj not in self.upper or axj > self.lower[xj]):
+                    if aij < 0 and (xj not in self.lower or axj > self.lower[xj]):
                         return i, j, li
 
                 return False
@@ -333,7 +333,7 @@ class Solver:
                     axj = self.assignment[xj]
                     if aij < 0 and (xj not in self.upper or axj < self.upper[xj]):
                         return i, j, ui
-                    if aij > 0 and (xj not in self.upper or axj > self.lower[xj]):
+                    if aij > 0 and (xj not in self.lower or axj > self.lower[xj]):
                         return i, j, ui
 
                 return False

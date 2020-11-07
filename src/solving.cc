@@ -1,279 +1,219 @@
-#include <problem.hh>
+#include <solving.hh>
 
-// TODO: port to C++
+#include <unordered_set>
 
-/*
-@dataclass
-class Tableau:
-    '''
-    A sparse matrix with lazy deletion.
+void Statistics::reset() {
+    *this = {};
+}
 
-    Note: In C++ I would probably implement this with two ordered maps to get a
-    more compact and easier to understand implementation. The interface would
-    be roughly the same though.
-    '''
-    _vals: Dict[Tuple[int, int], Tuple[Fraction, int]] = field(default_factory = dict)
-    _rows: List[List[int]] = field(default_factory = list)
-    _cols: List[List[int]] = field(default_factory = list)
+Solver::Solver(std::vector<Equation> &&equations)
+: equations_{std::move(equations)} { }
 
-    def _reserve_row(self, i):
-        while len(self._rows) <= i:
-            self._rows.append([])
+void Solver::prepare() {
+    std::unordered_map<Clingo::Symbol, index_t> indices;
+    index_t i{0};
+    for (auto var : vars_()) {
+        indices.emplace(var, i++);
+    }
 
-    def _reserve_col(self, j):
-        while len(self._cols) <= j:
-            self._cols.append([])
+    n_non_basic_ = indices.size();
+    n_basic_ = equations_.size();
 
-    def get(self, i: int, j: int) -> Number:
-        '''
-        Get the value at row i and column j.
-        '''
-        return self._vals.get((i,j), (Fraction(0), 0))[0]
+    assignment_.clear();
+    assignment_.resize(n_basic_ + n_non_basic_, 0);
 
-    def set(self, i: int, j: int, v: Number) -> None:
-        '''
-        Set value v at row i and column j.
-        '''
-        old = self._vals.get((i, j))
-        if v == 0:
-            if old is not None and old[0] != 0:
-                self._vals[(i, j)] = (Fraction(0), 3)
-        else:
-            if old is None:
-                self._reserve_row(i)
-                self._rows[i].append(j)
-                self._reserve_col(j)
-                self._cols[j].append(i)
-            elif old[0] == 0:
-                if old[1] & 1 == 0:
-                    self._rows[i].append(j)
-                if old[1] & 2 == 0:
-                    self._cols[j].append(i)
-            self._vals[(i, j)] = (v, 3)
+    tableau_.clear();
+    bounds_.clear();
+    i = 0;
+    for (auto const &x : equations_) {
+        for (auto const &y : x.lhs) {
+            tableau_.set(i, indices[y.var], tableau_.get(i, indices[y.var]) + y.co);
+        }
 
-    def row(self, i: int) -> Iterator[Tuple[int, Number]]:
-        '''
-        Return column indices associated with non-zero values.
-        '''
-        self._reserve_row(i)
-        l = 0
-        row = self._rows[i]
-        for k, j in enumerate(row):
-            v, s = self._vals[(i, j)]
-            if v == 0:
-                if s & 1 == 1:
-                    s = s ^ 1
-                if s == 0:
-                    del self._vals[(i, j)]
-                else:
-                    self._vals[(i, j)] = (v, s)
-            else:
-                if l != k:
-                    row[l] = row[k]
-                l += 1
-                yield j, v
-        del row[l:]
+        bounds_.emplace_back();
+        switch (x.op) {
+            case Operator::LessEqual: {
+                bounds_.back().upper = x.rhs;
+                break;
+            }
+            case Operator::GreaterEqual: {
+                bounds_.back().lower = x.rhs;
+                break;
+            }
+            case Operator::Equal: {
+                bounds_.back().lower = x.rhs;
+                bounds_.back().upper = x.rhs;
+                break;
+            }
 
-    def col(self, j: int) -> Iterator[Tuple[int, Number]]:
-        '''
-        Return row indices associated with non-zero values.
-        '''
-        self._reserve_col(j)
-        l = 0
-        col = self._cols[j]
-        for k, i in enumerate(col):
-            v, s = self._vals[(i, j)]
-            if v == 0:
-                if s & 2 == 2:
-                    s = s ^ 2
-                if s == 0:
-                    del self._vals[(i, j)]
-                else:
-                    self._vals[(i, j)] = (v, s)
-            else:
-                if l != k:
-                    col[l] = col[k]
-                l += 1
-                yield i, v
-        del col[l:]
+        }
+        ++i;
+    }
 
-    def n_rows(self):
-        '''
-        Return the number of rows in the tableau.
-        '''
-        return len(self._rows)
+    variables_.clear();
+    for (index_t i = 0; i < n_non_basic_ + n_basic_; ++i) {
+        variables_.emplace_back(i);
+    }
 
+    statistics_.reset();
+}
 
-@dataclass
-class Solver:
-    '''
-    A problem in form of a set of equations that can be checked for
-    satisfiability.
-    '''
-    equations: List[Equation]
-    tableau: Tableau = field(default_factory=Tableau)
-    lower: Mapping[int, Number] = field(default_factory=dict)
-    upper: Mapping[int, Number] = field(default_factory=dict)
-    assignment: List[Number] = field(default_factory=list)
-    variables: List[int] = field(default_factory=list)
-    n_basic: int = 0
-    n_pivots: int = 0
+std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
+    index_t i{0};
+    index_t j{0};
+    Number v{0};
 
-    def vars(self) -> List[str]:
-        '''
-        The set of all variables (in form of a list) appearing in the
-        equations.
-        '''
-        return sorted(set(chain(
-            chain.from_iterable(x.vars() for x in self.equations))))
+    while (true) {
+        switch (select_(i, j, v)) {
+            case State::Satisfiable: {
+                std::vector<std::pair<Clingo::Symbol, Number>> ret;
+                index_t k{0};
+                for (auto var : vars_()) {
+                    ret.emplace_back(var, assignment_[variables_[k++]]);
+                }
+                return ret;
+            }
+            case State::Unsatisfiable: {
+                return std::nullopt;
+            }
+            case State::Unknown: {
+                pivot_(i, j, v);
+            }
+        }
+    }
+}
 
-    def check(self) -> bool:
-        '''
-        Check if the state invariants hold.
-        '''
-        for i in range(self.tableau.n_rows()):
-            v_i = 0
-            for j, a_ij in self.tableau.row(i):
-                v_i += self.assignment[j] * a_ij
+std::vector<Clingo::Symbol> Solver::vars_() {
+    std::unordered_set<Clingo::Symbol> var_set;
+    for (auto const &x : equations_) {
+        for (auto const &y : x.lhs) {
+            var_set.emplace(y.var);
+        }
+    }
+    std::vector<Clingo::Symbol> var_vec{var_set.begin(), var_set.end()};
+    std::sort(var_vec.begin(), var_vec.end());
+    return var_vec;
+};
 
-            if v_i != self.assignment[self.n_basic + i]:
-                return False
+bool Solver::check_() {
+    for (index_t i{0}; i < n_basic_; ++i) {
+        Number v_i{0};
+        tableau_.update_row(i, [&](index_t j, Number const &a_ij){
+            v_i += assignment_[j] * a_ij;
 
-        return True
+        });
+        if (v_i != assignment_[n_non_basic_ + i]) {
+            return false;
+        }
+    }
+    return true;
+}
 
-    def pivot(self, i: int, j: int, v: Number) -> None:
-        '''
-        Pivots basic variable x_i and non-basic variable x_j.
-        '''
-        a_ij = self.tableau.get(i, j)
-        assert a_ij != 0
+void Solver::pivot_(index_t i, index_t j, Number const &v) {
+    auto a_ij = tableau_.get(i, j);
+    assert(a_ij != 0);
 
-        # adjust assignment
-        ii = i + self.n_basic
-        dj = (v - self.assignment[ii]) / a_ij
-        self.assignment[ii] = self.assignment[j] + dj
-        self.assignment[j] = v
+    // adjust assignment
+    auto ii = i + n_non_basic_;
+    Number dj = (v - assignment_[ii]) / a_ij;
+    assignment_[ii] = assignment_[j] + dj;
+    assignment_[j] = v;
 
-        # invert row i
-        for k, a_ik in self.tableau.row(i):
-            if k == j:
-                self.tableau.set(i, k, 1 / a_ij)
-            else:
-                self.tableau.set(i, k, a_ik / -a_ij)
+    // invert row i
+    tableau_.update_row(i, [&](index_t k, Number &a_ik) {
+        if (k == j) {
+            a_ik = 1 / a_ij;
+        }
+        else {
+            a_ik /= -a_ij;
+        }
+    });
 
-        # eliminate x_j from rows k != i
-        for k, a_kj in self.tableau.col(j):
-            if k == i:
-                continue
-            for l, a_il in self.tableau.row(i):
-                if l == j:
-                    a_kl = a_kj / a_ij
-                else:
-                    a_kl = self.tableau.get(k, l) + a_il * a_kj
-                self.tableau.set(k, l, a_kl)
-            # TODO:
-            # at this point we can already check if the basic variable x_k is conflicting
-            # and we can identify the best non-basic variable for pivoting
-            # for not having to iterate in the select function
-            # most notably we can already check if the problem is unsatisfiable here
-            # if x_k is conflicting but cannot be adjusted, then the problem is unsatisfiable
-            v_k = Number(0)
-            for l, a_kl in self.tableau.row(k):
-                v_k += a_kl * self.assignment[l]
-            self.assignment[self.n_basic + k] = v_k
+    // eliminate x_j from rows k != i
+    tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
+        if (k == i) {
+            return;
+        }
+        tableau_.update_row(i, [&](index_t l, Number const &a_il) {
+            Number a_kl;
+            if (l == j) {
+                a_kl = a_kj / a_ij;
+            }
+            else {
+                a_kl = tableau_.get(k, l) + a_il * a_kj;
+            }
+            tableau_.set(k, l, a_kl);
+        });
+        // TODO:
+        // at this point we can already check if the basic variable x_k is conflicting
+        // and we can identify the best non-basic variable for pivoting
+        // for not having to iterate in the select function
+        // most notably we can already check if the problem is unsatisfiable here
+        // if x_k is conflicting but cannot be adjusted, then the problem is unsatisfiable
+        Number v_k{0};
+        tableau_.update_row(k, [&](index_t l, Number const &a_kl) {
+            v_k += a_kl * assignment_[l];
+        });
+        assignment_[n_non_basic_ + k] = v_k;
+    });
 
-        # swap variables x_i and x_j
-        self.variables[ii], self.variables[j] = self.variables[j], self.variables[ii]
+    // swap variables x_i and x_j
+    std::swap(variables_[ii], variables_[j]);
 
-        self.n_pivots += 1
-        assert self.check()
+    ++statistics_.pivots_;
+    assert(check_());
+}
 
-    def select(self) -> Union[bool, Tuple[int, int, Number]]:
-        '''
-        Select pivot point using Bland's rule.
-        '''
-        basic = sorted(enumerate(self.variables[self.n_basic:]), key=lambda x: x[1])
-        nonbasic = sorted(enumerate(self.variables[:self.n_basic]), key=lambda x: x[1])
-        for i, xi in basic:
-            axi = self.assignment[xi]
+Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
+    // TODO: This can be done while pivoting as well!
+    std::vector<std::pair<index_t, index_t>> basic;
+    std::vector<std::pair<index_t, index_t>> non_basic;
+    for (index_t i = 0; i < n_basic_; ++i) {
+        basic.emplace_back(i, variables_[i + n_non_basic_]);
+    }
+    std::sort(basic.begin(), basic.end(), [](auto const &a, auto const &b){ return a.second < b.second; });
+    for (index_t j = 0; j < n_non_basic_; ++j) {
+        non_basic.emplace_back(j, variables_[j]);
+    }
+    std::sort(non_basic.begin(), non_basic.end(), [](auto const &a, auto const &b){ return a.second < b.second; });
 
-            li = self.lower.get(xi)
-            if li is not None and axi < li:
-                for j, xj in nonbasic:
-                    aij = self.tableau.get(i, j)
-                    axj = self.assignment[xj]
-                    if aij > 0 and (xj not in self.upper or axj < self.upper[xj]):
-                        return i, j, li
-                    if aij < 0 and (xj not in self.upper or axj > self.lower[xj]):
-                        return i, j, li
+    for (auto [i, xi] : basic) {
+        auto const &axi = assignment_[xi];
 
-                return False
+        if (xi < n_non_basic_) {
+            continue;
+        }
 
-            ui = self.upper.get(xi)
-            if ui is not None and axi > ui:
-                for j, xj in nonbasic:
-                    aij = self.tableau.get(i, j)
-                    axj = self.assignment[xj]
-                    if aij < 0 and (xj not in self.upper or axj < self.upper[xj]):
-                        return i, j, ui
-                    if aij > 0 and (xj not in self.upper or axj > self.lower[xj]):
-                        return i, j, ui
+        if (auto const &li = bounds_[xi - n_non_basic_].lower; li && axi < *li) {
+            for (auto [j, xj] : non_basic) {
+                auto const &a_ij = tableau_.get(i, j);
+                auto const &v_xj = assignment_[xj];
+                if ((a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].upper || v_xj < *bounds_[xj - n_non_basic_].upper)) ||
+                    (a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].lower || v_xj > *bounds_[xj - n_non_basic_].lower))) {
+                    ret_i = i;
+                    ret_j = j;
+                    ret_v = *li;
+                    return State::Unknown;
+                }
+            }
+            return State::Unsatisfiable;
+        }
 
-                return False
+        if (auto const &ui = bounds_[xi - n_non_basic_].upper; ui && axi > *ui) {
+            for (auto [j, xj] : non_basic) {
+                auto const &a_ij = tableau_.get(i, j);
+                auto const &v_xj = assignment_[xj];
+                if ((a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].upper || v_xj < *bounds_[xj - n_non_basic_].upper)) ||
+                    (a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].lower || v_xj > *bounds_[xj - n_non_basic_].lower))) {
+                    ret_i = i;
+                    ret_j = j;
+                    ret_v = *ui;
+                    return State::Unknown;
+                }
+            }
+            return State::Unsatisfiable;
+        }
+    }
 
-        return True
-
-    def prepare(self) -> None:
-        '''
-        Prepare equations for solving.
-        '''
-        variables = self.vars()
-        indices = {x: i for i, x in enumerate(variables)}
-        n = len(variables)
-        m = len(self.equations)
-
-        self.n_basic = n
-        self.assignment = (m + n) * [Number(0)]
-
-        self.tableau = Tableau()
-        lower = dict()
-        upper = dict()
-        for i, x in enumerate(self.equations):
-            for y in x.lhs:
-                self.tableau.set(i, indices[y.var], self.tableau.get(i, indices[y.var]) + y.co)
-
-            if x.op == Operator.LessEqual:
-                upper[n + i] = x.rhs
-            elif x.op == Operator.GreaterEqual:
-                lower[n + i] = x.rhs
-            elif x.op == Operator.Equal:
-                upper[n + i] = x.rhs
-                lower[n + i] = x.rhs
-        self.lower = lower
-        self.upper = upper
-
-        self.variables = list(range(0, m+n))
-
-        self.n_pivots = 0
-
-    def solve(self) -> Optional[List[Tuple[str, Number]]]:
-        '''
-        Solve the (previously prepared) problem.
-        '''
-        while True:
-            p = self.select()
-            if p is True:
-                return [(var, self.assignment[self.variables[i]])
-                        for i, var in enumerate(self.vars())]
-            if p is False:
-                return None
-
-            assert isinstance(p, tuple)
-            self.pivot(*p)
-
-    def __str__(self) -> str:
-        '''
-        Print the equations in the problem.
-        '''
-        return '\n'.join(f'{x}' for x in self.equations)
-*/
+    return State::Satisfiable;
+}
