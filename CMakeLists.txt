@@ -16,7 +16,11 @@ set(ide_source_group "Source Files")
 set(source-group
     "${CMAKE_CURRENT_SOURCE_DIR}/src/catch.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/solver.cc")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_parsing.cc")
 source_group("${ide_source_group}" FILES ${source-group})
 set(source
     ${source-group})
@@ -27,7 +31,7 @@ enable_testing()
 add_executable(test_clingolp ${source})
 target_link_libraries(test_clingolp PRIVATE libclingo GMPXX::GMPXX)
 target_include_directories(test_clingolp PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
 set_target_properties(test_clingolp PROPERTIES FOLDER test)
 
