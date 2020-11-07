@@ -1,45 +1,44 @@
 #include <parsing.hh>
 
 #include <catch.hpp>
+#include <sstream>
 
-TEST_CASE("theory") {
+template <typename T>
+std::string str(T &&x) {
+    std::ostringstream oss;
+    oss << x;
+    return oss.str();
+}
+
+TEST_CASE("parsing") {
     Clingo::Control ctl;
     ctl.add("base", {}, THEORY);
 
     SECTION("example 1") {
-        ctl.add("base", {},
-            "&sum { x1; x2 } <= 20.\n"
-            "&sum { x1; x3 } = 5.\n"
-            "&sum { x2; x3 } >= 10.\n");
+        ctl.add("base", {}, "&sum { x2; x3 } >= 10.\n");
         ctl.ground({{"base", {}}});
 
-        for (auto const &eq : evaluate_theory(ctl.theory_atoms())) {
-            std::cerr << eq << std::endl;
-        }
+        auto eqs = evaluate_theory(ctl.theory_atoms());
+        REQUIRE(eqs.size() == 1);
+        REQUIRE(str(eqs.front()) == "x2 + x3 >= 10");
     }
 
     SECTION("example 2") {
-        ctl.add("base", {},
-            "&sum { x } >= 2.\n"
-            "&sum { x } <= 0.\n");
+        ctl.add("base", {}, "&sum { -x } <= 0.\n");
         ctl.ground({{"base", {}}});
 
-        for (auto const &eq : evaluate_theory(ctl.theory_atoms())) {
-            std::cerr << eq << std::endl;
-        }
+        auto eqs = evaluate_theory(ctl.theory_atoms());
+        REQUIRE(eqs.size() == 1);
+        REQUIRE(str(eqs.front()) == "-x <= 0");
     }
 
     SECTION("example 3") {
-        ctl.add("base", {},
-            "&sum {   x;   y } >= 2.\n"
-            "&sum { 2*x;  -y } >= 0.\n"
-            "&sum {  -x; 2*y } >= 1.\n"
-            );
+        ctl.add("base", {}, "&sum {  -x; -2/(-3)*y } = -1.\n");
         ctl.ground({{"base", {}}});
 
-        for (auto const &eq : evaluate_theory(ctl.theory_atoms())) {
-            std::cerr << eq << std::endl;
-        }
+        auto eqs = evaluate_theory(ctl.theory_atoms());
+        REQUIRE(eqs.size() == 1);
+        REQUIRE(str(eqs.front()) == "-x + 2/3*y = -1");
     }
 };
 
