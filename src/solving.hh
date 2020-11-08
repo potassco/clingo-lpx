@@ -50,6 +50,7 @@ private:
     State select_(index_t &ret_i, index_t &ret_j, Number &ret_v);
 
     std::vector<Equation> equations_;
+    std::unordered_map<Clingo::Symbol, index_t> indices_;
     Tableau tableau_;
     std::vector<Bounds> bounds_;
     std::vector<Number> assignment_;

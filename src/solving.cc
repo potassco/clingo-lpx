@@ -10,29 +10,58 @@ Solver::Solver(std::vector<Equation> &&equations)
 : equations_{std::move(equations)} { }
 
 void Solver::prepare() {
-    std::unordered_map<Clingo::Symbol, index_t> indices;
-    index_t i{0};
-    for (auto var : vars_()) {
-        indices.emplace(var, i++);
-    }
-
-    n_non_basic_ = indices.size();
-    n_basic_ = equations_.size();
-
     assignment_.clear();
-    assignment_.resize(n_basic_ + n_non_basic_, 0);
-
-    tableau_.clear();
     bounds_.clear();
-    bounds_.reserve(n_non_basic_ + n_basic_);
-    bounds_.resize(n_non_basic_);
-    i = 0;
+    tableau_.clear();
+    variables_.clear();
+    indices_.clear();
+    statistics_.reset();
+
+    index_t i{0};
+    index_t n_vars{0};
+    std::vector<index_t> basic;
+    std::vector<index_t> non_basic;
     for (auto const &x : equations_) {
+        // combine coefficients in equation
+        std::vector<Clingo::Symbol> vars;
+        std::unordered_map<Clingo::Symbol, Number> cos;
         for (auto const &y : x.lhs) {
-            tableau_.set(i, indices[y.var], tableau_.get(i, indices[y.var]) + y.co);
+            if (y.co == 0) {
+                continue;
+            }
+            if (auto [it, res] = cos.emplace(y.var, y.co); !res) {
+                it->second += y.co;
+                if (it->second == 0) {
+                    cos.erase(it);
+                }
+            }
+            else {
+                vars.emplace_back(y.var);
+            }
+        }
+        // add the equation
+        // TODO: if cos.size() == 1 we do not have to add the equation
+        // but can add a bound for the variable and updating its value to fullfill the bound
+        for (auto &var : vars) {
+            if (auto it = cos.find(var); it != cos.end()) {
+                auto [jt, res] = indices_.emplace(var, n_vars);
+                if (res) {
+                    non_basic.emplace_back(n_vars);
+                    bounds_.emplace_back();
+                    assignment_.emplace_back();
+                    ++n_vars;
+                }
+                index_t j = std::distance(non_basic.begin(), std::lower_bound(non_basic.begin(), non_basic.end(), jt->second));
+                tableau_.set(i, j, it->second);
+            }
         }
 
+        // add a basic variable for the equation
+        basic.emplace_back(n_vars);
         bounds_.emplace_back();
+        assignment_.emplace_back();
+        ++n_vars;
+        ++i;
         switch (x.op) {
             case Operator::LessEqual: {
                 bounds_.back().upper = x.rhs;
@@ -47,18 +76,17 @@ void Solver::prepare() {
                 bounds_.back().upper = x.rhs;
                 break;
             }
-
         }
-        ++i;
     }
 
-    variables_.clear();
-    for (index_t i = 0; i < n_non_basic_ + n_basic_; ++i) {
-        variables_.emplace_back(i);
+    n_non_basic_ = non_basic.size();
+    for (auto &var : non_basic) {
+        variables_.emplace_back(var);
     }
-
-    statistics_.reset();
-
+    n_basic_ = basic.size();
+    for (auto &var : basic) {
+        variables_.emplace_back(var);
+    }
     assert_extra(check_tableau_());
     assert_extra(check_non_basic_());
 }
@@ -74,7 +102,12 @@ std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
                 std::vector<std::pair<Clingo::Symbol, Number>> ret;
                 index_t k{0};
                 for (auto var : vars_()) {
-                    ret.emplace_back(var, assignment_[variables_[k++]]);
+                    if (auto it = indices_.find(var); it != indices_.end()) {
+                        ret.emplace_back(var, assignment_[it->second]);
+                    }
+                    else {
+                        ret.emplace_back(var, 0);
+                    }
                 }
                 return ret;
             }
@@ -142,7 +175,8 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
     assignment_[variables_[j]] += dj;
     tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
         if (k != i) {
-            assignment_[variables_[n_non_basic_ + k]] += (a_kj * dj);
+            // Note that a bound can become conflicting here
+            assignment_[variables_[n_non_basic_ + k]] += a_kj * dj;
         }
     });
     assert_extra(check_tableau_());
