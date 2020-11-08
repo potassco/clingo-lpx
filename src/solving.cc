@@ -24,6 +24,8 @@ void Solver::prepare() {
 
     tableau_.clear();
     bounds_.clear();
+    bounds_.reserve(n_non_basic_ + n_basic_);
+    bounds_.resize(n_non_basic_);
     i = 0;
     for (auto const &x : equations_) {
         for (auto const &y : x.lhs) {
@@ -56,6 +58,9 @@ void Solver::prepare() {
     }
 
     statistics_.reset();
+
+    assert_extra(check_tableau_());
+    assert_extra(check_non_basic_());
 }
 
 std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
@@ -99,13 +104,27 @@ std::vector<Clingo::Symbol> Solver::vars_() {
     return var_vec;
 };
 
-bool Solver::check_() {
+bool Solver::check_tableau_() {
     for (index_t i{0}; i < n_basic_; ++i) {
         Number v_i{0};
         tableau_.update_row(i, [&](index_t j, Number const &a_ij){
             v_i += assignment_[variables_[j]] * a_ij;
         });
         if (v_i != assignment_[variables_[n_non_basic_ + i]]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Solver::check_non_basic_() {
+    for (index_t j = 0; j < n_non_basic_; ++j) {
+        auto xj = variables_[j];
+        auto const &[lower, upper] = bounds_[xj];
+        if (lower && assignment_[xj] < *lower) {
+            return false;
+        }
+        if (upper && assignment_[xj] > *upper) {
             return false;
         }
     }
@@ -126,7 +145,7 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
             assignment_[variables_[n_non_basic_ + k]] += (a_kj * dj);
         }
     });
-    assert(check_());
+    assert_extra(check_tableau_());
 
     // swap variables x_i and x_j
     std::swap(variables_[ii], variables_[j]);
@@ -162,7 +181,8 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
     });
 
     ++statistics_.pivots_;
-    assert(check_());
+    assert_extra(check_tableau_());
+    assert_extra(check_non_basic_());
 }
 
 Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
@@ -181,16 +201,12 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
     for (auto [i, xi] : basic) {
         auto const &axi = assignment_[xi];
 
-        if (xi < n_non_basic_) {
-            continue;
-        }
-
-        if (auto const &li = bounds_[xi - n_non_basic_].lower; li && axi < *li) {
+        if (auto const &li = bounds_[xi].lower; li && axi < *li) {
             for (auto [j, xj] : non_basic) {
                 auto const &a_ij = tableau_.get(i, j);
                 auto const &v_xj = assignment_[xj];
-                if ((a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].upper || v_xj < *bounds_[xj - n_non_basic_].upper)) ||
-                    (a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].lower || v_xj > *bounds_[xj - n_non_basic_].lower))) {
+                if ((a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj].upper || v_xj < *bounds_[xj].upper)) ||
+                    (a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj].lower || v_xj > *bounds_[xj].lower))) {
                     ret_i = i;
                     ret_j = j;
                     ret_v = *li;
@@ -200,12 +216,12 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
             return State::Unsatisfiable;
         }
 
-        if (auto const &ui = bounds_[xi - n_non_basic_].upper; ui && axi > *ui) {
+        if (auto const &ui = bounds_[xi].upper; ui && axi > *ui) {
             for (auto [j, xj] : non_basic) {
                 auto const &a_ij = tableau_.get(i, j);
                 auto const &v_xj = assignment_[xj];
-                if ((a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].upper || v_xj < *bounds_[xj - n_non_basic_].upper)) ||
-                    (a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj - n_non_basic_].lower || v_xj > *bounds_[xj - n_non_basic_].lower))) {
+                if ((a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj].upper || v_xj < *bounds_[xj].upper)) ||
+                    (a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj].lower || v_xj > *bounds_[xj].lower))) {
                     ret_i = i;
                     ret_j = j;
                     ret_v = *ui;

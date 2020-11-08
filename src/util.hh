@@ -6,6 +6,13 @@
 #include <cassert>
 #include <gmpxx.h>
 
+#define CLINGOLP_EXTRA_DEBUG
+#ifdef CLINGOLP_EXTRA_DEBUG
+#   define assert_extra(X) assert(X)
+#else
+#   define assert_extra(X)
+#endif
+
 using Number = mpq_class;
 using index_t = uint32_t;
 

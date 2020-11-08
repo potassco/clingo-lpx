@@ -38,8 +38,10 @@ private:
     //! Return the variables occuring in the equations.
     std::vector<Clingo::Symbol> vars_();
 
-    //! Check if the state invariants hold.
-    bool check_();
+    //! Check if the tableau.
+    bool check_tableau_();
+    //! Check if bounds of basic variables are satisfied.
+    bool check_non_basic_();
 
     //! Pivots basic variable `x_i` and non-basic variable `x_j`.
     void pivot_(index_t i, index_t j, Number const &v);
