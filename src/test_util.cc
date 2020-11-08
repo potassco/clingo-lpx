@@ -15,6 +15,11 @@ TEST_CASE("util") {
         REQUIRE(t.size() == 1);
         REQUIRE(t.get(0, 0) == 2);
 
+        // set 3 at (0,0)
+        t.set(0, 0, 3);
+        REQUIRE(t.size() == 1);
+        REQUIRE(t.get(0, 0) == 3);
+
         // remove at (0,0)
         t.set(0, 0, 0);
         REQUIRE(t.get(0, 0) == 0);

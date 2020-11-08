@@ -32,6 +32,8 @@ public:
     //! Solve the (previously prepared) problem.
     std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> solve();
 
+    Statistics const &statistics() const;
+
 private:
     //! Return the variables occuring in the equations.
     std::vector<Clingo::Symbol> vars_();

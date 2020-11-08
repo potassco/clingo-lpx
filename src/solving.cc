@@ -83,6 +83,10 @@ std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
     }
 }
 
+Statistics const &Solver::statistics() const {
+    return statistics_;
+}
+
 std::vector<Clingo::Symbol> Solver::vars_() {
     std::unordered_set<Clingo::Symbol> var_set;
     for (auto const &x : equations_) {
@@ -99,10 +103,9 @@ bool Solver::check_() {
     for (index_t i{0}; i < n_basic_; ++i) {
         Number v_i{0};
         tableau_.update_row(i, [&](index_t j, Number const &a_ij){
-            v_i += assignment_[j] * a_ij;
-
+            v_i += assignment_[variables_[j]] * a_ij;
         });
-        if (v_i != assignment_[n_non_basic_ + i]) {
+        if (v_i != assignment_[variables_[n_non_basic_ + i]]) {
             return false;
         }
     }
@@ -115,9 +118,18 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
 
     // adjust assignment
     auto ii = i + n_non_basic_;
-    Number dj = (v - assignment_[ii]) / a_ij;
-    assignment_[ii] = assignment_[j] + dj;
-    assignment_[j] = v;
+    Number dj = (v - assignment_[variables_[ii]]) / a_ij;
+    assignment_[variables_[ii]] = v;
+    assignment_[variables_[j]] += dj;
+    tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
+        if (k != i) {
+            assignment_[variables_[n_non_basic_ + k]] += (a_kj * dj);
+        }
+    });
+    assert(check_());
+
+    // swap variables x_i and x_j
+    std::swap(variables_[ii], variables_[j]);
 
     // invert row i
     tableau_.update_row(i, [&](index_t k, Number &a_ik) {
@@ -131,34 +143,23 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
 
     // eliminate x_j from rows k != i
     tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
-        if (k == i) {
-            return;
+        if (k != i) {
+            tableau_.update_row(i, [&](index_t l, Number const &a_il) {
+                Number a_kl;
+                if (l == j) {
+                    a_kl = a_kj / a_ij;
+                }
+                else {
+                    a_kl = tableau_.get(k, l) + a_il * a_kj;
+                }
+                // Note that this call does not invalidate active iterators:
+                // - row i is unaffected because k != i
+                // - there are no insertions in column j because each a_kj != 0
+                //   (values in the column can change though)
+                tableau_.set(k, l, a_kl);
+            });
         }
-        tableau_.update_row(i, [&](index_t l, Number const &a_il) {
-            Number a_kl;
-            if (l == j) {
-                a_kl = a_kj / a_ij;
-            }
-            else {
-                a_kl = tableau_.get(k, l) + a_il * a_kj;
-            }
-            tableau_.set(k, l, a_kl);
-        });
-        // TODO:
-        // at this point we can already check if the basic variable x_k is conflicting
-        // and we can identify the best non-basic variable for pivoting
-        // for not having to iterate in the select function
-        // most notably we can already check if the problem is unsatisfiable here
-        // if x_k is conflicting but cannot be adjusted, then the problem is unsatisfiable
-        Number v_k{0};
-        tableau_.update_row(k, [&](index_t l, Number const &a_kl) {
-            v_k += a_kl * assignment_[l];
-        });
-        assignment_[n_non_basic_ + k] = v_k;
     });
-
-    // swap variables x_i and x_j
-    std::swap(variables_[ii], variables_[j]);
 
     ++statistics_.pivots_;
     assert(check_());

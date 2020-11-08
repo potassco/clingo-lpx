@@ -102,7 +102,7 @@ public:
             }
         }
         else {
-            auto it = vals_.emplace(Index{i, j}, a).first;
+            auto it = vals_.insert_or_assign(Index{i, j}, a).first;
             if (!it->first.in_row(true)) {
                 reserve_row_(i);
                 rows_[i].push_back(j);
