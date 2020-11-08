@@ -1,16 +1,31 @@
 #include <problem.hh>
 
-std::ostream &operator<<(std::ostream &out, Operator const &op) {
-    switch (op) {
-        case Operator::LessEqual: {
+Relation invert(Relation rel) {
+    switch (rel) {
+        case Relation::LessEqual: {
+            return Relation::GreaterEqual;
+        }
+        case Relation::GreaterEqual: {
+            return Relation::LessEqual;
+        }
+        case Relation::Equal: {
+            return Relation::Equal;
+        }
+    }
+    assert(false);
+}
+
+std::ostream &operator<<(std::ostream &out, Relation const &rel) {
+    switch (rel) {
+        case Relation::LessEqual: {
             out << "<=";
             break;
         }
-        case Operator::GreaterEqual: {
+        case Relation::GreaterEqual: {
             out << ">=";
             break;
         }
-        case Operator::Equal: {
+        case Relation::Equal: {
             out << "=";
             break;
         }
@@ -29,9 +44,9 @@ std::ostream &operator<<(std::ostream &out, Term const &term) {
     return out;
 }
 
-std::ostream &operator<<(std::ostream &out, Equation const &eq) {
+std::ostream &operator<<(std::ostream &out, Inequality const &x) {
     bool plus{false};
-    for (auto const &term : eq.lhs) {
+    for (auto const &term : x.lhs) {
         if (plus) {
             out << " + ";
         }
@@ -40,9 +55,9 @@ std::ostream &operator<<(std::ostream &out, Equation const &eq) {
         }
         out << term;
     }
-    if (eq.lhs.empty()) {
+    if (x.lhs.empty()) {
         out << "0";
     }
-    out << " " << eq.op << " " << eq.rhs;
+    out << " " << x.rel << " " << x.rhs;
     return out;
 }

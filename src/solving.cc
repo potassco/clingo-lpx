@@ -2,29 +2,32 @@
 
 #include <unordered_set>
 
-void Statistics::reset() {
-    *this = {};
-}
+struct Solver::Prepare {
+    index_t add_non_basic(Solver &s, Clingo::Symbol var) {
+        auto [jt, res] = s.indices_.emplace(var, n_vars);
+        if (res) {
+            non_basic.emplace_back(n_vars);
+            s.bounds_.emplace_back();
+            s.assignment_.emplace_back();
+            ++n_vars;
+        }
+        return std::distance(non_basic.begin(), std::lower_bound(non_basic.begin(), non_basic.end(), jt->second));
+    }
 
-Solver::Solver(std::vector<Equation> &&equations)
-: equations_{std::move(equations)} { }
+    index_t add_basic(Solver &s) {
+        basic.emplace_back(n_vars);
+        s.bounds_.emplace_back();
+        s.assignment_.emplace_back();
+        ++n_vars;
+        return basic.size() - 1;
+    }
 
-void Solver::prepare() {
-    assignment_.clear();
-    bounds_.clear();
-    tableau_.clear();
-    variables_.clear();
-    indices_.clear();
-    statistics_.reset();
-
-    index_t i{0};
-    index_t n_vars{0};
-    std::vector<index_t> basic;
-    std::vector<index_t> non_basic;
-    for (auto const &x : equations_) {
-        // combine coefficients in equation
+    std::vector<std::pair<index_t, Number>> add_row(Solver &s, Inequality const &x) {
+        std::vector<std::pair<index_t, Number>> row;
         std::vector<Clingo::Symbol> vars;
         std::unordered_map<Clingo::Symbol, Number> cos;
+
+        // combine cofficients
         for (auto const &y : x.lhs) {
             if (y.co == 0) {
                 continue;
@@ -39,56 +42,145 @@ void Solver::prepare() {
                 vars.emplace_back(y.var);
             }
         }
-        // add the equation
-        // TODO: if cos.size() == 1 we do not have to add the equation
-        // but can add a bound for the variable and updating its value to fullfill the bound
+
+        // add non-basic variables for the remaining non-zero coefficients
         for (auto &var : vars) {
             if (auto it = cos.find(var); it != cos.end()) {
-                auto [jt, res] = indices_.emplace(var, n_vars);
-                if (res) {
-                    non_basic.emplace_back(n_vars);
-                    bounds_.emplace_back();
-                    assignment_.emplace_back();
-                    ++n_vars;
+                index_t j = add_non_basic(s, var);
+                row.emplace_back(j, it->second);
+            }
+        }
+
+        return row;
+    }
+
+    void finish(Solver &s) {
+        s.n_non_basic_ = non_basic.size();
+        for (auto &var : non_basic) {
+            s.variables_.emplace_back(var);
+        }
+        s.n_basic_ = basic.size();
+        for (auto &var : basic) {
+            s.variables_.emplace_back(var);
+        }
+    }
+
+    index_t n_vars{0};
+    std::vector<index_t> basic;
+    std::vector<index_t> non_basic;
+};
+
+bool Solver::Bounds::update_lower(Number const &v) {
+    if (!lower || v > *lower) {
+        lower = v;
+    }
+    return !upper || *lower <= *upper;
+}
+
+bool Solver::Bounds::update_upper(Number const &v) {
+    if (!upper || v < *upper) {
+        upper = v;
+    }
+    return !lower || *lower <= *upper;
+}
+
+bool Solver::Bounds::update(Relation rel, Number const &v) {
+    switch (rel) {
+        case Relation::LessEqual: {
+            return update_upper(v);
+        }
+        case Relation::GreaterEqual: {
+            return update_lower(v);
+        }
+        case Relation::Equal: {
+            return update_lower(v) && update_upper(v);
+        }
+    }
+    assert(false);
+}
+
+void Statistics::reset() {
+    *this = {};
+}
+
+Solver::Solver(std::vector<Inequality> &&inequalities)
+: inequalities_{std::move(inequalities)} { }
+
+bool Solver::prepare() {
+    assignment_.clear();
+    bounds_.clear();
+    tableau_.clear();
+    variables_.clear();
+    indices_.clear();
+    statistics_.reset();
+
+    Prepare prep;
+    std::vector<index_t> update;
+    for (auto const &x : inequalities_) {
+        // transform inequality into row suitable for tableau
+        auto row = prep.add_row(*this, x);
+
+        // check bound against 0
+        if (row.empty()) {
+            switch (x.rel) {
+                case Relation::LessEqual: {
+                    if (x.rhs > 0) {
+                        return false;
+                    }
+                    break;
                 }
-                index_t j = std::distance(non_basic.begin(), std::lower_bound(non_basic.begin(), non_basic.end(), jt->second));
-                tableau_.set(i, j, it->second);
+                case Relation::GreaterEqual: {
+                    if (x.rhs < 0) {
+                        return false;
+                    }
+                    break;
+                }
+                case Relation::Equal: {
+                    if (x.rhs != 0) {
+                        return false;
+                    }
+                    break;
+                }
             }
         }
+        // add a bound to a non-basic variable
+        else if (row.size() == 1) {
+            auto const &[j, v] = row.front();
+            if (!bounds_[j].upper && !bounds_[j].lower) {
+                update.emplace_back(j);
+            }
+            if (!bounds_[j].update(v < 0 ? invert(x.rel) : x.rel, x.rhs / v)) {
+                return false;
+            }
+        }
+        // add an inequality
+        else {
+            auto i = prep.add_basic(*this);
+            if (!bounds_.back().update(x.rel, x.rhs)) {
+                return false;
+            }
 
-        // add a basic variable for the equation
-        basic.emplace_back(n_vars);
-        bounds_.emplace_back();
-        assignment_.emplace_back();
-        ++n_vars;
-        ++i;
-        switch (x.op) {
-            case Operator::LessEqual: {
-                bounds_.back().upper = x.rhs;
-                break;
-            }
-            case Operator::GreaterEqual: {
-                bounds_.back().lower = x.rhs;
-                break;
-            }
-            case Operator::Equal: {
-                bounds_.back().lower = x.rhs;
-                bounds_.back().upper = x.rhs;
-                break;
+            for (auto const &[j, v] : row) {
+                tableau_.set(i, j, v);
             }
         }
     }
 
-    n_non_basic_ = non_basic.size();
-    for (auto &var : non_basic) {
-        variables_.emplace_back(var);
+    prep.finish(*this);
+
+    for (auto j : update) {
+        if (bounds_[j].lower) {
+            update_(j, *bounds_[j].lower);
+        }
+        else if (bounds_[j].upper) {
+            update_(j, *bounds_[j].upper);
+        }
     }
-    n_basic_ = basic.size();
-    for (auto &var : basic) {
-        variables_.emplace_back(var);
-    }
+
     assert_extra(check_tableau_());
     assert_extra(check_non_basic_());
+
+    return true;
 }
 
 std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
@@ -127,7 +219,7 @@ Statistics const &Solver::statistics() const {
 
 std::vector<Clingo::Symbol> Solver::vars_() {
     std::unordered_set<Clingo::Symbol> var_set;
-    for (auto const &x : equations_) {
+    for (auto const &x : inequalities_) {
         for (auto const &y : x.lhs) {
             var_set.emplace(y.var);
         }
@@ -162,6 +254,14 @@ bool Solver::check_non_basic_() {
         }
     }
     return true;
+}
+
+void Solver::update_(index_t j, Number v) {
+    auto const &a_xj = assignment_[variables_[j]];
+    tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
+        assignment_[variables_[n_non_basic_ + i]] += a_ij * (v - a_xj);
+    });
+    assignment_[variables_[j]] = v;
 }
 
 void Solver::pivot_(index_t i, index_t j, Number const &v) {
@@ -226,6 +326,7 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
     for (index_t i = 0; i < n_basic_; ++i) {
         basic.emplace_back(i, variables_[i + n_non_basic_]);
     }
+        // Note that a bound can become conflicting here
     std::sort(basic.begin(), basic.end(), [](auto const &a, auto const &b){ return a.second < b.second; });
     for (index_t j = 0; j < n_non_basic_; ++j) {
         non_basic.emplace_back(j, variables_[j]);

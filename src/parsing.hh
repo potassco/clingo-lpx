@@ -13,4 +13,4 @@ constexpr char const *THEORY = R"(
 }.
 )";
 
-[[nodiscard]] std::vector<Equation> evaluate_theory(Clingo::TheoryAtoms const &theory);
+[[nodiscard]] std::vector<Inequality> evaluate_theory(Clingo::TheoryAtoms const &theory);

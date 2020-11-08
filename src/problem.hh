@@ -5,13 +5,15 @@
 
 using Number = mpq_class;
 
-enum class Operator {
+enum class Relation {
     LessEqual = 0,
     GreaterEqual = 1,
     Equal = 2,
 };
 
-std::ostream &operator<<(std::ostream &out, Operator const &op);
+[[nodiscard]] Relation invert(Relation rel);
+
+std::ostream &operator<<(std::ostream &out, Relation const &rel);
 
 struct Term {
     Number co;
@@ -20,10 +22,10 @@ struct Term {
 
 std::ostream &operator<<(std::ostream &out, Term const &term);
 
-struct Equation {
+struct Inequality {
     std::vector<Term> lhs;
     Number rhs;
-    Operator op;
+    Relation rel;
 };
 
-std::ostream &operator<<(std::ostream &out, Equation const &eq);
+std::ostream &operator<<(std::ostream &out, Inequality const &x);

@@ -72,23 +72,23 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
     return throw_syntax_error<Number>();
 }
 
-[[nodiscard]] Operator evaluate_cmp(char const *op) {
-    if (std::strcmp(op, "<=") == 0) {
-        return Operator::LessEqual;
+[[nodiscard]] Relation evaluate_cmp(char const *rel) {
+    if (std::strcmp(rel, "<=") == 0) {
+        return Relation::LessEqual;
     }
-    if (std::strcmp(op, ">=") == 0) {
-        return Operator::GreaterEqual;
+    if (std::strcmp(rel, ">=") == 0) {
+        return Relation::GreaterEqual;
     }
-    if (std::strcmp(op, "=") == 0) {
-        return Operator::Equal;
+    if (std::strcmp(rel, "=") == 0) {
+        return Relation::Equal;
     }
-    return throw_syntax_error<Operator>();
+    return throw_syntax_error<Relation>();
 }
 
 } // namespace
 
-[[nodiscard]] std::vector<Equation> evaluate_theory(Clingo::TheoryAtoms const &theory) {
-    std::vector<Equation> eqs;
+[[nodiscard]] std::vector<Inequality> evaluate_theory(Clingo::TheoryAtoms const &theory) {
+    std::vector<Inequality> iqs;
     for (auto const &atom : theory) {
         if (match(atom.term(), "sum", 0)) {
             std::vector<Term> lhs;
@@ -109,10 +109,10 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
                     lhs.emplace_back(Term{1, evaluate_var(term)});
                 }
             }
-            eqs.emplace_back(Equation{std::move(lhs),
+            iqs.emplace_back(Inequality{std::move(lhs),
                                       evaluate_num(atom.guard().second),
                                       evaluate_cmp(atom.guard().first)});
         }
     }
-    return eqs;
+    return iqs;
 }
