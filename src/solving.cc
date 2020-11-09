@@ -6,18 +6,20 @@ struct Solver::Prepare {
     index_t add_non_basic(Solver &s, Clingo::Symbol var) {
         auto [jt, res] = s.indices_.emplace(var, n_vars);
         if (res) {
-            non_basic.emplace_back(n_vars);
-            s.bounds_.emplace_back();
-            s.assignment_.emplace_back();
+            s.variables_.emplace_back();
+            // Note: that this makes it possible to use `Solver::non_basic_`
+            // during initialization
+            s.variables_[s.n_non_basic_].index = n_vars;
+            s.variables_[n_vars].reserve_index = s.n_non_basic_;
             ++n_vars;
+            ++s.n_non_basic_;
         }
-        return std::distance(non_basic.begin(), std::lower_bound(non_basic.begin(), non_basic.end(), jt->second));
+        return s.variables_[jt->second].reserve_index;
     }
 
     index_t add_basic(Solver &s) {
         basic.emplace_back(n_vars);
-        s.bounds_.emplace_back();
-        s.assignment_.emplace_back();
+        s.variables_.emplace_back();
         ++n_vars;
         return basic.size() - 1;
     }
@@ -55,36 +57,34 @@ struct Solver::Prepare {
     }
 
     void finish(Solver &s) {
-        s.n_non_basic_ = non_basic.size();
-        for (auto &var : non_basic) {
-            s.variables_.emplace_back(var);
-        }
         s.n_basic_ = basic.size();
-        for (auto &var : basic) {
-            s.variables_.emplace_back(var);
+        int i = s.n_non_basic_;
+        for (auto &index : basic) {
+            s.variables_[index].reserve_index = i;
+            s.variables_[i].index = index;
+            ++i;
         }
     }
 
     index_t n_vars{0};
     std::vector<index_t> basic;
-    std::vector<index_t> non_basic;
 };
 
-bool Solver::Bounds::update_lower(Number const &v) {
+bool Solver::Variable::update_lower(Number const &v) {
     if (!lower || v > *lower) {
         lower = v;
     }
     return !upper || *lower <= *upper;
 }
 
-bool Solver::Bounds::update_upper(Number const &v) {
+bool Solver::Variable::update_upper(Number const &v) {
     if (!upper || v < *upper) {
         upper = v;
     }
     return !lower || *lower <= *upper;
 }
 
-bool Solver::Bounds::update(Relation rel, Number const &v) {
+bool Solver::Variable::update(Relation rel, Number const &v) {
     switch (rel) {
         case Relation::LessEqual: {
             return update_upper(v);
@@ -99,6 +99,10 @@ bool Solver::Bounds::update(Relation rel, Number const &v) {
     assert(false);
 }
 
+bool Solver::Variable::has_conflict() {
+    return (lower && value < *lower) || (upper && value > *upper);
+}
+
 void Statistics::reset() {
     *this = {};
 }
@@ -106,13 +110,30 @@ void Statistics::reset() {
 Solver::Solver(std::vector<Inequality> &&inequalities)
 : inequalities_{std::move(inequalities)} { }
 
+Solver::Variable &Solver::basic_(index_t i) {
+    return variables_[variables_[i + n_non_basic_].index];
+}
+
+Solver::Variable &Solver::non_basic_(index_t j) {
+    return variables_[variables_[j].index];
+}
+
+void Solver::enqueue_(index_t i) {
+    auto ii = variables_[i + n_non_basic_].index;
+    auto &xi = variables_[ii];
+    if (!xi.queued && xi.has_conflict()) {
+        conflicts_.emplace(ii);
+        xi.queued = true;
+    }
+}
+
 bool Solver::prepare() {
-    assignment_.clear();
-    bounds_.clear();
     tableau_.clear();
     variables_.clear();
     indices_.clear();
     statistics_.reset();
+    n_basic_ = 0;
+    n_non_basic_ = 0;
 
     Prepare prep;
     std::vector<index_t> update;
@@ -146,17 +167,18 @@ bool Solver::prepare() {
         // add a bound to a non-basic variable
         else if (row.size() == 1) {
             auto const &[j, v] = row.front();
-            if (!bounds_[j].upper && !bounds_[j].lower) {
+            auto &xj = non_basic_(j);
+            if (!xj.upper && !xj.lower) {
                 update.emplace_back(j);
             }
-            if (!bounds_[j].update(v < 0 ? invert(x.rel) : x.rel, x.rhs / v)) {
+            if (!xj.update(v < 0 ? invert(x.rel) : x.rel, x.rhs / v)) {
                 return false;
             }
         }
         // add an inequality
         else {
             auto i = prep.add_basic(*this);
-            if (!bounds_.back().update(x.rel, x.rhs)) {
+            if (!variables_.back().update(x.rel, x.rhs)) {
                 return false;
             }
 
@@ -169,12 +191,17 @@ bool Solver::prepare() {
     prep.finish(*this);
 
     for (auto j : update) {
-        if (bounds_[j].lower) {
-            update_(j, *bounds_[j].lower);
+        auto &xj = non_basic_(j);
+        if (xj.lower) {
+            update_(j, *xj.lower);
         }
-        else if (bounds_[j].upper) {
-            update_(j, *bounds_[j].upper);
+        else if (xj.upper) {
+            update_(j, *xj.upper);
         }
+    }
+
+    for (size_t i = 0; i < n_basic_; ++i) {
+        enqueue_(i);
     }
 
     assert_extra(check_tableau_());
@@ -195,7 +222,7 @@ std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
                 index_t k{0};
                 for (auto var : vars_()) {
                     if (auto it = indices_.find(var); it != indices_.end()) {
-                        ret.emplace_back(var, assignment_[it->second]);
+                        ret.emplace_back(var, variables_[it->second].value);
                     }
                     else {
                         ret.emplace_back(var, 0);
@@ -233,9 +260,9 @@ bool Solver::check_tableau_() {
     for (index_t i{0}; i < n_basic_; ++i) {
         Number v_i{0};
         tableau_.update_row(i, [&](index_t j, Number const &a_ij){
-            v_i += assignment_[variables_[j]] * a_ij;
+            v_i += non_basic_(j).value * a_ij;
         });
-        if (v_i != assignment_[variables_[n_non_basic_ + i]]) {
+        if (v_i != basic_(i).value) {
             return false;
         }
     }
@@ -244,12 +271,11 @@ bool Solver::check_tableau_() {
 
 bool Solver::check_non_basic_() {
     for (index_t j = 0; j < n_non_basic_; ++j) {
-        auto xj = variables_[j];
-        auto const &[lower, upper] = bounds_[xj];
-        if (lower && assignment_[xj] < *lower) {
+        auto &xj = non_basic_(j);
+        if (xj.lower && xj.value < *xj.lower) {
             return false;
         }
-        if (upper && assignment_[xj] > *upper) {
+        if (xj.upper && xj.value > *xj.upper) {
             return false;
         }
     }
@@ -257,32 +283,36 @@ bool Solver::check_non_basic_() {
 }
 
 void Solver::update_(index_t j, Number v) {
-    auto const &a_xj = assignment_[variables_[j]];
+    auto &xj = non_basic_(j);
     tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
-        assignment_[variables_[n_non_basic_ + i]] += a_ij * (v - a_xj);
+        basic_(i).value += a_ij * (v - xj.value);
     });
-    assignment_[variables_[j]] = v;
+    xj.value = v;
 }
 
 void Solver::pivot_(index_t i, index_t j, Number const &v) {
     auto a_ij = tableau_.get(i, j);
     assert(a_ij != 0);
 
+    auto &xi = basic_(i);
+    auto &xj = non_basic_(j);
+
     // adjust assignment
-    auto ii = i + n_non_basic_;
-    Number dj = (v - assignment_[variables_[ii]]) / a_ij;
-    assignment_[variables_[ii]] = v;
-    assignment_[variables_[j]] += dj;
+    Number dj = (v - xi.value) / a_ij;
+    xi.value = v;
+    xj.value += dj;
     tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
         if (k != i) {
-            // Note that a bound can become conflicting here
-            assignment_[variables_[n_non_basic_ + k]] += a_kj * dj;
+            basic_(k).value += a_kj * dj;
+            enqueue_(k);
         }
     });
     assert_extra(check_tableau_());
 
     // swap variables x_i and x_j
-    std::swap(variables_[ii], variables_[j]);
+    std::swap(xi.reserve_index, xj.reserve_index);
+    std::swap(variables_[i + n_non_basic_].index, variables_[j].index);
+    enqueue_(i);
 
     // invert row i
     tableau_.update_row(i, [&](index_t k, Number &a_ik) {
@@ -320,50 +350,52 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
 }
 
 Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
-    // TODO: This can be done while pivoting as well!
-    std::vector<std::pair<index_t, index_t>> basic;
-    std::vector<std::pair<index_t, index_t>> non_basic;
-    for (index_t i = 0; i < n_basic_; ++i) {
-        basic.emplace_back(i, variables_[i + n_non_basic_]);
-    }
-        // Note that a bound can become conflicting here
-    std::sort(basic.begin(), basic.end(), [](auto const &a, auto const &b){ return a.second < b.second; });
-    for (index_t j = 0; j < n_non_basic_; ++j) {
-        non_basic.emplace_back(j, variables_[j]);
-    }
-    std::sort(non_basic.begin(), non_basic.end(), [](auto const &a, auto const &b){ return a.second < b.second; });
+    // This implements Bland's rule selecting the variables with the smallest
+    // indices for pivoting.
+    while (!conflicts_.empty()) {
+        auto &xi = variables_[conflicts_.top()];
+        auto i = xi.reserve_index;
+        assert(conflicts_.top() == variables_[i].index);
+        conflicts_.pop();
+        // the queue might contain variables that meanwhile became basic
+        if (i < n_non_basic_) {
+            continue;
+        }
+        i -= n_non_basic_;
 
-    for (auto [i, xi] : basic) {
-        auto const &axi = assignment_[xi];
-
-        if (auto const &li = bounds_[xi].lower; li && axi < *li) {
-            for (auto [j, xj] : non_basic) {
-                auto const &a_ij = tableau_.get(i, j);
-                auto const &v_xj = assignment_[xj];
-                if ((a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj].upper || v_xj < *bounds_[xj].upper)) ||
-                    (a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj].lower || v_xj > *bounds_[xj].lower))) {
-                    ret_i = i;
-                    ret_j = j;
-                    ret_v = *li;
-                    return State::Unknown;
+        if (xi.lower && xi.value < *xi.lower) {
+            index_t kk = variables_.size();
+            tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
+                auto jj = variables_[j].index;
+                if (jj < kk) {
+                    auto &xj = variables_[jj];
+                    if ((a_ij > 0 && (!xj.upper || xj.value < *xj.upper)) ||
+                        (a_ij < 0 && (!xj.lower || xj.value > *xj.lower))) {
+                        kk = jj;
+                        ret_i = i;
+                        ret_j = j;
+                        ret_v = *xi.lower;
+                    }
                 }
-            }
-            return State::Unsatisfiable;
+            });
+            return kk == variables_.size() ? State::Unsatisfiable : State::Unknown;
         }
 
-        if (auto const &ui = bounds_[xi].upper; ui && axi > *ui) {
-            for (auto [j, xj] : non_basic) {
-                auto const &a_ij = tableau_.get(i, j);
-                auto const &v_xj = assignment_[xj];
-                if ((a_ij < 0 && (xj < n_non_basic_ || !bounds_[xj].upper || v_xj < *bounds_[xj].upper)) ||
-                    (a_ij > 0 && (xj < n_non_basic_ || !bounds_[xj].lower || v_xj > *bounds_[xj].lower))) {
-                    ret_i = i;
-                    ret_j = j;
-                    ret_v = *ui;
-                    return State::Unknown;
+        if (xi.upper && xi.value > *xi.upper) {
+            index_t kk = variables_.size();
+            tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
+                auto jj = variables_[j].index;
+                if (jj < kk) {
+                    auto &xj = variables_[jj];
+                    if ((a_ij < 0 && (!xj.upper || xj.value < *xj.upper)) ||
+                        (a_ij > 0 && (!xj.lower || xj.value > *xj.lower))) {
+                        ret_i = i;
+                        ret_j = j;
+                        ret_v = *xi.upper;
+                    }
                 }
-            }
-            return State::Unsatisfiable;
+            });
+            return kk == variables_.size() ? State::Unsatisfiable : State::Unknown;
         }
     }
 
