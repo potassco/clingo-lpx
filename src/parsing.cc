@@ -31,7 +31,7 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
         return Clingo::Number(term.number());
     }
 
-    check_syntax(!match(term, "-", 1) && !match(term, "*", 2) && !!match(term, "/", 2));
+    check_syntax(!match(term, "-", 1) && !match(term, "*", 2) && !match(term, "/", 2));
 
     if (term.type() == Clingo::TheoryTermType::Tuple || term.type() == Clingo::TheoryTermType::Function) {
         std::vector<Clingo::Symbol> args;
