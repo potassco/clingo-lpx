@@ -2,6 +2,15 @@
 
 A simplistic simplex solver for checking satisfiability of a set of equations.
 
+## Installation
+
+To compile the package, [cmake], [gmp], [clingo], and a C++ compiler supporting C++17 have to be installed.
+All these requirements can be installed with [anaconda].
+
+[cmake]: https://cmake.org
+[gmp]: https://gmplib.org
+[clingo]: https://github.com/potassco/clingo
+[anaconda]: https://anaconda.org
 
 ## Input format
 

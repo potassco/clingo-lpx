@@ -31,7 +31,18 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
         return Clingo::Number(term.number());
     }
 
-    check_syntax(!match(term, "-", 1) && !match(term, "*", 2) && !match(term, "/", 2));
+    if (match(term, "-", 1)) {
+        auto arg = evaluate(term.arguments().back());
+        if (arg.type() == Clingo::SymbolType::Number) {
+            return Clingo::Number(-arg.number());
+        }
+        if (arg.type() == Clingo::SymbolType::Function) {
+            return Clingo::Function(arg.name(), arg.arguments(), !arg.is_positive());
+        }
+        return throw_syntax_error<Clingo::Symbol>();
+    }
+
+    check_syntax(!match(term, "*", 2) && !match(term, "/", 2));
 
     if (term.type() == Clingo::TheoryTermType::Tuple || term.type() == Clingo::TheoryTermType::Function) {
         std::vector<Clingo::Symbol> args;
@@ -46,6 +57,10 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
 }
 
 [[nodiscard]] Clingo::Symbol evaluate_var(Clingo::TheoryTerm const &term) {
+    check_syntax(
+        !match(term, "-", 1) &&
+        !match(term, "*", 2) &&
+        !match(term, "/", 2));
     check_syntax(
         term.type() == Clingo::TheoryTermType::Tuple ||
         term.type() == Clingo::TheoryTermType::Function ||
