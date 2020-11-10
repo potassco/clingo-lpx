@@ -360,7 +360,7 @@ void Solver::update_(index_t j, Number v) {
 }
 
 void Solver::pivot_(index_t i, index_t j, Number const &v) {
-    auto a_ij = tableau_.get(i, j);
+    auto const &a_ij = tableau_.get(i, j);
     assert(a_ij != 0);
 
     auto &xi = basic_(i);
@@ -404,7 +404,8 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
                     tableau_.update(k, l, [&](Number &a_kl) { a_kl += a_il * a_kj; });
                 }
             });
-            a_kj /= a_ij;
+            // Note that a_ij was inverted above.
+            a_kj *= a_ij;
         }
     });
 
