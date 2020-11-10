@@ -26,6 +26,22 @@ public:
         std::cout << last_assignment_.str() << std::endl;
     }
 
+    bool on_model(Clingo::Model &model) override {
+        last_assignment_.str("");
+        last_assignment_ << "Assignment:\n";
+        bool comma = false;
+        for (auto const &[var, val] : prp_.assignment(model.thread_id())) {
+            if (comma) {
+                last_assignment_ << " ";
+            }
+            else {
+                comma = true;
+            }
+            last_assignment_ << var << "=" << val;
+        }
+        return true;
+    }
+
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) override {
         prp_.on_statistics(step, accu);
     }
@@ -37,21 +53,7 @@ public:
             ctl.load(x);
         }
         ctl.ground({{"base", {}}});
-        auto handle = ctl.solve(Clingo::LiteralSpan{}, this);
-        for (auto const &model : handle) {
-            last_assignment_.str("");
-            last_assignment_ << "Assignment:\n";
-            bool comma = false;
-            for (auto const &[var, val] : prp_.assignment(model.thread_id())) {
-                if (comma) {
-                    last_assignment_ << " ";
-                }
-                else {
-                    comma = true;
-                }
-                last_assignment_ << var << "=" << val;
-            }
-        }
+        ctl.solve(Clingo::LiteralSpan{}, this, false, false).get();
     }
 
 private:
