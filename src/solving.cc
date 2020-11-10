@@ -1,4 +1,5 @@
 #include <solving.hh>
+#include <parsing.hh>
 
 #include <unordered_set>
 
@@ -104,10 +105,10 @@ bool Solver::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bo
             return update_lower(s, ass, bound);
         }
         case Relation::Equal: {
-            return update_upper(s, ass, bound) && update_lower(s, ass, bound);
+            break;
         }
     }
-    assert(false);
+    return update_upper(s, ass, bound) && update_lower(s, ass, bound);
 }
 
 bool Solver::Variable::has_conflict() const {
@@ -119,14 +120,17 @@ void Statistics::reset() {
 }
 
 Solver::Variable &Solver::basic_(index_t i) {
+    assert(i < n_basic_);
     return variables_[variables_[i + n_non_basic_].index];
 }
 
 Solver::Variable &Solver::non_basic_(index_t j) {
+    assert(j < n_non_basic_);
     return variables_[variables_[j].index];
 }
 
 void Solver::enqueue_(index_t i) {
+    assert(i < n_basic_);
     auto ii = variables_[i + n_non_basic_].index;
     auto &xi = variables_[ii];
     if (!xi.queued && xi.has_conflict()) {
@@ -148,24 +152,6 @@ bool Solver::prepare(Clingo::PropagateInit &init, std::vector<Inequality> &&ineq
         x.lit = init.solver_literal(x.lit);
         init.add_watch(x.lit);
     }
-
-    // TODO: we need a datastructure for bounds here. It will probably be a map
-    // from literals to variable, bound pairs. There will be the following
-    // functions:
-    //  - ensure_level:
-    //    - opens a new decision level providing a trail of bounds for
-    //      backtracking
-    //  - propagate_literal:
-    //    - adds all bounds associated with the given literal
-    //      - only bound refinements are considered
-    //      - adds the previous value of a bound to a trail
-    //  - backtrack
-    //    - must be called for each ensure_level call
-    //    - restores the bounds on the trail
-    //    - on backtracking bounds become weaker
-    //    - if we make sure that the last conflict remains in the conflict
-    //      queue, then we can keep the conflict queue around and solve can be
-    //      used to restore a consistent state
 
     // TODO: Bounds associated with a variable form a propagation chain. We can
     // add binary clauses to propagate them. For example
@@ -322,6 +308,10 @@ void Solver::undo() {
     auto offset = trail_offset_.back().second;
     trail_offset_.pop_back();
 
+    assert_extra(check_tableau_());
+    assert_extra(check_basic_());
+    assert_extra(check_non_basic_());
+
     for (auto it = trail_.begin() + offset, ie = trail_.end(); it != ie; ++it) {
         auto [var, rel, bound] = *it;
         switch (rel) {
@@ -477,14 +467,32 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
     assert_extra(check_non_basic_());
 }
 
+bool Solver::select_(bool upper, Variable &x) {
+    if (upper) {
+        if (!x.has_upper() || x.value < x.upper()) {
+            return true;
+        }
+        conflict_clause_.emplace_back(-x.upper_bound->lit);
+    }
+    else {
+        if (!x.has_lower() || x.value > x.lower()) {
+            return true;
+        }
+        conflict_clause_.emplace_back(-x.lower_bound->lit);
+    }
+    return false;
+}
+
 Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret_v) {
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
-    for (; !conflicts_.empty(); conflicts_.pop()) {
-        auto &xi = variables_[conflicts_.top()];
+    while (!conflicts_.empty()) {
+        auto ii = conflicts_.top();
+        auto &xi = variables_[ii];
         auto i = xi.reserve_index;
-        assert(conflicts_.top() == variables_[i].index);
+        assert(ii == variables_[i].index);
+        conflicts_.pop();
         xi.queued = false;
         // the queue might contain variables that meanwhile became basic
         if (i < n_non_basic_) {
@@ -494,47 +502,44 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret
 
         if (xi.has_lower() && xi.value < xi.lower()) {
             conflict_clause_.clear();
+            conflict_clause_.emplace_back(-xi.lower_bound->lit);
             index_t kk = variables_.size();
             tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
                 auto jj = variables_[j].index;
-                if (jj < kk) {
-                    auto &xj = variables_[jj];
-                    if ((a_ij > 0 && (!xj.has_upper() || xj.value < xj.upper())) ||
-                        (a_ij < 0 && (!xj.has_lower() || xj.value > xj.lower()))) {
-                        kk = jj;
-                        ret_i = i;
-                        ret_j = j;
-                        ret_v = &xi.lower();
-                    }
+                if (jj < kk && select_(a_ij > 0, variables_[jj])) {
+                    kk = jj;
+                    ret_i = i;
+                    ret_j = j;
+                    ret_v = &xi.lower();
                 }
             });
             if (kk == variables_.size()) {
+                enqueue_(i);
                 return State::Unsatisfiable;
             }
-            conflicts_.pop();
             return State::Unknown;
         }
 
         if (xi.has_upper() && xi.value > xi.upper()) {
             conflict_clause_.clear();
+            conflict_clause_.emplace_back(-xi.upper_bound->lit);
             index_t kk = variables_.size();
             tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
                 auto jj = variables_[j].index;
-                if (jj < kk) {
-                    auto &xj = variables_[jj];
-                    if ((a_ij < 0 && (!xj.has_upper() || xj.value < xj.upper())) ||
-                        (a_ij > 0 && (!xj.has_upper() || xj.value > xj.lower()))) {
-                        kk = jj;
-                        ret_i = i;
-                        ret_j = j;
-                        ret_v = &xi.upper();
-                    }
+                if (jj < kk && select_(a_ij < 0, variables_[jj])) {
+                    kk = jj;
+                    ret_i = i;
+                    ret_j = j;
+                    ret_v = &xi.upper();
                 }
             });
             if (kk == variables_.size()) {
+                if (!variables_[ii].queued) {
+                    enqueue_(i);
+                    return State::Unsatisfiable;
+                }
                 return State::Unsatisfiable;
             }
-            conflicts_.pop();
             return State::Unknown;
         }
     }
@@ -542,4 +547,36 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret
     assert(check_solution_());
 
     return State::Satisfiable;
+}
+
+void ClingoLPPropagator::init(Clingo::PropagateInit &init) {
+    slvs_.reserve(init.number_of_threads());
+    for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
+        slvs_.emplace_back();
+        if (!slvs_.back().prepare(init, evaluate_theory(init.theory_atoms()))) {
+            return;
+        }
+    }
+}
+
+void ClingoLPPropagator::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
+    auto step_simplex = step.add_subkey("Simplex", Clingo::StatisticsType::Map);
+    auto step_pivots = step_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
+    auto accu_simplex = accu.add_subkey("Simplex", Clingo::StatisticsType::Map);
+    auto accu_pivots = accu_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
+    for (auto const &slv : slvs_) {
+        step_pivots.set_value(slv.statistics().pivots_);
+        accu_pivots.set_value(accu_pivots.value() + slv.statistics().pivots_);
+    }
+}
+
+void ClingoLPPropagator::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
+    auto &slv = slvs_[ctl.thread_id()];
+    if (!slv.solve(ctl, changes)) {
+        ctl.add_clause(slv.reason());
+    }
+}
+
+void ClingoLPPropagator::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
+    slvs_[ctl.thread_id()].undo();
 }

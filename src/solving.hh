@@ -147,3 +147,22 @@ private:
     //! The number of basic variables.
     index_t n_basic_{0};
 };
+
+class ClingoLPPropagator : public Clingo::Propagator {
+public:
+    ClingoLPPropagator() = default;
+    ClingoLPPropagator(ClingoLPPropagator const &) = default;
+    ClingoLPPropagator(ClingoLPPropagator &&) noexcept = default;
+    ClingoLPPropagator &operator=(ClingoLPPropagator const &) = default;
+    ClingoLPPropagator &operator=(ClingoLPPropagator &&) noexcept = default;
+    void init(Clingo::PropagateInit &init) override;
+    void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
+    void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
+    void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
+    [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Number>> assignment(index_t thread_id) const {
+        return slvs_[thread_id].assignment();
+    }
+    ~ClingoLPPropagator() override = default;
+private:
+    std::vector<Solver> slvs_;
+};

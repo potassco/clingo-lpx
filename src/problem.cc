@@ -9,10 +9,10 @@ Relation invert(Relation rel) {
             return Relation::LessEqual;
         }
         case Relation::Equal: {
-            return Relation::Equal;
+            break;
         }
     }
-    assert(false);
+    return Relation::Equal;
 }
 
 std::ostream &operator<<(std::ostream &out, Relation const &rel) {

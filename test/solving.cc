@@ -1,5 +1,5 @@
 #include <parsing.hh>
-#include <propagating.hh>
+#include <solving.hh>
 
 #include <catch.hpp>
 
