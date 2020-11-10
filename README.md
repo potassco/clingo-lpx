@@ -10,7 +10,7 @@ All these requirements can be installed with [anaconda].
 ```bash
 conda create -n simplex -c potassco/label/dev cmake ninja gmp clingo gxx_linux-64
 conda activate simplex
-cmake -B build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
