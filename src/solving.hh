@@ -82,7 +82,7 @@ private:
     void pivot_(index_t i, index_t j, Number const &v);
 
     //! Select pivot point using Bland's rule.
-    State select_(index_t &ret_i, index_t &ret_j, Number &ret_v);
+    State select_(index_t &ret_i, index_t &ret_j, Number const *&ret_v);
 
     //! Get basic variable associated with row `i`.
     Variable &basic_(index_t i);
@@ -98,7 +98,7 @@ private:
     //! The non-basic and basic variables.
     std::vector<Variable> variables_;
     //! The set of conflicting variables.
-    std::priority_queue<index_t, std::vector<index_t>, std::greater<index_t>> conflicts_;
+    std::priority_queue<index_t, std::vector<index_t>, std::greater<>> conflicts_;
     //! Problem and solving statistics.
     Statistics statistics_;
     //! The number of non-basic variables.

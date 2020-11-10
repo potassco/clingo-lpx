@@ -257,7 +257,7 @@ bool Solver::prepare() {
 std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
     index_t i{0};
     index_t j{0};
-    Number v{0};
+    Number const *v{nullptr};
 
     while (true) {
         switch (select_(i, j, v)) {
@@ -278,7 +278,8 @@ std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
                 return std::nullopt;
             }
             case State::Unknown: {
-                pivot_(i, j, v);
+                assert(v != nullptr);
+                pivot_(i, j, *v);
             }
         }
     }
@@ -360,7 +361,7 @@ void Solver::update_(index_t j, Number v) {
 }
 
 void Solver::pivot_(index_t i, index_t j, Number const &v) {
-    auto const &a_ij = tableau_.get(i, j);
+    auto &a_ij = tableau_.unsafe_get(i, j);
     assert(a_ij != 0);
 
     auto &xi = basic_(i);
@@ -385,13 +386,11 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
 
     // invert row i
     tableau_.update_row(i, [&](index_t k, Number &a_ik) {
-        if (k == j) {
-            a_ik = 1 / a_ij;
-        }
-        else {
+        if (k != j) {
             a_ik /= -a_ij;
         }
     });
+    a_ij = 1 / a_ij;
 
     // eliminate x_j from rows k != i
     tableau_.update_col(j, [&](index_t k, Number &a_kj) {
@@ -415,7 +414,7 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
     assert_extra(check_non_basic_());
 }
 
-Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
+Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret_v) {
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
@@ -447,7 +446,7 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
                         kk = jj;
                         ret_i = i;
                         ret_j = j;
-                        ret_v = *xi.lower;
+                        ret_v = &*xi.lower;
                     }
                 }
             });
@@ -465,7 +464,7 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
                         kk = jj;
                         ret_i = i;
                         ret_j = j;
-                        ret_v = *xi.upper;
+                        ret_v = &*xi.upper;
                     }
                 }
             });

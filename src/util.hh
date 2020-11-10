@@ -100,6 +100,15 @@ public:
         return zero_();
     }
 
+    //! Get value at modifiable reference to row `i` and column `j` assuming
+    //! that the value exists.
+    //!
+    //! Only non-zero values should be accessed and they should not be set to
+    //! zero.
+    [[nodiscard]] Number &unsafe_get(index_t i, index_t j) {
+        return vals_.find({i, j})->second;
+    }
+
     //! Set value `a` at row `i` and column `j`.
     void set(index_t i, index_t j, Number const &a) {
         if (a == 0) {
