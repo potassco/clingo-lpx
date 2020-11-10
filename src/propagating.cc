@@ -3,53 +3,35 @@
 #include <parsing.hh>
 #include <solving.hh>
 
-void ClingoLPPropagator::check_(Clingo::PropagateControl &ctl, bool print) {
-    std::vector<Inequality> iqs;
-    std::vector<Clingo::literal_t> reason;
-    for (auto &x : iqs_) {
-        if (ctl.assignment().is_true(x.lit)) {
-            iqs.emplace_back(x);
-            reason.emplace_back(-x.lit);
-        }
-    }
-    Solver slv{std::move(iqs)};
-    if (slv.prepare()) {
-        if (auto ret = slv.solve()) {
-            if (print) {
-                std::cerr << "assignment:";
-                for (auto const &[var, val] : *ret) {
-                    std::cerr << " " << var << "=" << val;
-                }
-                std::cerr << std::endl;
-                std::cerr << "SAT with " << slv.statistics().pivots_ << " pivots" << std::endl;
-            }
-        }
-        else {
-            //std::cerr << "UNSAT with " << slv.statistics().pivots_ << " pivots" << std::endl;
-            ctl.add_clause(reason);
-        }
-    }
-    else {
-        //std::cerr << "UNSAT" << std::endl;
-        ctl.add_clause(reason);
-    }
-}
-
 void ClingoLPPropagator::init(Clingo::PropagateInit &init) {
-    iqs_ = evaluate_theory(init.theory_atoms());
-    for (auto &x : iqs_) {
-        x.lit = init.solver_literal(x.lit);
-        init.add_watch(x.lit);
+    if (!slv.prepare(init, evaluate_theory(init.theory_atoms()))) {
+        return;
     }
 }
 
 void ClingoLPPropagator::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
-    check_(ctl, false);
+    std::cerr << "propagate???" << std::endl;
+    for (auto &lit: changes) {
+        std::cerr << "  lit: " << lit << std::endl;
+    }
+    if (!slv.solve(ctl, changes)) {
+        std::cerr << "sorry but unsat!!!" << std::endl;
+        ctl.add_clause(slv.reason());
+    }
+    else {
+        std::cerr << "we are sat!!!" << std::endl;
+    }
 }
 
 void ClingoLPPropagator::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
+    slv.undo();
 }
 
 void ClingoLPPropagator::check(Clingo::PropagateControl &ctl) {
-    check_(ctl, true);
+    std::cerr << "assignment:";
+    for (auto const &[var, val] : slv.assignment()) {
+        std::cerr << " " << var << "=" << val;
+    }
+    std::cerr << std::endl;
+    std::cerr << "SAT with " << slv.statistics().pivots_ << " pivots" << std::endl;
 }

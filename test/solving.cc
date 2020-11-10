@@ -1,5 +1,5 @@
 #include <parsing.hh>
-#include <solving.hh>
+#include <propagating.hh>
 
 #include <catch.hpp>
 
@@ -12,11 +12,9 @@ bool run(char const *s) {
     ctl.add("base", {}, s);
     ctl.ground({{"base", {}}});
 
-    Solver slv{evaluate_theory(ctl.theory_atoms())};
-    if (!slv.prepare()) {
-        return false;
-    }
-    return slv.solve().has_value();
+    ClingoLPPropagator prp;
+    ctl.register_propagator(prp);
+    return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
 
 } // namespace

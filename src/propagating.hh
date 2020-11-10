@@ -1,6 +1,6 @@
 #pragma once
 
-#include <problem.hh>
+#include <solving.hh>
 
 class ClingoLPPropagator : public Clingo::Propagator {
 public:
@@ -15,6 +15,5 @@ public:
     void check(Clingo::PropagateControl &ctl) override;
     ~ClingoLPPropagator() override = default;
 private:
-    void check_(Clingo::PropagateControl &ctl, bool print);
-    std::vector<Inequality> iqs_;
+    Solver slv;
 };

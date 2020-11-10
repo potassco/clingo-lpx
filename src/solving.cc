@@ -70,45 +70,53 @@ struct Solver::Prepare {
     std::vector<index_t> basic;
 };
 
-bool Solver::Variable::update_lower(Number const &v) {
-    if (!lower || v > *lower) {
-        lower = v;
+bool Solver::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+    if (!has_upper() || bound.value < upper()) {
+        if (!has_upper() || ass.level(upper_bound->lit) < ass.decision_level()) {
+            s.trail_.emplace_back(bound.variable, Relation::LessEqual, upper_bound);
+        }
+        upper_bound = &bound;
     }
-    return !upper || *lower <= *upper;
+    return !has_lower() || lower() <= upper();
 }
 
-bool Solver::Variable::update_upper(Number const &v) {
-    if (!upper || v < *upper) {
-        upper = v;
+bool Solver::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+    if (!has_lower() || bound.value > lower()) {
+        if (!has_lower() || ass.level(lower_bound->lit) < ass.decision_level()) {
+            if (s.trail_.empty() || std::get<2>(s.trail_.back()) != lower_bound) {
+                s.trail_.emplace_back(bound.variable, Relation::GreaterEqual, lower_bound);
+            }
+            else {
+                std::get<1>(s.trail_.back()) = Relation::Equal;
+            }
+        }
+        lower_bound = &bound;
     }
-    return !lower || *lower <= *upper;
+    return !has_upper() || lower() <= upper();
 }
 
-bool Solver::Variable::update(Relation rel, Number const &v) {
-    switch (rel) {
+bool Solver::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+    switch (bound.rel) {
         case Relation::LessEqual: {
-            return update_upper(v);
+            return update_upper(s, ass, bound);
         }
         case Relation::GreaterEqual: {
-            return update_lower(v);
+            return update_lower(s, ass, bound);
         }
         case Relation::Equal: {
-            return update_lower(v) && update_upper(v);
+            return update_upper(s, ass, bound) && update_lower(s, ass, bound);
         }
     }
     assert(false);
 }
 
-bool Solver::Variable::has_conflict() {
-    return (lower && value < *lower) || (upper && value > *upper);
+bool Solver::Variable::has_conflict() const {
+    return (has_lower() && value < lower()) || (has_upper() && value > upper());
 }
 
 void Statistics::reset() {
     *this = {};
 }
-
-Solver::Solver(std::vector<Inequality> &&inequalities)
-: inequalities_{std::move(inequalities)} { }
 
 Solver::Variable &Solver::basic_(index_t i) {
     return variables_[variables_[i + n_non_basic_].index];
@@ -127,13 +135,19 @@ void Solver::enqueue_(index_t i) {
     }
 }
 
-bool Solver::prepare() {
+bool Solver::prepare(Clingo::PropagateInit &init, std::vector<Inequality> &&inequalities) {
     tableau_.clear();
     variables_.clear();
     indices_.clear();
     statistics_.reset();
     n_basic_ = 0;
     n_non_basic_ = 0;
+
+    inequalities_ = std::move(inequalities);
+    for (auto &x : inequalities_) {
+        x.lit = init.solver_literal(x.lit);
+        init.add_watch(x.lit);
+    }
 
     // TODO: we need a datastructure for bounds here. It will probably be a map
     // from literals to variable, bound pairs. There will be the following
@@ -164,9 +178,14 @@ bool Solver::prepare() {
     //
     // because I am going for a non-strict defined semantics.
 
+    auto ass = init.assignment();
+
     Prepare prep;
-    std::vector<index_t> update;
     for (auto const &x : inequalities_) {
+        if (ass.is_false(x.lit)) {
+            continue;
+        }
+
         // transform inequality into row suitable for tableau
         auto row = prep.add_row(*this, x);
 
@@ -174,25 +193,19 @@ bool Solver::prepare() {
         if (row.empty()) {
             switch (x.rel) {
                 case Relation::LessEqual: {
-                    if (x.rhs > 0) {
-                        // TODO!
-                        // This makes the literal associated with the bound false.
+                    if (x.rhs > 0 && !init.add_clause({-x.lit})) {
                         return false;
                     }
                     break;
                 }
                 case Relation::GreaterEqual: {
-                    if (x.rhs < 0) {
-                        // TODO!
-                        // This makes the literal associated with the bound false.
+                    if (x.rhs < 0 && !init.add_clause({-x.lit})) {
                         return false;
                     }
                     break;
                 }
                 case Relation::Equal: {
-                    if (x.rhs != 0) {
-                        // TODO!
-                        // This makes the literal associated with the bound false.
+                    if (x.rhs != 0 && !init.add_clause({-x.lit})) {
                         return false;
                     }
                     break;
@@ -203,28 +216,20 @@ bool Solver::prepare() {
         else if (row.size() == 1) {
             auto const &[j, v] = row.front();
             auto &xj = non_basic_(j);
-            // TODO!
-            // Bounds associated with a true literal can be added like this here.
-            // Bounds associated with a false literal can be ignored.
-            // Bounds associated with a free literal must be kept for later.
-            if (!xj.upper && !xj.lower) {
-                update.emplace_back(j);
-            }
-            if (!xj.update(v < 0 ? invert(x.rel) : x.rel, x.rhs / v)) {
-                return false;
-            }
+            bounds_.emplace(x.lit, Bound{
+                x.rhs / v,
+                variables_[j].index,
+                x.lit,
+                v < 0 ? invert(x.rel) : x.rel});
         }
         // add an inequality
         else {
             auto i = prep.add_basic(*this);
-            // TODO!
-            // This can use the same logic as above (even though the case is
-            // simpler in principle because a slack variale is not conflicting
-            // by construction).
-            if (!variables_.back().update(x.rel, x.rhs)) {
-                return false;
-            }
-
+            bounds_.emplace(x.lit, Bound{
+                x.rhs,
+                static_cast<index_t>(variables_.size() - 1),
+                x.lit,
+                x.rel});
             for (auto const &[j, v] : row) {
                 tableau_.set(i, j, v);
             }
@@ -232,16 +237,6 @@ bool Solver::prepare() {
     }
 
     prep.finish(*this);
-
-    for (auto j : update) {
-        auto &xj = non_basic_(j);
-        if (xj.lower) {
-            update_(j, *xj.lower);
-        }
-        else if (xj.upper) {
-            update_(j, *xj.upper);
-        }
-    }
 
     for (size_t i = 0; i < n_basic_; ++i) {
         enqueue_(i);
@@ -254,28 +249,66 @@ bool Solver::prepare() {
     return true;
 }
 
-std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
+std::vector<std::pair<Clingo::Symbol, Number>> Solver::assignment() const {
+    std::vector<std::pair<Clingo::Symbol, Number>> ret;
+    index_t k{0};
+    for (auto var : vars_()) {
+        if (auto it = indices_.find(var); it != indices_.end()) {
+            ret.emplace_back(var, variables_[it->second].value);
+        }
+        else {
+            ret.emplace_back(var, 0);
+        }
+    }
+    return ret;
+}
+
+bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     index_t i{0};
     index_t j{0};
     Number const *v{nullptr};
 
+    auto ass = ctl.assignment();
+
+    if (trail_offset_.empty() || trail_offset_.back().first < ass.decision_level()) {
+        trail_offset_.emplace_back(ass.decision_level(), trail_.size());
+    }
+
+    for (auto lit : lits) {
+        for (auto [it, ie] = bounds_.equal_range(lit); it != ie; ++it) {
+            auto const &[lit, bound] = *it;
+            auto &x = variables_[bound.variable];
+            if (!x.update(*this, ctl.assignment(), bound)) {
+                conflict_clause_.clear();
+                conflict_clause_.emplace_back(-x.upper_bound->lit);
+                conflict_clause_.emplace_back(-x.lower_bound->lit);
+                return false;
+            }
+            if (x.reserve_index < n_non_basic_) {
+                if (x.has_lower() && x.value < x.lower()) {
+                    update_(x.reserve_index, x.lower());
+                }
+                else if (x.has_upper() && x.value > x.upper()) {
+                    update_(x.reserve_index, x.upper());
+                }
+            }
+            else {
+                enqueue_(x.reserve_index - n_non_basic_);
+            }
+        }
+    }
+
+    assert_extra(check_tableau_());
+    assert_extra(check_basic_());
+    assert_extra(check_non_basic_());
+
     while (true) {
         switch (select_(i, j, v)) {
             case State::Satisfiable: {
-                std::vector<std::pair<Clingo::Symbol, Number>> ret;
-                index_t k{0};
-                for (auto var : vars_()) {
-                    if (auto it = indices_.find(var); it != indices_.end()) {
-                        ret.emplace_back(var, variables_[it->second].value);
-                    }
-                    else {
-                        ret.emplace_back(var, 0);
-                    }
-                }
-                return ret;
+                return true;
             }
             case State::Unsatisfiable: {
-                return std::nullopt;
+                return false;
             }
             case State::Unknown: {
                 assert(v != nullptr);
@@ -285,11 +318,40 @@ std::optional<std::vector<std::pair<Clingo::Symbol, Number>>> Solver::solve() {
     }
 }
 
+void Solver::undo() {
+    auto offset = trail_offset_.back().second;
+    trail_offset_.pop_back();
+
+    for (auto it = trail_.begin() + offset, ie = trail_.end(); it != ie; ++it) {
+        auto [var, rel, bound] = *it;
+        switch (rel) {
+            case Relation::LessEqual: {
+                variables_[var].upper_bound = bound;
+                break;
+            }
+            case Relation::GreaterEqual: {
+                variables_[var].lower_bound = bound;
+                break;
+            }
+            case Relation::Equal: {
+                variables_[var].upper_bound = bound;
+                variables_[var].lower_bound = bound;
+                break;
+            }
+        }
+    }
+    trail_.resize(offset);
+
+    assert_extra(check_tableau_());
+    assert_extra(check_basic_());
+    assert_extra(check_non_basic_());
+}
+
 Statistics const &Solver::statistics() const {
     return statistics_;
 }
 
-std::vector<Clingo::Symbol> Solver::vars_() {
+std::vector<Clingo::Symbol> Solver::vars_() const {
     std::unordered_set<Clingo::Symbol> var_set;
     for (auto const &x : inequalities_) {
         for (auto const &y : x.lhs) {
@@ -317,10 +379,10 @@ bool Solver::check_tableau_() {
 bool Solver::check_basic_() {
     for (index_t i = 0; i < n_basic_; ++i) {
         auto &xi = basic_(i);
-        if (xi.lower && xi.value < *xi.lower && !xi.queued) {
+        if (xi.has_lower() && xi.value < xi.lower() && !xi.queued) {
             return false;
         }
-        if (xi.upper && xi.value > *xi.upper && !xi.queued) {
+        if (xi.has_upper() && xi.value > xi.upper() && !xi.queued) {
             return false;
         }
     }
@@ -330,10 +392,10 @@ bool Solver::check_basic_() {
 bool Solver::check_non_basic_() {
     for (index_t j = 0; j < n_non_basic_; ++j) {
         auto &xj = non_basic_(j);
-        if (xj.lower && xj.value < *xj.lower) {
+        if (xj.has_lower() && xj.value < xj.lower()) {
             return false;
         }
-        if (xj.upper && xj.value > *xj.upper) {
+        if (xj.has_upper() && xj.value > xj.upper()) {
             return false;
         }
     }
@@ -342,10 +404,10 @@ bool Solver::check_non_basic_() {
 
 bool Solver::check_solution_() {
     for (auto &x : variables_) {
-        if (x.lower && *x.lower > x.value) {
+        if (x.has_lower() && x.lower() > x.value) {
             return false;
         }
-        if (x.upper && x.value > *x.upper) {
+        if (x.has_upper() && x.value > x.upper()) {
             return false;
         }
     }
@@ -356,6 +418,7 @@ void Solver::update_(index_t j, Number v) {
     auto &xj = non_basic_(j);
     tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
         basic_(i).value += a_ij * (v - xj.value);
+        enqueue_(i);
     });
     xj.value = v;
 }
@@ -418,57 +481,61 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
-    // TODO:
-    // This function must be extended with conflict generation. A conflict
-    // consists of all literals associated with bounds that prevented a bound
-    // update.
-
-    while (!conflicts_.empty()) {
+    for (; !conflicts_.empty(); conflicts_.pop()) {
         auto &xi = variables_[conflicts_.top()];
         auto i = xi.reserve_index;
         assert(conflicts_.top() == variables_[i].index);
         xi.queued = false;
-        conflicts_.pop();
         // the queue might contain variables that meanwhile became basic
         if (i < n_non_basic_) {
             continue;
         }
         i -= n_non_basic_;
 
-        if (xi.lower && xi.value < *xi.lower) {
+        if (xi.has_lower() && xi.value < xi.lower()) {
+            conflict_clause_.clear();
             index_t kk = variables_.size();
             tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
                 auto jj = variables_[j].index;
                 if (jj < kk) {
                     auto &xj = variables_[jj];
-                    if ((a_ij > 0 && (!xj.upper || xj.value < *xj.upper)) ||
-                        (a_ij < 0 && (!xj.lower || xj.value > *xj.lower))) {
+                    if ((a_ij > 0 && (!xj.has_upper() || xj.value < xj.upper())) ||
+                        (a_ij < 0 && (!xj.has_lower() || xj.value > xj.lower()))) {
                         kk = jj;
                         ret_i = i;
                         ret_j = j;
-                        ret_v = &*xi.lower;
+                        ret_v = &xi.lower();
                     }
                 }
             });
-            return kk == variables_.size() ? State::Unsatisfiable : State::Unknown;
+            if (kk == variables_.size()) {
+                return State::Unsatisfiable;
+            }
+            conflicts_.pop();
+            return State::Unknown;
         }
 
-        if (xi.upper && xi.value > *xi.upper) {
+        if (xi.has_upper() && xi.value > xi.upper()) {
+            conflict_clause_.clear();
             index_t kk = variables_.size();
             tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
                 auto jj = variables_[j].index;
                 if (jj < kk) {
                     auto &xj = variables_[jj];
-                    if ((a_ij < 0 && (!xj.upper || xj.value < *xj.upper)) ||
-                        (a_ij > 0 && (!xj.lower || xj.value > *xj.lower))) {
+                    if ((a_ij < 0 && (!xj.has_upper() || xj.value < xj.upper())) ||
+                        (a_ij > 0 && (!xj.has_upper() || xj.value > xj.lower()))) {
                         kk = jj;
                         ret_i = i;
                         ret_j = j;
-                        ret_v = &*xi.upper;
+                        ret_v = &xi.upper();
                     }
                 }
             });
-            return kk == variables_.size() ? State::Unsatisfiable : State::Unknown;
+            if (kk == variables_.size()) {
+                return State::Unsatisfiable;
+            }
+            conflicts_.pop();
+            return State::Unknown;
         }
     }
 
