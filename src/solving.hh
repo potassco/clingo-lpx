@@ -65,8 +65,12 @@ private:
 
     //! Check if the tableau.
     [[nodiscard]] bool check_tableau_();
-    //! Check if bounds of basic variables are satisfied.
+    //! Check if basic variables with unsatisfied bounds are enqueued.
+    [[nodiscard]] bool check_basic_();
+    //! Check if bounds of non-basic variables are satisfied.
     [[nodiscard]] bool check_non_basic_();
+    //! Check if the current assignment is a solution.
+    [[nodiscard]] bool check_solution_();
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);

@@ -1,0 +1,136 @@
+\documentclass{article}
+
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\usepackage{siunitx}
+\usepackage{xcolor}
+
+\begin{document}
+
+Note that the way the contribution to the assignment of the variables associated with the other rows is not correct as described below.
+The required formula is given in the paper.
+
+We consider a problem with three equations:
+\begin{align*}
+x + y & \geq 2\\
+2*x - y & \geq 0\\
+-x + 2*y & \geq 1
+\end{align*}
+
+We obtain the following tableau with slack variables \(s_1\), \(s_2\), and \(s_3\) together with their bounds,
+and the initial assignment assigning all variables to zero:
+\begin{center}
+\begin{tabular}{SSSSSc}
+\toprule
+\multicolumn{1}{c}{\(x\)} &
+\multicolumn{1}{c}{\(y\)} &
+\multicolumn{1}{c}{\(s_1\)} &
+\multicolumn{1}{c}{\(s_2\)} &
+\multicolumn{1}{c}{\(s_3\)} &
+\multicolumn{1}{c}{bounds}\\
+\midrule
+\color{green}1  & \color{green}1  & -1 & 0  & 0  & \(\textcolor{red}{s_1 \geq 2}\) \\
+2  & -1 & 0  & -1 & 0  & \(s_2 \geq 0\) \\
+\color{green}-1 & \color{green}2  & 0  & 0  & -1 & \(\textcolor{red}{s_3 \geq 1}\) \\
+\midrule
+0  & 0  & 0  & 0  & 0\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The bounds of \(s_1\) and \(s_3\) are violated.
+In both cases we can use \(x\) and \(y\) for pivoting because neither of them have bounds.
+We pivot \(s_1\) and \(x\).
+Observe that we can increase \(x\) by \((2 - 0)/1\) to set \(s_1\) to 2.
+We begin with inverting the first row and eliminating \(x\) from the second and third row:
+\begin{center}
+\begin{tabular}{SSSSSc}
+\toprule
+\multicolumn{1}{c}{\(x\)} &
+\multicolumn{1}{c}{\(y\)} &
+\multicolumn{1}{c}{\(s_1\)} &
+\multicolumn{1}{c}{\(s_2\)} &
+\multicolumn{1}{c}{\(s_3\)} &
+\multicolumn{1}{c}{bounds}\\
+\midrule
+-1 & -1  & 1 & 0  & 0  & \(s_1 \geq 2\) \\
+0 & -3 & 2  & -1 & 0  & \(s_2 \geq 0\) \\
+0 & 3  & -1  & 0  & -1 & \(s_3 \geq 1\) \\
+\midrule
+0  & 0  & 0  & 0  & 0\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Then, we swap the columns for \(x\) and \(s_1\), and update the assignment.
+We increase the value of \(x\) by 2 and set the value of \(s_1\) to 2.
+The remaining basic variables now have a contribution by \(s_1\) because of pivoting.
+The contribution consists of the divisor of the first row, the value of \(s_1\), and the coefficient in the respective row.
+We can simply add this contribution to the assignment.
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+\multicolumn{1}{c}{\(s_1\)} &
+\multicolumn{1}{c}{\(y\)} &
+\multicolumn{1}{c}{\(x\)} &
+\multicolumn{1}{c}{\(s_2\)} &
+\multicolumn{1}{c}{\(s_3\)} &
+\multicolumn{1}{c}{bounds}\\
+\midrule
+\(1\)        & \(-1\)             & \(-1\)  & \(0\)       & \(0\)          & \(s_1 \geq 2\) \\
+\(2\)        & \(-3\)             & \(0\)   & \(-1\)      & \(0\)          & \(s_2 \geq 0\) \\
+\(-1\)       & \(\color{green}3\) & \(0\)   & \(0\)       & \(-1\)         & \(\textcolor{red}{s_3 \geq 1}\) \\
+\midrule
+\(2\)        & \(0\)              & \(0+2\) & \(0+(1*2*2)\) & \(0+(1*2*(-1))\)\\
+\(2\)        & \(0\)              & \(2\)   & \(4\)       & \(-2\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Now, only the lower bound of \(s_3\) is violated and only \(y\) is suitable for pivoting.
+Observe that we can increase \(y\) by \((1-(-2))/3=1\) to set \(s_3\) to 1.
+We divide the third row by \(-3\) and then eliminate \(y\) from the first and second row:
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+\multicolumn{1}{c}{\(s_1\)} &
+\multicolumn{1}{c}{\(y\)} &
+\multicolumn{1}{c}{\(x\)} &
+\multicolumn{1}{c}{\(s_2\)} &
+\multicolumn{1}{c}{\(s_3\)} &
+\multicolumn{1}{c}{bounds}\\
+\midrule
+\(2/3\) & \(0\)  & \(-1\) & \(0\)  & \(-1/3\) & \(s_1 \geq 2\) \\
+\(1\)   & \(0\)  & \(0\)  & \(-1\) & \(-1\)   & \(s_2 \geq 0\) \\
+\(1/3\) & \(-1\) & \(0\)  & \(0\)  & \(1/3\)  & \(s_3 \geq 1\) \\
+\midrule
+\(2\)   & \(0\)  & \(2\)  & \(4\)  & \(-2\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Then, we swap the columns for \(y\) and \(s_3\), and update the assignment.
+We increase the value of \(y\) by 1 and set the value of \(s_3\) to 1.
+The remaining basic variables now have a contribution by \(s_3\) because of pivoting.
+We can simply add this contribution to the assignment.
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+\multicolumn{1}{c}{\(s_1\)} &
+\multicolumn{1}{c}{\(s_3\)} &
+\multicolumn{1}{c}{\(x\)} &
+\multicolumn{1}{c}{\(s_2\)} &
+\multicolumn{1}{c}{\(y\)} &
+\multicolumn{1}{c}{bounds}\\
+\midrule
+\(2/3\) & \(-1/3\) & \(-1\)             & \(0\)            & \(0\)     & \(s_1 \geq 2\) \\
+\(1\)   & \(-1\)   & \(0\)              & \(-1\)           & \(0\)     & \(s_2 \geq 0\) \\
+\(1/3\) & \(1/3\)  & \(0\)              & \(0\)            & \(-1\)    & \(s_3 \geq 1\) \\
+\midrule
+\(2\)   & \(1\)    & \(2+(3*1*(-1/3))\) & \(4+(3*1*(-1))\) & \(0+1\)\\
+\(2\)   & \(1\)    & \(1\)              & \(4\)            & \(1\)\\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{document}

@@ -110,8 +110,9 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
                 }
             }
             iqs.emplace_back(Inequality{std::move(lhs),
-                                      evaluate_num(atom.guard().second),
-                                      evaluate_cmp(atom.guard().first)});
+                                        evaluate_num(atom.guard().second),
+                                        evaluate_cmp(atom.guard().first),
+                                        atom.literal()});
         }
     }
     return iqs;

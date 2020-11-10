@@ -22,9 +22,9 @@ using index_t = uint32_t;
 //! rows and columns.
 //!
 //! Note: that this deletion scheme has not been tested in practice at all. I
-//! could imagine that an additional cleanup step to delete zero values is
-//! necessary. A strategy that certainly would work is to additionally clean when
-//! the number of stored zero values exceeds the number of non-zero values.
+//! could imagine that an additional cleanup step called at strategic points is
+//! much better than the current scheme because this would totally eliminate
+//! the necessity to tag the indexes.
 class Tableau {
 private:
     static constexpr index_t mask_get = 0x7fffffff;
@@ -121,6 +121,26 @@ public:
         }
     }
 
+    template <typename F>
+    void update(index_t i, index_t j, F &&f) {
+        auto [it, res] = vals_.try_emplace({i, j});
+        f(it->second);
+        if (it->second == 0) {
+            if (res) {
+                vals_.erase(it);
+            }
+        }
+        else {
+            if (!it->first.in_row(true)) {
+                reserve_row_(i);
+                rows_[i].push_back(j);
+            }
+            if (!it->first.in_col(true)) {
+                reserve_col_(j);
+                cols_[j].push_back(i);
+            }
+        }
+    }
     //! Traverse non-zero elements in a row and possibly update them.
     template <typename F>
     void update_row(index_t i, F &&f) {

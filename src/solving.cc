@@ -205,6 +205,7 @@ bool Solver::prepare() {
     }
 
     assert_extra(check_tableau_());
+    assert_extra(check_basic_());
     assert_extra(check_non_basic_());
 
     return true;
@@ -269,6 +270,19 @@ bool Solver::check_tableau_() {
     return true;
 }
 
+bool Solver::check_basic_() {
+    for (index_t i = 0; i < n_basic_; ++i) {
+        auto &xi = basic_(i);
+        if (xi.lower && xi.value < *xi.lower && !xi.queued) {
+            return false;
+        }
+        if (xi.upper && xi.value > *xi.upper && !xi.queued) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool Solver::check_non_basic_() {
     for (index_t j = 0; j < n_non_basic_; ++j) {
         auto &xj = non_basic_(j);
@@ -280,6 +294,18 @@ bool Solver::check_non_basic_() {
         }
     }
     return true;
+}
+
+bool Solver::check_solution_() {
+    for (auto &x : variables_) {
+        if (x.lower && *x.lower > x.value) {
+            return false;
+        }
+        if (x.upper && x.value > *x.upper) {
+            return false;
+        }
+    }
+    return check_tableau_() && check_basic_();
 }
 
 void Solver::update_(index_t j, Number v) {
@@ -325,37 +351,35 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
     });
 
     // eliminate x_j from rows k != i
-    tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
+    tableau_.update_col(j, [&](index_t k, Number &a_kj) {
         if (k != i) {
+            // Note that this call does not invalidate active iterators:
+            // - row i is unaffected because k != i
+            // - there are no insertions in column j because each a_kj != 0
             tableau_.update_row(i, [&](index_t l, Number const &a_il) {
-                Number a_kl;
-                if (l == j) {
-                    a_kl = a_kj / a_ij;
+                if (l != j) {
+                    tableau_.update(k, l, [&](Number &a_kl) { a_kl += a_il * a_kj; });
                 }
-                else {
-                    a_kl = tableau_.get(k, l) + a_il * a_kj;
-                }
-                // Note that this call does not invalidate active iterators:
-                // - row i is unaffected because k != i
-                // - there are no insertions in column j because each a_kj != 0
-                //   (values in the column can change though)
-                tableau_.set(k, l, a_kl);
             });
+            a_kj /= a_ij;
         }
     });
 
     ++statistics_.pivots_;
     assert_extra(check_tableau_());
+    assert_extra(check_basic_());
     assert_extra(check_non_basic_());
 }
 
 Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
+
     while (!conflicts_.empty()) {
         auto &xi = variables_[conflicts_.top()];
         auto i = xi.reserve_index;
         assert(conflicts_.top() == variables_[i].index);
+        xi.queued = false;
         conflicts_.pop();
         // the queue might contain variables that meanwhile became basic
         if (i < n_non_basic_) {
@@ -389,6 +413,7 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
                     auto &xj = variables_[jj];
                     if ((a_ij < 0 && (!xj.upper || xj.value < *xj.upper)) ||
                         (a_ij > 0 && (!xj.lower || xj.value > *xj.lower))) {
+                        kk = jj;
                         ret_i = i;
                         ret_j = j;
                         ret_v = *xi.upper;
@@ -398,6 +423,8 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
             return kk == variables_.size() ? State::Unsatisfiable : State::Unknown;
         }
     }
+
+    assert(check_solution_());
 
     return State::Satisfiable;
 }

@@ -18,6 +18,8 @@ set(src-group
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/propagating.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/propagating.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/util.hh")

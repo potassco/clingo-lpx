@@ -26,6 +26,7 @@ struct Inequality {
     std::vector<Term> lhs;
     Number rhs;
     Relation rel;
+    Clingo::literal_t lit;
 };
 
 std::ostream &operator<<(std::ostream &out, Inequality const &x);

@@ -1,5 +1,5 @@
 #include <parsing.hh>
-#include <solving.hh>
+#include <propagating.hh>
 
 #include <clingo.hh>
 
@@ -19,30 +19,14 @@ public:
         return "1.0.0";
     }
     void main(Clingo::Control &ctl, Clingo::StringSpan files) override {
+        ClingoLPPropagator prp;
+        ctl.register_propagator(prp);
         ctl.add("base", {}, THEORY);
         for (auto const &x : files) {
             ctl.load(x);
         }
         ctl.ground({{"base", {}}});
-        Solver slv{evaluate_theory(ctl.theory_atoms())};
-        ctl.solve();
-        if (slv.prepare()) {
-            auto ret = slv.solve();
-            if (ret) {
-                std::cerr << "assignment:";
-                for (auto const &[var, val] : *ret) {
-                    std::cerr << " " << var << "=" << val;
-                }
-                std::cerr << std::endl;
-                std::cerr << "SAT with " << slv.statistics().pivots_ << " pivots" << std::endl;
-            }
-            else {
-                std::cerr << "UNSAT with " << slv.statistics().pivots_ << " pivots" << std::endl;
-            }
-        }
-        else {
-            std::cerr << "UNSAT in prepare" << std::endl;
-        }
+        ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get();
     }
 };
 

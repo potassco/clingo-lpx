@@ -1,3 +1,9 @@
 build/
 compile_commands.json
 .mypy_cache/
+doc/example.pdf
+doc/*.aux
+doc/*.fdb_latexmk
+doc/*.fls
+doc/*.log
+doc/*.synctex.gz
