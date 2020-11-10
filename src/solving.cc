@@ -135,6 +135,35 @@ bool Solver::prepare() {
     n_basic_ = 0;
     n_non_basic_ = 0;
 
+    // TODO: we need a datastructure for bounds here. It will probably be a map
+    // from literals to variable, bound pairs. There will be the following
+    // functions:
+    //  - ensure_level:
+    //    - opens a new decision level providing a trail of bounds for
+    //      backtracking
+    //  - propagate_literal:
+    //    - adds all bounds associated with the given literal
+    //      - only bound refinements are considered
+    //      - adds the previous value of a bound to a trail
+    //  - backtrack
+    //    - must be called for each ensure_level call
+    //    - restores the bounds on the trail
+    //    - on backtracking bounds become weaker
+    //    - if we make sure that the last conflict remains in the conflict
+    //      queue, then we can keep the conflict queue around and solve can be
+    //      used to restore a consistent state
+
+    // TODO: Bounds associated with a variable form a propagation chain. We can
+    // add binary clauses to propagate them. For example
+    //
+    //     `x >= u` implies not `x <= l` for all `l < u`.
+    //
+    // Care has to be taken because we cannot use
+    //
+    //     `x >= u` implies `x >= u'` for all u' >= u
+    //
+    // because I am going for a non-strict defined semantics.
+
     Prepare prep;
     std::vector<index_t> update;
     for (auto const &x : inequalities_) {
@@ -146,18 +175,24 @@ bool Solver::prepare() {
             switch (x.rel) {
                 case Relation::LessEqual: {
                     if (x.rhs > 0) {
+                        // TODO!
+                        // This makes the literal associated with the bound false.
                         return false;
                     }
                     break;
                 }
                 case Relation::GreaterEqual: {
                     if (x.rhs < 0) {
+                        // TODO!
+                        // This makes the literal associated with the bound false.
                         return false;
                     }
                     break;
                 }
                 case Relation::Equal: {
                     if (x.rhs != 0) {
+                        // TODO!
+                        // This makes the literal associated with the bound false.
                         return false;
                     }
                     break;
@@ -168,6 +203,10 @@ bool Solver::prepare() {
         else if (row.size() == 1) {
             auto const &[j, v] = row.front();
             auto &xj = non_basic_(j);
+            // TODO!
+            // Bounds associated with a true literal can be added like this here.
+            // Bounds associated with a false literal can be ignored.
+            // Bounds associated with a free literal must be kept for later.
             if (!xj.upper && !xj.lower) {
                 update.emplace_back(j);
             }
@@ -178,6 +217,10 @@ bool Solver::prepare() {
         // add an inequality
         else {
             auto i = prep.add_basic(*this);
+            // TODO!
+            // This can use the same logic as above (even though the case is
+            // simpler in principle because a slack variale is not conflicting
+            // by construction).
             if (!variables_.back().update(x.rel, x.rhs)) {
                 return false;
             }
@@ -374,6 +417,11 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
 Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number &ret_v) {
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
+
+    // TODO:
+    // This function must be extended with conflict generation. A conflict
+    // consists of all literals associated with bounds that prevented a bound
+    // update.
 
     while (!conflicts_.empty()) {
         auto &xi = variables_[conflicts_.top()];
