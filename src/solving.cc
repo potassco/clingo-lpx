@@ -310,6 +310,20 @@ bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     while (true) {
         switch (select_(i, j, v)) {
             case State::Satisfiable: {
+#ifdef CLINGOLP_KEEP_SAT_ASSIGNMENT
+                for (auto &[level, index, number] : assignment_trail_) {
+                    variables_[index].level = 0;
+                }
+                for (auto it = trail_offset_.rbegin(), ie = trail_offset_.rend(); it != ie; ++it) {
+                    if (it->assignment > 0) {
+                        it->assignment = 0;
+                    }
+                    else {
+                        break;
+                    }
+                }
+                assignment_trail_.clear();
+#endif
                 return true;
             }
             case State::Unsatisfiable: {
