@@ -49,6 +49,8 @@ private:
         [[nodiscard]] Number const &lower() const { return lower_bound->value; }
         //! Return thevalue of the upper bound.
         [[nodiscard]] Number const &upper() const { return upper_bound->value; }
+        //! Set a new value or add to the existing one.
+        void set_value(Solver &s, index_t level, Number const &num, bool add);
 
         //! The lower bound of a variable.
         Bound const *lower_bound{nullptr};
@@ -60,8 +62,15 @@ private:
         index_t index{0};
         //! Helper index to obtain row/column index of a variable.
         index_t reserve_index{0};
+        //! The level the variable was assigned on.
+        index_t level{0};
         //! Whether this variales is in the queue of conflicting variables.
         bool queued{false};
+    };
+    struct TrailOffset {
+        index_t level;
+        index_t bound;
+        index_t assignment;
     };
     //! Captures what is know about of the satisfiability of a problem while
     //! solving.
@@ -107,10 +116,10 @@ private:
     void enqueue_(index_t i);
 
     //! Set the value of non-basic `x_j` variable to `v`.
-    void update_(index_t j, Number v);
+    void update_(index_t level, index_t j, Number v);
 
     //! Pivots basic variable `x_i` and non-basic variable `x_j`.
-    void pivot_(index_t i, index_t j, Number const &v);
+    void pivot_(index_t level, index_t i, index_t j, Number const &v);
 
     //! Helper function to select pivot point.
     [[nodiscard]] bool select_(bool upper, Variable &x);
@@ -126,10 +135,12 @@ private:
     std::vector<Inequality> inequalities_;
     //! Mapping from literals to bounds.
     std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
-    //! Trail of bound assignments.
-    std::vector<std::tuple<index_t, Relation, Bound const *>> trail_;
+    //! Trail of bound assignments (variable, relation, Number).
+    std::vector<std::tuple<index_t, Relation, Bound const *>> bound_trail_;
+    //! Trail for assignments (level, variable, Number).
+    std::vector<std::tuple<index_t, index_t, Number>> assignment_trail_;
     //! Trail offsets per level.
-    std::vector<std::pair<index_t, index_t>> trail_offset_;
+    std::vector<TrailOffset> trail_offset_;
     //! Mapping from symbols to their indices in the assignment.
     std::unordered_map<Clingo::Symbol, index_t> indices_;
     //! The tableau of coefficients.

@@ -74,7 +74,7 @@ struct Solver::Prepare {
 bool Solver::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     if (!has_upper() || bound.value < upper()) {
         if (!has_upper() || ass.level(upper_bound->lit) < ass.decision_level()) {
-            s.trail_.emplace_back(bound.variable, Relation::LessEqual, upper_bound);
+            s.bound_trail_.emplace_back(bound.variable, Relation::LessEqual, upper_bound);
         }
         upper_bound = &bound;
     }
@@ -84,11 +84,11 @@ bool Solver::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound con
 bool Solver::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     if (!has_lower() || bound.value > lower()) {
         if (!has_lower() || ass.level(lower_bound->lit) < ass.decision_level()) {
-            if (s.trail_.empty() || std::get<2>(s.trail_.back()) != lower_bound) {
-                s.trail_.emplace_back(bound.variable, Relation::GreaterEqual, lower_bound);
+            if (s.bound_trail_.empty() || std::get<2>(s.bound_trail_.back()) != lower_bound) {
+                s.bound_trail_.emplace_back(bound.variable, Relation::GreaterEqual, lower_bound);
             }
             else {
-                std::get<1>(s.trail_.back()) = Relation::Equal;
+                std::get<1>(s.bound_trail_.back()) = Relation::Equal;
             }
         }
         lower_bound = &bound;
@@ -109,6 +109,21 @@ bool Solver::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bo
         }
     }
     return update_upper(s, ass, bound) && update_lower(s, ass, bound);
+}
+
+void Solver::Variable::set_value(Solver &s, index_t lvl, Number const &val, bool add) {
+    // We can always assume that the assignment on a previous level was satisfying.
+    // Thus, we simply store the old values to be able to restore them when backtracking.
+    if (lvl != level) {
+        s.assignment_trail_.emplace_back(level, this - s.variables_.data(), value);
+        level = lvl;
+    }
+    if (add) {
+        value += val;
+    }
+    else {
+        value = val;
+    }
 }
 
 bool Solver::Variable::has_conflict() const {
@@ -255,9 +270,13 @@ bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     Number const *v{nullptr};
 
     auto ass = ctl.assignment();
+    auto level = ass.decision_level();
 
-    if (trail_offset_.empty() || trail_offset_.back().first < ass.decision_level()) {
-        trail_offset_.emplace_back(ass.decision_level(), trail_.size());
+    if (trail_offset_.empty() || trail_offset_.back().level < level) {
+        trail_offset_.emplace_back(TrailOffset{
+            ass.decision_level(),
+            static_cast<index_t>(bound_trail_.size()),
+            static_cast<index_t>(assignment_trail_.size())});
     }
 
     for (auto lit : lits) {
@@ -272,10 +291,10 @@ bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
             }
             if (x.reserve_index < n_non_basic_) {
                 if (x.has_lower() && x.value < x.lower()) {
-                    update_(x.reserve_index, x.lower());
+                    update_(level, x.reserve_index, x.lower());
                 }
                 else if (x.has_upper() && x.value > x.upper()) {
-                    update_(x.reserve_index, x.upper());
+                    update_(level, x.reserve_index, x.upper());
                 }
             }
             else {
@@ -298,21 +317,18 @@ bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
             }
             case State::Unknown: {
                 assert(v != nullptr);
-                pivot_(i, j, *v);
+                pivot_(level, i, j, *v);
             }
         }
     }
 }
 
 void Solver::undo() {
-    auto offset = trail_offset_.back().second;
-    trail_offset_.pop_back();
+    // this function restores the last satisfying assignment
+    auto &offset = trail_offset_.back();
 
-    assert_extra(check_tableau_());
-    assert_extra(check_basic_());
-    assert_extra(check_non_basic_());
-
-    for (auto it = trail_.begin() + offset, ie = trail_.end(); it != ie; ++it) {
+    // undo bound updates
+    for (auto it = bound_trail_.begin() + offset.bound, ie = bound_trail_.end(); it != ie; ++it) {
         auto [var, rel, bound] = *it;
         switch (rel) {
             case Relation::LessEqual: {
@@ -330,11 +346,24 @@ void Solver::undo() {
             }
         }
     }
-    trail_.resize(offset);
+    bound_trail_.resize(offset.bound);
 
-    assert_extra(check_tableau_());
-    assert_extra(check_basic_());
-    assert_extra(check_non_basic_());
+    // undo assignments
+    for (auto it = assignment_trail_.begin() + offset.assignment, ie = assignment_trail_.end(); it != ie; ++it) {
+        auto &[level, index, number] = *it;
+        variables_[index].level = level;
+        variables_[index].value.swap(number);
+    }
+    assignment_trail_.resize(offset.assignment);
+
+    // empty queue
+    for (; !conflicts_.empty(); conflicts_.pop()) {
+        variables_[conflicts_.top()].queued = false;
+    }
+
+    trail_offset_.pop_back();
+
+    assert_extra(check_solution_());
 }
 
 Statistics const &Solver::statistics() const {
@@ -404,16 +433,16 @@ bool Solver::check_solution_() {
     return check_tableau_() && check_basic_();
 }
 
-void Solver::update_(index_t j, Number v) {
+void Solver::update_(index_t level, index_t j, Number v) {
     auto &xj = non_basic_(j);
     tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
-        basic_(i).value += a_ij * (v - xj.value);
+        basic_(i).set_value(*this, level, a_ij * (v - xj.value), true);
         enqueue_(i);
     });
-    xj.value = v;
+    xj.set_value(*this, level, v, false);
 }
 
-void Solver::pivot_(index_t i, index_t j, Number const &v) {
+void Solver::pivot_(index_t level, index_t i, index_t j, Number const &v) {
     auto &a_ij = tableau_.unsafe_get(i, j);
     assert(a_ij != 0);
 
@@ -422,11 +451,11 @@ void Solver::pivot_(index_t i, index_t j, Number const &v) {
 
     // adjust assignment
     Number dj = (v - xi.value) / a_ij;
-    xi.value = v;
-    xj.value += dj;
+    xi.set_value(*this, level, v, false);
+    xj.set_value(*this, level, dj, true);
     tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
         if (k != i) {
-            basic_(k).value += a_kj * dj;
+            basic_(k).set_value(*this, level, a_kj * dj, true);
             enqueue_(k);
         }
     });
@@ -487,12 +516,11 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
-    while (!conflicts_.empty()) {
+    for (; !conflicts_.empty(); conflicts_.pop()) {
         auto ii = conflicts_.top();
         auto &xi = variables_[ii];
         auto i = xi.reserve_index;
         assert(ii == variables_[i].index);
-        conflicts_.pop();
         xi.queued = false;
         // the queue might contain variables that meanwhile became basic
         if (i < n_non_basic_) {
@@ -514,7 +542,6 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret
                 }
             });
             if (kk == variables_.size()) {
-                enqueue_(i);
                 return State::Unsatisfiable;
             }
             return State::Unknown;
@@ -534,10 +561,6 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret
                 }
             });
             if (kk == variables_.size()) {
-                if (!variables_[ii].queued) {
-                    enqueue_(i);
-                    return State::Unsatisfiable;
-                }
                 return State::Unsatisfiable;
             }
             return State::Unknown;
