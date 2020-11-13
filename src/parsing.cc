@@ -143,6 +143,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
 
 [[nodiscard]] std::vector<Inequality> evaluate_theory(Clingo::TheoryAtoms const &theory) {
     std::vector<Inequality> iqs;
+    std::map<std::pair<Clingo::Symbol, Clingo::literal_t>, Clingo::Symbol> aux;
     for (auto &&atom : theory) {
         if (match(atom.term(), "dom", 0)) {
             check_syntax(atom.elements().size() == 1);
@@ -157,7 +158,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
         else if (match(atom.term(), "sum", 0)) {
             std::vector<Term> lhs;
             for (auto &&elem : atom.elements()) {
-                check_syntax(elem.tuple().size() == 1 && elem.condition().empty());
+                check_syntax(elem.tuple().size() == 1);
                 auto &&term = elem.tuple().front();
                 if (match(term, "-", 1)) {
                     lhs.emplace_back(Term{
@@ -171,6 +172,14 @@ bool is_string(Clingo::TheoryTerm const &term) {
                 }
                 else {
                     lhs.emplace_back(Term{1, evaluate_var(term)});
+                }
+                if (!elem.condition().empty()) {
+                    auto res = aux.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(aux.size()));
+                    if (res.second) {
+                        iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -elem.condition_id()});
+                        iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, elem.condition_id()});
+                    }
+                    lhs.back().var = res.first->second;
                 }
             }
             iqs.emplace_back(Inequality{std::move(lhs),

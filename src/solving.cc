@@ -389,7 +389,9 @@ std::vector<Clingo::Symbol> Solver::vars_() const {
     std::unordered_set<Clingo::Symbol> var_set;
     for (auto const &x : inequalities_) {
         for (auto const &y : x.lhs) {
-            var_set.emplace(y.var);
+            if (y.var.type() != Clingo::SymbolType::Number) {
+                var_set.emplace(y.var);
+            }
         }
     }
     std::vector<Clingo::Symbol> var_vec{var_set.begin(), var_set.end()};
