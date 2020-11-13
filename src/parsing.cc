@@ -106,6 +106,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
         if (match[1].matched) {
             n *= -1;
         }
+        n.canonicalize();
         return n;
     }
 
