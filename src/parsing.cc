@@ -102,7 +102,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
             a.append("/1");
             a.append(it - ib, '0');
         }
-        Number n{a};
+        Number n{a, 10};
         if (match[1].matched) {
             n *= -1;
         }
