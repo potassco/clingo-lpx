@@ -84,7 +84,13 @@ bool Solver::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound con
 bool Solver::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     if (!has_lower() || bound.value > lower()) {
         if (!has_lower() || ass.level(lower_bound->lit) < ass.decision_level()) {
-            s.bound_trail_.emplace_back(bound.variable, Relation::GreaterEqual, lower_bound);
+            if (upper_bound != &bound) {
+                s.bound_trail_.emplace_back(bound.variable, Relation::GreaterEqual, lower_bound);
+            }
+            else {
+                // Note: this assumes that update_lower is called right after update_upper for the same bound
+                std::get<1>(s.bound_trail_.back()) = Relation::Equal;
+            }
         }
         lower_bound = &bound;
     }
@@ -349,7 +355,8 @@ void Solver::undo() {
                 break;
             }
             case Relation::Equal: {
-                assert(false);
+                variables_[var].upper_bound = bound;
+                variables_[var].lower_bound = bound;
                 break;
             }
         }
