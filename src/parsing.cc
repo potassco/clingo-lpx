@@ -1,5 +1,7 @@
 #include <parsing.hh>
 
+#include <regex>
+
 namespace {
 
 template <typename T=void>
@@ -22,7 +24,22 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
         term.arguments().size() == arity);
 }
 
+bool is_string(Clingo::TheoryTerm const &term) {
+    if (term.type() != Clingo::TheoryTermType::Symbol) {
+        return false;
+    }
+    char const *name = term.name();
+    size_t len = std::strlen(term.name());
+    return len >= 2 && name[0] == '"' && name[len - 1] == '"';
+}
+
 [[nodiscard]] Clingo::Symbol evaluate(Clingo::TheoryTerm const &term) {
+    if (is_string(term)) {
+        char const *name = term.name();
+        size_t len = std::strlen(term.name());
+        return Clingo::String(std::string{name + 1, name + len - 1}.c_str());
+    }
+
     if (term.type() == Clingo::TheoryTermType::Symbol) {
         return Clingo::Function(term.name(), {});
     }
@@ -42,7 +59,7 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
         return throw_syntax_error<Clingo::Symbol>();
     }
 
-    check_syntax(!match(term, "*", 2) && !match(term, "/", 2));
+    check_syntax(!match(term, "..", 2) && !match(term, "*", 2) && !match(term, "/", 2));
 
     if (term.type() == Clingo::TheoryTermType::Tuple || term.type() == Clingo::TheoryTermType::Function) {
         std::vector<Clingo::Symbol> args;
@@ -59,6 +76,7 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
 [[nodiscard]] Clingo::Symbol evaluate_var(Clingo::TheoryTerm const &term) {
     check_syntax(
         !match(term, "-", 1) &&
+        !match(term, "..", 2) &&
         !match(term, "*", 2) &&
         !match(term, "/", 2));
     check_syntax(
@@ -70,6 +88,27 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
 }
 
 [[nodiscard]] Number evaluate_num(Clingo::TheoryTerm const &term) {
+    if (is_string(term)) {
+        auto const *name = term.name();
+        std::regex const rgx{"(-)?([0-9]+)(\\.([0-9]+))?"};
+        std::cmatch match;
+        check_syntax(std::regex_match(name + 1, name + strlen(name) - 1, match, rgx));
+        std::string a = match[2];
+        if (match[4].matched) {
+            auto const *ib = match[4].first;
+            auto const *it = match[4].second;
+            for (; it != ib && *(it - 1) == '0'; --it) { }
+            a.append(ib, it);
+            a.append("/1");
+            a.append(it - ib, '0');
+        }
+        Number n{a};
+        if (match[1].matched) {
+            n *= -1;
+        }
+        return n;
+    }
+
     if (term.type() == Clingo::TheoryTermType::Number) {
         return {term.number()};
     }
@@ -104,12 +143,22 @@ void check_syntax(bool condition, char const *message="Invalid Syntax") {
 
 [[nodiscard]] std::vector<Inequality> evaluate_theory(Clingo::TheoryAtoms const &theory) {
     std::vector<Inequality> iqs;
-    for (auto const &atom : theory) {
-        if (match(atom.term(), "sum", 0)) {
+    for (auto &&atom : theory) {
+        if (match(atom.term(), "dom", 0)) {
+            check_syntax(atom.elements().size() == 1);
+            auto &&elem = atom.elements().front();
+            check_syntax(elem.tuple().size() == 1 && elem.condition().empty());
+            auto &&term = elem.tuple().front();
+            check_syntax(match(term, "..", 2));
+            auto var = evaluate_var(atom.guard().second);
+            iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().back()), Relation::LessEqual, atom.literal()});
+            iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().front()), Relation::GreaterEqual, atom.literal()});
+        }
+        else if (match(atom.term(), "sum", 0)) {
             std::vector<Term> lhs;
-            for (auto const &elem : atom.elements()) {
+            for (auto &&elem : atom.elements()) {
                 check_syntax(elem.tuple().size() == 1 && elem.condition().empty());
-                auto const &term = elem.tuple().front();
+                auto &&term = elem.tuple().front();
                 if (match(term, "-", 1)) {
                     lhs.emplace_back(Term{
                         -1,

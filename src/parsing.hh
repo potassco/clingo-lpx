@@ -9,7 +9,14 @@ constexpr char const *THEORY = R"(
     *  : 1, binary, left;
     /  : 1, binary, left
     };
-    &sum/0 : sum_term, {<=,=,>=}, sum_term, any
+    dom_term {
+    .. : 0, binary, left;
+    *  : 1, binary, left;
+    /  : 1, binary, left;
+    -  : 3, unary
+    };
+    &sum/0 : sum_term, {<=,=,>=}, sum_term, head;
+    &dom/0 : dom_term, {=}, sum_term, head
 }.
 )";
 

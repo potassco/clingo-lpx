@@ -21,14 +21,29 @@ cmake --build build
 
 ## Input format
 
-The system supports &sum constraints over rationals with relations among `<=`, `>=`, and `=`.
+The system supports `&sum` constraints over rationals with relations among `<=`, `>=`, and `=`.
 The elements of the sum constraints must have form `x`, `-x`, `n*x`, `-n*x`, or `-n/d*x`
 where `x` is a function symbol or tuple, and `n` and `d` are numbers.
+A number has to be either a non negative integer or decimal number in quotes.
+
 
 For example, the following program is accepted:
 ```
 { x }.
-&sum { x; -y; 2*x; -3*y; 2/3*x; -3/4*y } >= 100 :- x.
+&sum { x; -y; 2*x; -3*y; 2/3*x; -3/4*y, "0.75"*z } >= 100 :- x.
+```
+
+Furthermore, `&dom` constraints are supported, which are shortcuts for `&sum` constraints.
+The program
+```
+{ x }.
+&dom { 1..2 } = x.
+```
+is equivalent to
+```
+{ x }.
+&sum { x } >= 1.
+&sum { x } <= 2.
 ```
 
 ## Literature
