@@ -1,0 +1,19 @@
+find_library(GPERFTOOLS_PROFILER
+  NAMES profiler
+  HINTS ${Gperftools_ROOT_DIR}/lib)
+
+find_path(GPERFTOOLS_INCLUDE
+  NAMES gperftools/profiler.h
+  HINTS ${Gperftools_ROOT_DIR}/include)
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Gperftools DEFAULT_MSG GPERFTOOLS_PROFILER GPERFTOOLS_INCLUDE)
+
+set(GPERFTOOLS_INCLUDE_DIRS ${GMPXX_INCLUDE})
+set(GPERFTOOLS_LIBRARIES ${GPERFTOOLS_PROFILER})
+
+add_library(Gperftools::Gperftools INTERFACE IMPORTED)
+set_property(TARGET Gperftools::Gperftools PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${GPERFTOOLS_INCLUDE_DIRS}")
+set_property(TARGET Gperftools::Gperftools PROPERTY INTERFACE_LINK_LIBRARIES "${GPERFTOOLS_LIBRARIES}")
+
+mark_as_advanced(GPERFTOOLS_PROFILER GPERFTOOLS_INCLUDE GPERFTOOLS_INCLUDE_DIRS GPERFTOOLS_LIBRARIES)

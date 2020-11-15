@@ -4,12 +4,17 @@ project(CLINGOLP VERSION 1.0 LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "cmake")
 
+option(CLINGOLP_PROFILE "Enable profiling using gperftools" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
 find_package(Clingo REQUIRED)
 find_package(GMPXX REQUIRED)
+if (CLINGOLP_PROFILE)
+    find_package(Gperftools REQUIRED)
+endif()
 
 # [[[src: src
 set(ide_src_group "Src Files")
@@ -46,11 +51,19 @@ set(test
     ${test-group-test})
 # ]]]
 
+set(libs libclingo GMPXX::GMPXX)
+set(defs)
+if (CLINGOLP_PROFILE)
+    LIST(APPEND libs Gperftools::Gperftools)
+    LIST(APPEND defs CLINGOLP_PROFILE)
+endif()
+
 add_library(libclingolp STATIC ${src})
-target_link_libraries(libclingolp PUBLIC libclingo GMPXX::GMPXX)
+target_link_libraries(libclingolp PUBLIC ${libs})
 target_include_directories(libclingolp PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
+target_compile_definitions(libclingolp PUBLIC ${defs})
 set_target_properties(libclingolp PROPERTIES FOLDER src)
 
 add_executable(clingolp ${app})

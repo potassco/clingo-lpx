@@ -46,6 +46,24 @@ is equivalent to
 &sum { x } <= 2.
 ```
 
+## Profiling
+
+Profiling with the [gperftools] can be enabled via cmake.
+
+```bash
+conda create -n profile -c conda-forge -c potassco/label/dev cmake ninja gmp clingo gxx_linux-64 gperftools
+conda activate profile
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCLINGOLP_PROFILE=ON
+cmake --build build
+```
+
+The resulting binary can then be profiled using the following calls:
+
+```bash
+CPUPROFILE_FREQUENCY=1000 ./build/clingolp examples/encoding-lp.lp examples/tai4_4_1.lp --stats -c n=132 -q 0
+google-pprof --gv ./build/clingolp profile.out
+```
+
 ## Literature
 
 - "Integrating Simplex with `DPLL(T)`" by Bruno Dutertre and Leonardo de Moura

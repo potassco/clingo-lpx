@@ -1,8 +1,26 @@
 #include <parsing.hh>
 #include <solving.hh>
 
+#ifdef CLINGOLP_PROFILE
+#include <gperftools/profiler.h>
+#endif
+
 #include <clingo.hh>
 #include <sstream>
+
+#ifdef CLINGOLP_PROFILE
+
+class Profiler {
+public:
+    Profiler(char const *path) {
+        ProfilerStart(path);
+    }
+    ~Profiler() {
+        ProfilerStop();
+    }
+};
+
+#endif
 
 class ClingoLPApp : public Clingo::Application, public Clingo::SolveEventHandler {
 public:
@@ -53,6 +71,9 @@ public:
             ctl.load(x);
         }
         ctl.ground({{"base", {}}});
+#ifdef CLINGOLP_PROFILE
+        Profiler prof("profile.out");
+#endif
         ctl.solve(Clingo::LiteralSpan{}, this, false, false).get();
     }
 
