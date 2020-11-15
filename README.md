@@ -64,6 +64,8 @@ CPUPROFILE_FREQUENCY=1000 ./build/clingolp examples/encoding-lp.lp examples/tai4
 google-pprof --gv ./build/clingolp profile.out
 ```
 
+[gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html
+
 ## Literature
 
 - "Integrating Simplex with `DPLL(T)`" by Bruno Dutertre and Leonardo de Moura
