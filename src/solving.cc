@@ -281,7 +281,7 @@ bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     }
 
     for (auto lit : lits) {
-        for (auto [it, ie] = bounds_.equal_range(lit); it != ie; ++it) {
+        for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
             auto const &[lit, bound] = *it;
             auto &x = variables_[bound.variable];
             if (!x.update(*this, ctl.assignment(), bound)) {
