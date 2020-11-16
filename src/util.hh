@@ -233,3 +233,167 @@ private:
     std::vector<std::vector<index_t>> rows_;
     std::vector<std::vector<index_t>> cols_;
 };
+
+class NumberQ {
+private:
+    friend NumberQ operator+(NumberQ const &q, Number const &c);
+    friend NumberQ operator+(Number  const &c, NumberQ const &q);
+    friend NumberQ operator+(NumberQ const &p, NumberQ const &q);
+    friend NumberQ operator-(NumberQ const &q, Number const &c);
+    friend NumberQ operator-(Number  const &c, NumberQ const &q);
+    friend NumberQ operator-(NumberQ const &p, NumberQ const &q);
+    friend NumberQ operator*(NumberQ const &q, Number const &c);
+    friend NumberQ operator*(Number  const &c, NumberQ const &q);
+    friend NumberQ operator/(NumberQ const &q, Number const &c);
+    friend NumberQ operator/(Number  const &c, NumberQ const &q);
+
+public:
+    explicit NumberQ(Number c, Number k = Number(0))
+    : c_{std::move(c)}
+    , k_{std::move(k)} { }
+    NumberQ(NumberQ const &) = default;
+    NumberQ(NumberQ &&) = default;
+    NumberQ &operator=(NumberQ const &) = default;
+    NumberQ &operator=(NumberQ &&) = default;
+    ~NumberQ() = default;
+
+    // addition
+    NumberQ &operator+=(Number const &c) {
+        c_ += c;
+        return *this;
+    }
+
+    NumberQ &operator+=(NumberQ const &q) {
+        c_ += q.c_;
+        k_ += q.k_;
+        return *this;
+    }
+
+    NumberQ &operator*=(Number const &c) {
+        c_ *= c;
+        k_ *= c;
+        return *this;
+    }
+
+    [[nodiscard]] bool operator<(Number const &c) const {
+        return cmp_(c) < 0;
+    }
+
+    [[nodiscard]] bool operator<(NumberQ const &q) const {
+        return cmp_(q) < 0;
+    }
+
+    [[nodiscard]] bool operator<=(Number const &c) const {
+        return cmp_(c) <= 0;
+    }
+
+    [[nodiscard]] bool operator<=(NumberQ const &q) const {
+        return cmp_(q) <= 0;
+    }
+
+    [[nodiscard]] bool operator>(Number const &c) const {
+        return cmp_(c) > 0;
+    }
+
+    [[nodiscard]] bool operator>(NumberQ const &q) const {
+        return cmp_(q) > 0;
+    }
+
+    [[nodiscard]] bool operator>=(Number const &c) const {
+        return cmp_(c) >= 0;
+    }
+
+    [[nodiscard]] bool operator>=(NumberQ const &q) const {
+        return cmp_(q) >= 0;
+    }
+
+    [[nodiscard]] bool operator==(NumberQ const &q) const {
+        return c_ == q.c_ && k_ == q.k_;
+    }
+
+    [[nodiscard]] bool operator==(Number const &c) const {
+        return c_ == c && k_ == 0;
+    }
+
+    [[nodiscard]] bool operator!=(NumberQ const &q) const {
+        return c_ != q.c_ || k_ != q.k_;
+    }
+
+    [[nodiscard]] bool operator!=(Number const &c) const {
+        return c_ != c || k_ != 0;
+    }
+
+private:
+    [[nodiscard]] int cmp_(NumberQ const &q) const {
+        auto ret = mpq_cmp(c_.get_mpq_t(), q.c_.get_mpq_t());
+        if (ret != 0) {
+            return ret;
+        }
+        return mpq_cmp(k_.get_mpq_t(), q.k_.get_mpq_t());
+    }
+    [[nodiscard]] int cmp_(Number const &c) const {
+        auto ret = mpq_cmp(c_.get_mpq_t(), c_.get_mpq_t());
+        if (ret != 0) {
+            return ret;
+        }
+        if (k_ < 0) {
+            return -1;
+        }
+        if (k_ > 0) {
+            return 1;
+        }
+        return 0;
+    }
+
+    Number c_;
+    Number k_;
+};
+
+// addition
+
+[[nodiscard]] inline NumberQ operator+(NumberQ const &q, Number const &c) {
+    return NumberQ{q.c_ + c, q.k_};
+}
+
+[[nodiscard]] inline NumberQ operator+(Number  const &c, NumberQ const &q) {
+    return NumberQ{c + q.c_, q.k_};
+}
+
+[[nodiscard]] inline NumberQ operator+(NumberQ const &p, NumberQ const &q) {
+    return NumberQ{p.c_ + q.c_, p.k_ + q.k_};
+}
+
+// subtraction
+
+[[nodiscard]] inline NumberQ operator-(NumberQ const &q, Number const &c) {
+    return NumberQ{q.c_ - c, q.k_};
+}
+
+[[nodiscard]] inline NumberQ operator-(Number  const &c, NumberQ const &q) {
+    return NumberQ{c - q.c_, q.k_};
+}
+
+[[nodiscard]] inline NumberQ operator-(NumberQ const &p, NumberQ const &q) {
+    return NumberQ{p.c_ - q.c_, p.k_ - q.k_};
+}
+
+// multiplication
+
+[[nodiscard]] inline NumberQ operator*(NumberQ const &q, Number const &c) {
+    return NumberQ{q.c_ * c, q.k_ * c};
+}
+
+[[nodiscard]] inline NumberQ operator*(Number const &c, NumberQ const &q) {
+    return NumberQ{c * q.c_, c * q.k_};
+}
+
+// division
+
+[[nodiscard]] inline NumberQ operator/(NumberQ const &q, Number const &c) {
+    return NumberQ{q.c_ / c, q.k_ / c};
+}
+
+[[nodiscard]] inline NumberQ operator/(Number const &c, NumberQ const &q) {
+    return NumberQ{c / q.c_, c / q.k_};
+}
+
