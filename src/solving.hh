@@ -5,6 +5,10 @@
 
 #include <queue>
 
+using Value = Number;
+using Factor = Number;
+using CoeffcientQ = NumberQ;
+
 struct Statistics {
     void reset();
 
@@ -12,6 +16,7 @@ struct Statistics {
 };
 
 //! A solver for finding an assignment satisfying a set of inequalities.
+template <typename Factor, typename Value>
 class Solver {
 private:
     //! Helper class to prepare the inequalities for solving.
@@ -26,10 +31,10 @@ private:
     //!
     //! In practice, there should be a lot of variables with just one bound.
     struct Bound {
-        Number value;
-        index_t variable;
-        Clingo::literal_t lit;
-        Relation rel;
+        Value value;
+        index_t variable{0};
+        Clingo::literal_t lit{0};
+        Relation rel{Relation::LessEqual};
     };
     //! Capture the current state of a variable.
     struct Variable {
@@ -46,18 +51,18 @@ private:
         //! Check if the variable has an upper bound.
         [[nodiscard]] bool has_upper() const { return upper_bound != nullptr; }
         //! Return the value of the lower bound.
-        [[nodiscard]] Number const &lower() const { return lower_bound->value; }
+        [[nodiscard]] Value const &lower() const { return lower_bound->value; }
         //! Return thevalue of the upper bound.
-        [[nodiscard]] Number const &upper() const { return upper_bound->value; }
+        [[nodiscard]] Value const &upper() const { return upper_bound->value; }
         //! Set a new value or add to the existing one.
-        void set_value(Solver &s, index_t level, Number const &num, bool add);
+        void set_value(Solver &s, index_t level, Value const &num, bool add);
 
         //! The lower bound of a variable.
         Bound const *lower_bound{nullptr};
         //! The upper bound of a variable.
         Bound const *upper_bound{nullptr};
         //! The value of the variable.
-        Number value{0};
+        Value value{0};
         //! Helper index for pivoting variables.
         index_t index{0};
         //! Helper index to obtain row/column index of a variable.
@@ -91,7 +96,7 @@ public:
     void undo();
 
     //! Get the current assignment.
-    std::vector<std::pair<Clingo::Symbol, Number>> assignment() const;
+    std::vector<std::pair<Clingo::Symbol, Value>> assignment() const;
 
     //! Return the solve statistics.
     [[nodiscard]] Statistics const &statistics() const;
@@ -116,15 +121,15 @@ private:
     void enqueue_(index_t i);
 
     //! Set the value of non-basic `x_j` variable to `v`.
-    void update_(index_t level, index_t j, Number v);
+    void update_(index_t level, index_t j, Value v);
 
     //! Pivots basic variable `x_i` and non-basic variable `x_j`.
-    void pivot_(index_t level, index_t i, index_t j, Number const &v);
+    void pivot_(index_t level, index_t i, index_t j, Value const &v);
 
     //! Helper function to select pivot point.
     [[nodiscard]] bool select_(bool upper, Variable &x);
     //! Select pivot point using Bland's rule.
-    State select_(index_t &ret_i, index_t &ret_j, Number const *&ret_v);
+    State select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v);
 
     //! Get basic variable associated with row `i`.
     Variable &basic_(index_t i);
@@ -135,10 +140,10 @@ private:
     std::vector<Inequality> inequalities_;
     //! Mapping from literals to bounds.
     std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
-    //! Trail of bound assignments (variable, relation, Number).
+    //! Trail of bound assignments (variable, relation, Value).
     std::vector<std::tuple<index_t, Relation, Bound const *>> bound_trail_;
-    //! Trail for assignments (level, variable, Number).
-    std::vector<std::tuple<index_t, index_t, Number>> assignment_trail_;
+    //! Trail for assignments (level, variable, Value).
+    std::vector<std::tuple<index_t, index_t, Value>> assignment_trail_;
     //! Trail offsets per level.
     std::vector<TrailOffset> trail_offset_;
     //! Mapping from symbols to their indices in the assignment.
@@ -159,6 +164,7 @@ private:
     index_t n_basic_{0};
 };
 
+template <typename Factor, typename Value>
 class ClingoLPPropagator : public Clingo::Propagator {
 public:
     ClingoLPPropagator() = default;
@@ -170,10 +176,10 @@ public:
     void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
     void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
-    [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Number>> assignment(index_t thread_id) const {
+    [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Value>> assignment(index_t thread_id) const {
         return slvs_[thread_id].assignment();
     }
     ~ClingoLPPropagator() override = default;
 private:
-    std::vector<Solver> slvs_;
+    std::vector<Solver<Factor, Value>> slvs_;
 };
