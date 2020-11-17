@@ -245,7 +245,6 @@ private:
     friend NumberQ operator*(NumberQ const &q, Number const &c);
     friend NumberQ operator*(Number  const &c, NumberQ const &q);
     friend NumberQ operator/(NumberQ const &q, Number const &c);
-    friend NumberQ operator/(Number  const &c, NumberQ const &q);
 
 public:
     explicit NumberQ(Number c, Number k = Number(0))
@@ -269,9 +268,26 @@ public:
         return *this;
     }
 
+    NumberQ &operator-=(Number const &c) {
+        c_ -= c;
+        return *this;
+    }
+
+    NumberQ &operator-=(NumberQ const &q) {
+        c_ -= q.c_;
+        k_ -= q.k_;
+        return *this;
+    }
+
     NumberQ &operator*=(Number const &c) {
         c_ *= c;
         k_ *= c;
+        return *this;
+    }
+
+    NumberQ &operator/=(Number const &c) {
+        c_ /= c;
+        k_ /= c;
         return *this;
     }
 
@@ -370,7 +386,7 @@ private:
 }
 
 [[nodiscard]] inline NumberQ operator-(Number  const &c, NumberQ const &q) {
-    return NumberQ{c - q.c_, q.k_};
+    return NumberQ{c - q.c_, -q.k_};
 }
 
 [[nodiscard]] inline NumberQ operator-(NumberQ const &p, NumberQ const &q) {
@@ -392,8 +408,3 @@ private:
 [[nodiscard]] inline NumberQ operator/(NumberQ const &q, Number const &c) {
     return NumberQ{q.c_ / c, q.k_ / c};
 }
-
-[[nodiscard]] inline NumberQ operator/(Number const &c, NumberQ const &q) {
-    return NumberQ{c / q.c_, c / q.k_};
-}
-
