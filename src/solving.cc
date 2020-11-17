@@ -229,7 +229,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, std::vector<Ine
             auto const &[j, v] = row.front();
             auto &xj = non_basic_(j);
             bounds_.emplace(x.lit, Bound{
-                x.rhs / v,
+                Value{x.rhs / v},
                 variables_[j].index,
                 x.lit,
                 v < 0 ? invert(x.rel) : x.rel});
@@ -238,7 +238,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, std::vector<Ine
         else {
             auto i = prep.add_basic(*this);
             bounds_.emplace(x.lit, Bound{
-                x.rhs,
+                Value{x.rhs},
                 static_cast<index_t>(variables_.size() - 1),
                 x.lit,
                 x.rel});
@@ -263,7 +263,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, std::vector<Ine
 
 template<typename Factor, typename Value>
 std::vector<std::pair<Clingo::Symbol, Value>> Solver<Factor, Value>::assignment() const {
-    std::vector<std::pair<Clingo::Symbol, Number>> ret;
+    std::vector<std::pair<Clingo::Symbol, Value>> ret;
     index_t k{0};
     for (auto var : vars_()) {
         if (auto it = indices_.find(var); it != indices_.end()) {
@@ -280,7 +280,7 @@ template<typename Factor, typename Value>
 bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     index_t i{0};
     index_t j{0};
-    Number const *v{nullptr};
+    Value const *v{nullptr};
 
     auto ass = ctl.assignment();
     auto level = ass.decision_level();
@@ -417,7 +417,7 @@ std::vector<Clingo::Symbol> Solver<Factor, Value>::vars_() const {
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::check_tableau_() {
     for (index_t i{0}; i < n_basic_; ++i) {
-        Number v_i{0};
+        Value v_i;
         tableau_.update_row(i, [&](index_t j, Number const &a_ij){
             v_i += non_basic_(j).value * a_ij;
         });
@@ -488,7 +488,7 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     auto &xj = non_basic_(j);
 
     // adjust assignment
-    Number dj = (v - xi.value) / a_ij;
+    Value dj = (v - xi.value) / a_ij;
     xi.set_value(*this, level, v, false);
     xj.set_value(*this, level, dj, true);
     tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
@@ -649,6 +649,6 @@ void ClingoLPPropagator<Factor, Value>::undo(Clingo::PropagateControl const &ctl
 }
 
 template class Solver<Number, Number>;
-template class Solver<NumberQ, Number>;
+template class Solver<Number, NumberQ>;
 template class ClingoLPPropagator<Number, Number>;
-template class ClingoLPPropagator<NumberQ, Number>;
+template class ClingoLPPropagator<Number, NumberQ>;
