@@ -3,7 +3,8 @@
 
 #include <unordered_set>
 
-struct Solver::Prepare {
+template<typename Factor, typename Value>
+struct Solver<Factor, Value>::Prepare {
     index_t add_non_basic(Solver &s, Clingo::Symbol var) {
         auto [jt, res] = s.indices_.emplace(var, n_vars);
         if (res) {
@@ -71,7 +72,8 @@ struct Solver::Prepare {
     std::vector<index_t> basic;
 };
 
-bool Solver::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     if (!has_upper() || bound.value < upper()) {
         if (!has_upper() || ass.level(upper_bound->lit) < ass.decision_level()) {
             s.bound_trail_.emplace_back(bound.variable, Relation::LessEqual, upper_bound);
@@ -81,7 +83,8 @@ bool Solver::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound con
     return !has_lower() || lower() <= upper();
 }
 
-bool Solver::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     if (!has_lower() || bound.value > lower()) {
         if (!has_lower() || ass.level(lower_bound->lit) < ass.decision_level()) {
             if (upper_bound != &bound) {
@@ -97,7 +100,8 @@ bool Solver::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound con
     return !has_upper() || lower() <= upper();
 }
 
-bool Solver::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     switch (bound.rel) {
         case Relation::LessEqual: {
             return update_upper(s, ass, bound);
@@ -112,7 +116,8 @@ bool Solver::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bo
     return update_upper(s, ass, bound) && update_lower(s, ass, bound);
 }
 
-void Solver::Variable::set_value(Solver &s, index_t lvl, Number const &val, bool add) {
+template<typename Factor, typename Value>
+void Solver<Factor, Value>::Variable::set_value(Solver &s, index_t lvl, Value const &val, bool add) {
     // We can always assume that the assignment on a previous level was satisfying.
     // Thus, we simply store the old values to be able to restore them when backtracking.
     if (lvl != level) {
@@ -127,7 +132,8 @@ void Solver::Variable::set_value(Solver &s, index_t lvl, Number const &val, bool
     }
 }
 
-bool Solver::Variable::has_conflict() const {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::Variable::has_conflict() const {
     return (has_lower() && value < lower()) || (has_upper() && value > upper());
 }
 
@@ -135,17 +141,20 @@ void Statistics::reset() {
     *this = {};
 }
 
-Solver::Variable &Solver::basic_(index_t i) {
+template<typename Factor, typename Value>
+typename Solver<Factor, Value>::Variable &Solver<Factor, Value>::basic_(index_t i) {
     assert(i < n_basic_);
     return variables_[variables_[i + n_non_basic_].index];
 }
 
-Solver::Variable &Solver::non_basic_(index_t j) {
+template<typename Factor, typename Value>
+typename Solver<Factor, Value>::Variable &Solver<Factor, Value>::non_basic_(index_t j) {
     assert(j < n_non_basic_);
     return variables_[variables_[j].index];
 }
 
-void Solver::enqueue_(index_t i) {
+template<typename Factor, typename Value>
+void Solver<Factor, Value>::enqueue_(index_t i) {
     assert(i < n_basic_);
     auto ii = variables_[i + n_non_basic_].index;
     auto &xi = variables_[ii];
@@ -155,7 +164,8 @@ void Solver::enqueue_(index_t i) {
     }
 }
 
-bool Solver::prepare(Clingo::PropagateInit &init, std::vector<Inequality> &&inequalities) {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, std::vector<Inequality> &&inequalities) {
     tableau_.clear();
     variables_.clear();
     indices_.clear();
@@ -251,7 +261,8 @@ bool Solver::prepare(Clingo::PropagateInit &init, std::vector<Inequality> &&ineq
     return true;
 }
 
-std::vector<std::pair<Clingo::Symbol, Number>> Solver::assignment() const {
+template<typename Factor, typename Value>
+std::vector<std::pair<Clingo::Symbol, Value>> Solver<Factor, Value>::assignment() const {
     std::vector<std::pair<Clingo::Symbol, Number>> ret;
     index_t k{0};
     for (auto var : vars_()) {
@@ -265,7 +276,8 @@ std::vector<std::pair<Clingo::Symbol, Number>> Solver::assignment() const {
     return ret;
 }
 
-bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     index_t i{0};
     index_t j{0};
     Number const *v{nullptr};
@@ -338,7 +350,8 @@ bool Solver::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     }
 }
 
-void Solver::undo() {
+template<typename Factor, typename Value>
+void Solver<Factor, Value>::undo() {
     // this function restores the last satisfying assignment
     auto &offset = trail_offset_.back();
 
@@ -381,11 +394,13 @@ void Solver::undo() {
     assert_extra(check_solution_());
 }
 
-Statistics const &Solver::statistics() const {
+template<typename Factor, typename Value>
+Statistics const &Solver<Factor, Value>::statistics() const {
     return statistics_;
 }
 
-std::vector<Clingo::Symbol> Solver::vars_() const {
+template<typename Factor, typename Value>
+std::vector<Clingo::Symbol> Solver<Factor, Value>::vars_() const {
     std::unordered_set<Clingo::Symbol> var_set;
     for (auto const &x : inequalities_) {
         for (auto const &y : x.lhs) {
@@ -399,7 +414,8 @@ std::vector<Clingo::Symbol> Solver::vars_() const {
     return var_vec;
 };
 
-bool Solver::check_tableau_() {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::check_tableau_() {
     for (index_t i{0}; i < n_basic_; ++i) {
         Number v_i{0};
         tableau_.update_row(i, [&](index_t j, Number const &a_ij){
@@ -412,7 +428,8 @@ bool Solver::check_tableau_() {
     return true;
 }
 
-bool Solver::check_basic_() {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::check_basic_() {
     for (index_t i = 0; i < n_basic_; ++i) {
         auto &xi = basic_(i);
         if (xi.has_lower() && xi.value < xi.lower() && !xi.queued) {
@@ -425,7 +442,8 @@ bool Solver::check_basic_() {
     return true;
 }
 
-bool Solver::check_non_basic_() {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::check_non_basic_() {
     for (index_t j = 0; j < n_non_basic_; ++j) {
         auto &xj = non_basic_(j);
         if (xj.has_lower() && xj.value < xj.lower()) {
@@ -438,7 +456,8 @@ bool Solver::check_non_basic_() {
     return true;
 }
 
-bool Solver::check_solution_() {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::check_solution_() {
     for (auto &x : variables_) {
         if (x.has_lower() && x.lower() > x.value) {
             return false;
@@ -450,16 +469,18 @@ bool Solver::check_solution_() {
     return check_tableau_() && check_basic_();
 }
 
-void Solver::update_(index_t level, index_t j, Number v) {
+template<typename Factor, typename Value>
+void Solver<Factor, Value>::update_(index_t level, index_t j, Value v) {
     auto &xj = non_basic_(j);
     tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
         basic_(i).set_value(*this, level, a_ij * (v - xj.value), true);
         enqueue_(i);
     });
-    xj.set_value(*this, level, v, false);
+    xj.set_value(*this, level, std::move(v), false);
 }
 
-void Solver::pivot_(index_t level, index_t i, index_t j, Number const &v) {
+template<typename Factor, typename Value>
+void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value const &v) {
     auto &a_ij = tableau_.unsafe_get(i, j);
     assert(a_ij != 0);
 
@@ -513,7 +534,8 @@ void Solver::pivot_(index_t level, index_t i, index_t j, Number const &v) {
     assert_extra(check_non_basic_());
 }
 
-bool Solver::select_(bool upper, Variable &x) {
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::select_(bool upper, Variable &x) {
     if (upper) {
         if (!x.has_upper() || x.value < x.upper()) {
             return true;
@@ -529,7 +551,8 @@ bool Solver::select_(bool upper, Variable &x) {
     return false;
 }
 
-Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret_v) {
+template<typename Factor, typename Value>
+typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) {
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
@@ -589,7 +612,8 @@ Solver::State Solver::select_(index_t &ret_i, index_t &ret_j, Number const *&ret
     return State::Satisfiable;
 }
 
-void ClingoLPPropagator::init(Clingo::PropagateInit &init) {
+template<typename Factor, typename Value>
+void ClingoLPPropagator<Factor, Value>::init(Clingo::PropagateInit &init) {
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
         slvs_.emplace_back();
@@ -599,7 +623,8 @@ void ClingoLPPropagator::init(Clingo::PropagateInit &init) {
     }
 }
 
-void ClingoLPPropagator::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
+template<typename Factor, typename Value>
+void ClingoLPPropagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
     auto step_simplex = step.add_subkey("Simplex", Clingo::StatisticsType::Map);
     auto step_pivots = step_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
     auto accu_simplex = accu.add_subkey("Simplex", Clingo::StatisticsType::Map);
@@ -610,13 +635,20 @@ void ClingoLPPropagator::on_statistics(Clingo::UserStatistics step, Clingo::User
     }
 }
 
-void ClingoLPPropagator::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
+template<typename Factor, typename Value>
+void ClingoLPPropagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
     auto &slv = slvs_[ctl.thread_id()];
     if (!slv.solve(ctl, changes)) {
         ctl.add_clause(slv.reason());
     }
 }
 
-void ClingoLPPropagator::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
+template<typename Factor, typename Value>
+void ClingoLPPropagator<Factor, Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
     slvs_[ctl.thread_id()].undo();
 }
+
+template class Solver<Number, Number>;
+template class Solver<NumberQ, Number>;
+template class ClingoLPPropagator<Number, Number>;
+template class ClingoLPPropagator<NumberQ, Number>;

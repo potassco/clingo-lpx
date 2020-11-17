@@ -79,7 +79,7 @@ public:
 
 private:
     std::stringstream last_assignment_;
-    ClingoLPPropagator prp_;
+    ClingoLPPropagator<Number, Number> prp_;
 };
 
 int main(int argc, char const *argv[]) {

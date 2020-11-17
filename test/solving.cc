@@ -12,7 +12,7 @@ bool run(char const *s) {
     ctl.add("base", {}, s);
     ctl.ground({{"base", {}}});
 
-    ClingoLPPropagator prp;
+    ClingoLPPropagator<Number, Number> prp;
     ctl.register_propagator(prp);
     return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
