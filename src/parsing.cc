@@ -137,6 +137,12 @@ bool is_string(Clingo::TheoryTerm const &term) {
     if (std::strcmp(rel, "=") == 0) {
         return Relation::Equal;
     }
+    if (std::strcmp(rel, ">") == 0) {
+        return Relation::Greater;
+    }
+    if (std::strcmp(rel, "<") == 0) {
+        return Relation::Less;
+    }
     return throw_syntax_error<Relation>();
 }
 

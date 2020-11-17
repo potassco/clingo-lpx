@@ -27,6 +27,13 @@ private:
         Upper = 1,
         //Equal = 2,
     };
+    enum class BoundRelation : uint32_t  {
+        LessEqual = 0,
+        GreaterEqual = 1,
+        Equal = 2,
+    };
+    template<typename F, typename V>
+    friend typename Solver<F, V>::BoundRelation bound_rel(Relation rel);
     //! The bounds associated with a Variable.
     //!
     //! In practice, there should be a lot of variables with just one bound.
@@ -34,7 +41,7 @@ private:
         Value value;
         index_t variable{0};
         Clingo::literal_t lit{0};
-        Relation rel{Relation::LessEqual};
+        BoundRelation rel{BoundRelation::LessEqual};
     };
     //! Capture the current state of a variable.
     struct Variable {
@@ -165,21 +172,23 @@ private:
 };
 
 template <typename Factor, typename Value>
-class ClingoLPPropagator : public Clingo::Propagator {
+class ClingoLPPropagator : private Clingo::Propagator {
 public:
     ClingoLPPropagator() = default;
     ClingoLPPropagator(ClingoLPPropagator const &) = default;
     ClingoLPPropagator(ClingoLPPropagator &&) noexcept = default;
     ClingoLPPropagator &operator=(ClingoLPPropagator const &) = default;
     ClingoLPPropagator &operator=(ClingoLPPropagator &&) noexcept = default;
-    void init(Clingo::PropagateInit &init) override;
-    void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
-    void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
+    ~ClingoLPPropagator() override = default;
+    void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
     [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Value>> assignment(index_t thread_id) const {
         return slvs_[thread_id].assignment();
     }
-    ~ClingoLPPropagator() override = default;
 private:
+    void init(Clingo::PropagateInit &init) override;
+    void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
+    void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
+
     std::vector<Solver<Factor, Value>> slvs_;
 };
