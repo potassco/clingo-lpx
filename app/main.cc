@@ -7,6 +7,7 @@
 
 #include <clingo.hh>
 #include <sstream>
+#include <variant>
 
 #ifdef CLINGOLP_PROFILE
 
@@ -21,6 +22,11 @@ public:
 };
 
 #endif
+
+template <class T>
+constexpr bool is_mono() {
+    return std::is_same_v<std::decay_t<T>, std::monostate>;
+}
 
 class ClingoLPApp : public Clingo::Application, public Clingo::SolveEventHandler {
 public:
@@ -48,24 +54,46 @@ public:
         last_assignment_.str("");
         last_assignment_ << "Assignment:\n";
         bool comma = false;
-        for (auto const &[var, val] : prp_.assignment(model.thread_id())) {
-            if (comma) {
-                last_assignment_ << " ";
+        std::visit([&](auto &&prp) {
+            if constexpr (!is_mono<decltype(prp)>()) {
+                for (auto const &[var, val] : prp.assignment(model.thread_id())) {
+                    if (comma) {
+                        last_assignment_ << " ";
+                    }
+                    else {
+                        comma = true;
+                    }
+                    last_assignment_ << var << "=" << val;
+                }
             }
-            else {
-                comma = true;
-            }
-            last_assignment_ << var << "=" << val;
-        }
+        }, prp_);
         return true;
     }
 
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) override {
-        prp_.on_statistics(step, accu);
+        std::visit([&](auto &&prp) {
+            if constexpr (!is_mono<decltype(prp)>()) {
+                prp.on_statistics(step, accu);
+            }
+        }, prp_);
+    }
+
+    void register_options(Clingo::ClingoOptions &opts) override {
+        opts.add_flag("Clingo.LP", "strict", "Enable support for strict constraints", strict_);
     }
 
     void main(Clingo::Control &ctl, Clingo::StringSpan files) override {
-        ctl.register_propagator(prp_);
+        if (strict_) {
+            prp_ = ClingoLPPropagator<Number, NumberQ>{};
+        }
+        else {
+            prp_ = ClingoLPPropagator<Number, Number>{};
+        }
+        std::visit([&ctl](auto &&prp) {
+            if constexpr (!is_mono<decltype(prp)>()) {
+                ctl.register_propagator(prp);
+            }
+        }, prp_);
         ctl.add("base", {}, THEORY);
         for (auto const &x : files) {
             ctl.load(x);
@@ -79,7 +107,8 @@ public:
 
 private:
     std::stringstream last_assignment_;
-    ClingoLPPropagator<Number, Number> prp_;
+    std::variant<std::monostate, ClingoLPPropagator<Number, Number>, ClingoLPPropagator<Number, NumberQ>> prp_;
+    bool strict_{false};
 };
 
 int main(int argc, char const *argv[]) {

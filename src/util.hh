@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdint>
 #include <cassert>
+#include <iostream>
 #include <gmpxx.h>
 
 #define CLINGOLP_EXTRA_DEBUG
@@ -245,9 +246,10 @@ private:
     friend NumberQ operator*(NumberQ const &q, Number const &c);
     friend NumberQ operator*(Number  const &c, NumberQ const &q);
     friend NumberQ operator/(NumberQ const &q, Number const &c);
+    friend std::ostream &operator<<(std::ostream &out, NumberQ const &q);
 
 public:
-    explicit NumberQ(Number c, Number k = Number(0))
+    explicit NumberQ(Number c = Number{}, Number k = Number{})
     : c_{std::move(c)}
     , k_{std::move(k)} { }
     NumberQ(NumberQ const &) = default;
@@ -255,6 +257,11 @@ public:
     NumberQ &operator=(NumberQ const &) = default;
     NumberQ &operator=(NumberQ &&) = default;
     ~NumberQ() = default;
+
+    void swap(NumberQ &q) {
+        c_.swap(q.c_);
+        k_.swap(q.k_);
+    }
 
     // addition
     NumberQ &operator+=(Number const &c) {
@@ -407,4 +414,20 @@ private:
 
 [[nodiscard]] inline NumberQ operator/(NumberQ const &q, Number const &c) {
     return NumberQ{q.c_ / c, q.k_ / c};
+}
+
+inline std::ostream &operator<<(std::ostream &out, NumberQ const &q) {
+    if (q.c_ != 0 || q.k_ == 0) {
+        out << q.c_;
+    }
+    if (q.k_ != 0) {
+        if (q.c_ != 0) {
+            out << "+";
+        }
+        if (q.k_ != 1) {
+            out << q.k_ << "*";
+        }
+        out << "e";
+    }
+    return out;
 }
