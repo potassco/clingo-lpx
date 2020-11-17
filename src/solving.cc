@@ -4,6 +4,51 @@
 #include <unordered_set>
 
 template<typename Factor, typename Value>
+typename Solver<Factor, Value>::BoundRelation bound_rel(Relation rel) {
+    switch (rel) {
+        case Relation::Less:
+        case Relation::LessEqual: {
+            return Solver<Factor, Value>::BoundRelation::LessEqual;
+        }
+        case Relation::Greater:
+        case Relation::GreaterEqual: {
+            return Solver<Factor, Value>::BoundRelation::GreaterEqual;
+        }
+        case Relation::Equal: {
+            break;
+        }
+    }
+    return Solver<Factor, Value>::BoundRelation::Equal;
+}
+
+template<typename Value>
+Value bound_val(Number &&val, Relation);
+
+template<>
+Number bound_val<Number>(Number &&x, Relation rel) {
+    assert(rel != Relation::Less && rel != Relation::Greater);
+    return std::move(x);
+}
+
+template<>
+NumberQ bound_val<NumberQ>(Number &&x, Relation rel) {
+    switch (rel) {
+        case Relation::Less: {
+            return NumberQ{std::move(x), -1};
+        }
+        case Relation::Greater: {
+            return NumberQ{std::move(x), 1};
+        }
+        case Relation::LessEqual:
+        case Relation::GreaterEqual:
+        case Relation::Equal: {
+            break;
+        }
+    }
+    return NumberQ{std::move(x)};
+}
+
+template<typename Factor, typename Value>
 struct Solver<Factor, Value>::Prepare {
     index_t add_non_basic(Solver &s, Clingo::Symbol var) {
         auto [jt, res] = s.indices_.emplace(var, n_vars);
@@ -103,13 +148,13 @@ bool Solver<Factor, Value>::Variable::update_lower(Solver &s, Clingo::Assignment
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     switch (bound.rel) {
-        case Relation::LessEqual: {
+        case BoundRelation::LessEqual: {
             return update_upper(s, ass, bound);
         }
-        case Relation::GreaterEqual: {
+        case BoundRelation::GreaterEqual: {
             return update_lower(s, ass, bound);
         }
-        case Relation::Equal: {
+        case BoundRelation::Equal: {
             break;
         }
     }
@@ -228,20 +273,21 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, std::vector<Ine
         else if (row.size() == 1) {
             auto const &[j, v] = row.front();
             auto &xj = non_basic_(j);
+            auto rel = v < 0 ? invert(x.rel) : x.rel;
             bounds_.emplace(x.lit, Bound{
-                Value{x.rhs / v},
+                bound_val<Value>(Factor{x.rhs / v}, rel),
                 variables_[j].index,
                 x.lit,
-                v < 0 ? invert(x.rel) : x.rel});
+                bound_rel<Factor, Value>(rel)});
         }
         // add an inequality
         else {
             auto i = prep.add_basic(*this);
             bounds_.emplace(x.lit, Bound{
-                Value{x.rhs},
+                bound_val<Value>(Factor{x.rhs}, x.rel),
                 static_cast<index_t>(variables_.size() - 1),
                 x.lit,
-                x.rel});
+                bound_rel<Factor, Value>(x.rel)});
             for (auto const &[j, v] : row) {
                 tableau_.set(i, j, v);
             }
@@ -620,6 +666,17 @@ void ClingoLPPropagator<Factor, Value>::init(Clingo::PropagateInit &init) {
         if (!slvs_.back().prepare(init, evaluate_theory(init.theory_atoms()))) {
             return;
         }
+    }
+}
+
+template<typename Factor, typename Value>
+void ClingoLPPropagator<Factor, Value>::register_control(Clingo::Control &ctl) {
+    ctl.register_propagator(*this);
+    if constexpr(std::is_same_v<Value, NumberQ>) {
+        ctl.add("base", {}, THEORY_Q);
+    }
+    else {
+        ctl.add("base", {}, THEORY);
     }
 }
 

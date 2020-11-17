@@ -46,6 +46,17 @@ is equivalent to
 &sum { x } <= 2.
 ```
 
+When option `--strict` is passed to the solver, then also strict constraints are supperted:
+```
+{ x }.
+&sum { x } > 1.
+&sum { x } < 2.
+```
+The assignment will then contain an epsilon compontent for each variable.
+For example, with the above program, `x>=1+e` will appear in the output.
+This feature could also be used to support constraints in rule body and the `!=` relation;
+neither is implemented at the moment.
+
 ## Profiling
 
 Profiling with the [gperftools] can be enabled via cmake.

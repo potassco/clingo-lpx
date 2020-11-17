@@ -11,6 +11,12 @@ Relation invert(Relation rel) {
         case Relation::Equal: {
             break;
         }
+        case Relation::Less: {
+            return Relation::Greater;
+        }
+        case Relation::Greater: {
+            return Relation::Less;
+        }
     }
     return Relation::Equal;
 }
@@ -27,6 +33,14 @@ std::ostream &operator<<(std::ostream &out, Relation const &rel) {
         }
         case Relation::Equal: {
             out << "=";
+            break;
+        }
+        case Relation::Less: {
+            out << "<";
+            break;
+        }
+        case Relation::Greater: {
+            out << ">";
             break;
         }
     }

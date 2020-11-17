@@ -1,4 +1,3 @@
-#include <parsing.hh>
 #include <solving.hh>
 
 #ifdef CLINGOLP_PROFILE
@@ -91,10 +90,9 @@ public:
         }
         std::visit([&ctl](auto &&prp) {
             if constexpr (!is_mono<decltype(prp)>()) {
-                ctl.register_propagator(prp);
+                prp.register_control(ctl);
             }
         }, prp_);
-        ctl.add("base", {}, THEORY);
         for (auto const &x : files) {
             ctl.load(x);
         }

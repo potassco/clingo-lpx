@@ -9,6 +9,8 @@ enum class Relation {
     LessEqual = 0,
     GreaterEqual = 1,
     Equal = 2,
+    Less = 3,
+    Greater = 4,
 };
 
 [[nodiscard]] Relation invert(Relation rel);
