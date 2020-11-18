@@ -249,8 +249,20 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, std::vector<Ine
         // check bound against 0
         if (row.empty()) {
             switch (x.rel) {
+                case Relation::Less: {
+                    if (x.rhs >= 0 && !init.add_clause({-x.lit})) {
+                        return false;
+                    }
+                    break;
+                }
                 case Relation::LessEqual: {
                     if (x.rhs > 0 && !init.add_clause({-x.lit})) {
+                        return false;
+                    }
+                    break;
+                }
+                case Relation::Greater: {
+                    if (x.rhs <= 0 && !init.add_clause({-x.lit})) {
                         return false;
                     }
                     break;
