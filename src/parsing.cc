@@ -1,5 +1,6 @@
 #include <parsing.hh>
 
+#include <map>
 #include <regex>
 
 namespace {
