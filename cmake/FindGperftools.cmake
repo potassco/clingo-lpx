@@ -1,10 +1,6 @@
-find_library(GPERFTOOLS_PROFILER
-  NAMES profiler
-  HINTS ${Gperftools_ROOT_DIR}/lib)
+find_library(GPERFTOOLS_PROFILER NAMES profiler)
 
-find_path(GPERFTOOLS_INCLUDE
-  NAMES gperftools/profiler.h
-  HINTS ${Gperftools_ROOT_DIR}/include)
+find_path(GPERFTOOLS_INCLUDE NAMES gperftools/profiler.h)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Gperftools DEFAULT_MSG GPERFTOOLS_PROFILER GPERFTOOLS_INCLUDE)

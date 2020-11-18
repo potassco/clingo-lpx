@@ -1,13 +1,7 @@
-find_path(GMPXX_INCLUDE
-  NAMES
-  gmpxx.h
-  PATHS
-  $ENV{GMPXXDIR}
-  ${INCLUDE_INSTALL_DIR}
-)
+find_path(GMPXX_INCLUDE NAMES gmpxx.h)
 
-find_library(GMPXX_GMP_LIBRARY gmp PATHS $ENV{GMPXXDIR} ${LIB_INSTALL_DIR})
-find_library(GMPXX_GMPXX_LIBRARY gmpxx PATHS $ENV{GMPXXDIR} ${LIB_INSTALL_DIR})
+find_library(GMPXX_GMP_LIBRARY NAMES gmp)
+find_library(GMPXX_GMPXX_LIBRARY NAMES gmpxx)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(GMPXX DEFAULT_MSG GMPXX_INCLUDE GMPXX_GMP_LIBRARY GMPXX_GMPXX_LIBRARY)
