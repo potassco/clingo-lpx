@@ -121,7 +121,7 @@ template<typename Factor, typename Value>
 bool Solver<Factor, Value>::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     if (!has_upper() || bound.value < upper()) {
         if (!has_upper() || ass.level(upper_bound->lit) < ass.decision_level()) {
-            s.bound_trail_.emplace_back(bound.variable, Relation::LessEqual, upper_bound);
+            s.bound_trail_.emplace_back(bound.variable, BoundRelation::LessEqual, upper_bound);
         }
         upper_bound = &bound;
     }
@@ -133,11 +133,11 @@ bool Solver<Factor, Value>::Variable::update_lower(Solver &s, Clingo::Assignment
     if (!has_lower() || bound.value > lower()) {
         if (!has_lower() || ass.level(lower_bound->lit) < ass.decision_level()) {
             if (upper_bound != &bound) {
-                s.bound_trail_.emplace_back(bound.variable, Relation::GreaterEqual, lower_bound);
+                s.bound_trail_.emplace_back(bound.variable, BoundRelation::GreaterEqual, lower_bound);
             }
             else {
                 // Note: this assumes that update_lower is called right after update_upper for the same bound
-                std::get<1>(s.bound_trail_.back()) = Relation::Equal;
+                std::get<1>(s.bound_trail_.back()) = BoundRelation::Equal;
             }
         }
         lower_bound = &bound;
@@ -417,15 +417,15 @@ void Solver<Factor, Value>::undo() {
     for (auto it = bound_trail_.begin() + offset.bound, ie = bound_trail_.end(); it != ie; ++it) {
         auto [var, rel, bound] = *it;
         switch (rel) {
-            case Relation::LessEqual: {
+            case BoundRelation::LessEqual: {
                 variables_[var].upper_bound = bound;
                 break;
             }
-            case Relation::GreaterEqual: {
+            case BoundRelation::GreaterEqual: {
                 variables_[var].lower_bound = bound;
                 break;
             }
-            case Relation::Equal: {
+            case BoundRelation::Equal: {
                 variables_[var].upper_bound = bound;
                 variables_[var].lower_bound = bound;
                 break;
@@ -671,7 +671,7 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
 }
 
 template<typename Factor, typename Value>
-void ClingoLPPropagator<Factor, Value>::init(Clingo::PropagateInit &init) {
+void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
         slvs_.emplace_back();
@@ -682,7 +682,7 @@ void ClingoLPPropagator<Factor, Value>::init(Clingo::PropagateInit &init) {
 }
 
 template<typename Factor, typename Value>
-void ClingoLPPropagator<Factor, Value>::register_control(Clingo::Control &ctl) {
+void Propagator<Factor, Value>::register_control(Clingo::Control &ctl) {
     ctl.register_propagator(*this);
     if constexpr(std::is_same_v<Value, NumberQ>) {
         ctl.add("base", {}, THEORY_Q);
@@ -693,7 +693,7 @@ void ClingoLPPropagator<Factor, Value>::register_control(Clingo::Control &ctl) {
 }
 
 template<typename Factor, typename Value>
-void ClingoLPPropagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
+void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
     auto step_simplex = step.add_subkey("Simplex", Clingo::StatisticsType::Map);
     auto step_pivots = step_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
     auto accu_simplex = accu.add_subkey("Simplex", Clingo::StatisticsType::Map);
@@ -705,7 +705,7 @@ void ClingoLPPropagator<Factor, Value>::on_statistics(Clingo::UserStatistics ste
 }
 
 template<typename Factor, typename Value>
-void ClingoLPPropagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
+void Propagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
     auto &slv = slvs_[ctl.thread_id()];
     if (!slv.solve(ctl, changes)) {
         ctl.add_clause(slv.reason());
@@ -713,11 +713,11 @@ void ClingoLPPropagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl,
 }
 
 template<typename Factor, typename Value>
-void ClingoLPPropagator<Factor, Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
+void Propagator<Factor, Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
     slvs_[ctl.thread_id()].undo();
 }
 
 template class Solver<Number, Number>;
 template class Solver<Number, NumberQ>;
-template class ClingoLPPropagator<Number, Number>;
-template class ClingoLPPropagator<Number, NumberQ>;
+template class Propagator<Number, Number>;
+template class Propagator<Number, NumberQ>;

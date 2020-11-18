@@ -148,7 +148,7 @@ private:
     //! Mapping from literals to bounds.
     std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
     //! Trail of bound assignments (variable, relation, Value).
-    std::vector<std::tuple<index_t, Relation, Bound const *>> bound_trail_;
+    std::vector<std::tuple<index_t, BoundRelation, Bound const *>> bound_trail_;
     //! Trail for assignments (level, variable, Value).
     std::vector<std::tuple<index_t, index_t, Value>> assignment_trail_;
     //! Trail offsets per level.
@@ -172,14 +172,14 @@ private:
 };
 
 template <typename Factor, typename Value>
-class ClingoLPPropagator : private Clingo::Propagator {
+class Propagator : private Clingo::Propagator {
 public:
-    ClingoLPPropagator() = default;
-    ClingoLPPropagator(ClingoLPPropagator const &) = default;
-    ClingoLPPropagator(ClingoLPPropagator &&) noexcept = default;
-    ClingoLPPropagator &operator=(ClingoLPPropagator const &) = default;
-    ClingoLPPropagator &operator=(ClingoLPPropagator &&) noexcept = default;
-    ~ClingoLPPropagator() override = default;
+    Propagator() = default;
+    Propagator(Propagator const &) = default;
+    Propagator(Propagator &&) noexcept = default;
+    Propagator &operator=(Propagator const &) = default;
+    Propagator &operator=(Propagator &&) noexcept = default;
+    ~Propagator() override = default;
     void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
     [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Value>> assignment(index_t thread_id) const {

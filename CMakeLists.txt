@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(CLINGOLP VERSION 1.0 LANGUAGES CXX)
+project(CLINGOLPX VERSION 1.0 LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "cmake")
 
-option(CLINGOLP_PROFILE "Enable profiling using gperftools" OFF)
+option(CLINGOLPX_PROFILE "Enable profiling using gperftools" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 find_package(Clingo REQUIRED)
 find_package(GMPXX REQUIRED)
-if (CLINGOLP_PROFILE)
+if (CLINGOLPX_PROFILE)
     find_package(Gperftools REQUIRED)
 endif()
 
@@ -39,46 +39,46 @@ set(app
     ${app-group-app})
 # ]]]
 # [[[test: test
-set(ide_test_group "Test Files")
+set(ide_test-group "Test Files")
 set(test-group-test
     "${CMAKE_CURRENT_SOURCE_DIR}/test/catch.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/test/main.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/test/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/test/solving.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/test/util.cc")
-source_group("${ide_test_group}\\test" FILES ${test-group-test})
+source_group("${ide_test-group}\\test" FILES ${test-group-test})
 set(test
     ${test-group-test})
 # ]]]
 
 set(libs libclingo GMPXX::GMPXX)
 set(defs)
-if (CLINGOLP_PROFILE)
+if (CLINGOLPX_PROFILE)
     LIST(APPEND libs Gperftools::Gperftools)
-    LIST(APPEND defs CLINGOLP_PROFILE)
+    LIST(APPEND defs CLINGOLPX_PROFILE)
 endif()
 
-add_library(libclingolp STATIC ${src})
-target_link_libraries(libclingolp PUBLIC ${libs})
-target_include_directories(libclingolp PUBLIC
+add_library(libclingo-lpx STATIC ${src})
+target_link_libraries(libclingo-lpx PUBLIC ${libs})
+target_include_directories(libclingo-lpx PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
 )
-target_compile_definitions(libclingolp PUBLIC ${defs})
-set_target_properties(libclingolp PROPERTIES FOLDER src)
+target_compile_definitions(libclingo-lpx PUBLIC ${defs})
+set_target_properties(libclingo-lpx PROPERTIES FOLDER src)
 
-add_executable(clingolp ${app})
-target_link_libraries(clingolp PRIVATE libclingolp)
-target_include_directories(clingolp PRIVATE
+add_executable(clingo-lpx ${app})
+target_link_libraries(clingo-lpx PRIVATE libclingo-lpx)
+target_include_directories(clingo-lpx PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/app>
 )
-set_target_properties(clingolp PROPERTIES FOLDER app)
+set_target_properties(clingo-lpx PROPERTIES FOLDER app)
 
 enable_testing()
-add_executable(test_clingolp ${test})
-target_link_libraries(test_clingolp PRIVATE libclingolp)
-target_include_directories(test_clingolp PRIVATE
+add_executable(test-clingo-lpx ${test})
+target_link_libraries(test-clingo-lpx PRIVATE libclingo-lpx)
+target_include_directories(test-clingo-lpx PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
 )
-set_target_properties(test_clingolp PROPERTIES FOLDER test)
+set_target_properties(test-clingo-lpx PROPERTIES FOLDER test)
 
-add_test(NAME test_clingolp COMMAND test_clingolp)
+add_test(NAME test-clingo-lpx COMMAND test-clingo-lpx)

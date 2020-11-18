@@ -4,7 +4,7 @@ all:
 	@compdb -p "build" list -1 > compile_commands.json
 
 test: all
-	./build/test_clingolp
+	./build/test_clingolpx
 
 clean:
 	@cmake --build build --target clean

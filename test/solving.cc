@@ -6,7 +6,7 @@
 namespace {
 
 bool run(char const *s) {
-    ClingoLPPropagator<Number, Number> prp;
+    Propagator<Number, Number> prp;
     Clingo::Control ctl;
     prp.register_control(ctl);
 
@@ -17,7 +17,7 @@ bool run(char const *s) {
 }
 
 bool run_q(char const *s) {
-    ClingoLPPropagator<Number, NumberQ> prp;
+    Propagator<Number, NumberQ> prp;
     Clingo::Control ctl;
     prp.register_control(ctl);
 

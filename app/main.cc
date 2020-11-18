@@ -27,17 +27,17 @@ constexpr bool is_mono() {
     return std::is_same_v<std::decay_t<T>, std::monostate>;
 }
 
-class ClingoLPApp : public Clingo::Application, public Clingo::SolveEventHandler {
+class Application : public Clingo::Application, public Clingo::SolveEventHandler {
 public:
-    ClingoLPApp() = default;
-    ClingoLPApp(ClingoLPApp const &) = delete;
-    ClingoLPApp(ClingoLPApp &&) = delete;
-    ClingoLPApp &operator=(ClingoLPApp &&) = delete;
-    ClingoLPApp &operator=(ClingoLPApp const &) = delete;
-    ~ClingoLPApp() override = default;
+    Application() = default;
+    Application(Application const &) = delete;
+    Application(Application &&) = delete;
+    Application &operator=(Application &&) = delete;
+    Application &operator=(Application const &) = delete;
+    ~Application() override = default;
 
     [[nodiscard]] char const *program_name() const noexcept override {
-        return "clingo-lp";
+        return "clingo-lpx";
     }
 
     [[nodiscard]] char const *version() const noexcept override {
@@ -78,15 +78,15 @@ public:
     }
 
     void register_options(Clingo::ClingoOptions &opts) override {
-        opts.add_flag("Clingo.LP", "strict", "Enable support for strict constraints", strict_);
+        opts.add_flag("Clingo.LPX", "strict", "Enable support for strict constraints", strict_);
     }
 
     void main(Clingo::Control &ctl, Clingo::StringSpan files) override {
         if (strict_) {
-            prp_ = ClingoLPPropagator<Number, NumberQ>{};
+            prp_ = Propagator<Number, NumberQ>{};
         }
         else {
-            prp_ = ClingoLPPropagator<Number, Number>{};
+            prp_ = Propagator<Number, Number>{};
         }
         std::visit([&ctl](auto &&prp) {
             if constexpr (!is_mono<decltype(prp)>()) {
@@ -105,11 +105,11 @@ public:
 
 private:
     std::stringstream last_assignment_;
-    std::variant<std::monostate, ClingoLPPropagator<Number, Number>, ClingoLPPropagator<Number, NumberQ>> prp_;
+    std::variant<std::monostate, Propagator<Number, Number>, Propagator<Number, NumberQ>> prp_;
     bool strict_{false};
 };
 
 int main(int argc, char const *argv[]) {
-    ClingoLPApp app;
+    Application app;
     return Clingo::clingo_main(app, {argv+1, argv+argc});
 }

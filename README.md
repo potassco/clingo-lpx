@@ -1,4 +1,4 @@
-# simplex
+# clingo modulo simplex
 
 A simplistic simplex solver for checking satisfiability of a set of equations.
 
@@ -71,8 +71,8 @@ cmake --build build
 The resulting binary can then be profiled using the following calls:
 
 ```bash
-CPUPROFILE_FREQUENCY=1000 ./build/clingolp examples/encoding-lp.lp examples/tai4_4_1.lp --stats -c n=132 -q 0
-google-pprof --gv ./build/clingolp profile.out
+CPUPROFILE_FREQUENCY=1000 ./build/clingo-lpx examples/encoding-lp.lp examples/tai4_4_1.lp --stats -c n=132 -q 0
+google-pprof --gv ./build/clingo-lpx profile.out
 ```
 
 [gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html
