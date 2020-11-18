@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.18)
 project(CLINGOLPX VERSION 1.0 LANGUAGES CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(GNUInstallDirs)
 
 option(CLINGOLPX_PROFILE "Enable profiling using gperftools" OFF)
 
@@ -72,6 +73,7 @@ target_include_directories(clingo-lpx PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/app>
 )
 set_target_properties(clingo-lpx PROPERTIES FOLDER app)
+install(TARGETS clingo-lpx RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 enable_testing()
 add_executable(test-clingo-lpx ${test})
