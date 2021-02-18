@@ -19,72 +19,47 @@ using index_t = uint32_t;
 
 //! A sparse matrix with efficient access to both rows and columns.
 //!
-//! Values set to zero are deleted lazily from adjacency lists when traversing
-//! rows and columns.
-//!
-//! Note: that this deletion scheme has not been tested in practice at all. I
-//! could imagine that an additional cleanup step called at strategic points is
-//! much better than the current scheme because this would totally eliminate
-//! the necessity to tag the indexes.
+//! Insertion into the matrix is linear in the number of rows/columns and
+//! should be avoided.
 class Tableau {
 private:
-    static constexpr index_t mask_get = 0x7fffffff;
-    static constexpr index_t mask_set = 0x80000000;
-    static constexpr index_t width = 32;
-    class Index {
-    public:
-        Index(index_t i, index_t j)
-        : row_{i}
-        , col_{j} {
-            if ((i & mask_set) != 0 || (j & mask_set) != 0) {
-                std::abort();
-            }
+    struct Cell {
+        Cell(index_t col, Number val)
+        : col{col}
+        , val{std::move(val)} { }
+        Cell(Cell const &) = default;
+        Cell(Cell &&) = default;
+        Cell &operator=(Cell const &) = default;
+        Cell &operator=(Cell &&) = default;
+        ~Cell() = default;
+
+        friend bool operator==(Cell const &x, Cell const &y) {
+            return x.col == y.col && x.val == y.val;
         }
-        [[nodiscard]] index_t row() const {
-            return row_ & mask_get;
+        friend bool operator<(Cell const &x, Cell const &y) {
+            return x.col < y.col;
         }
-        [[nodiscard]] index_t col() const {
-            return col_ & mask_get;
+        friend bool operator<(Cell const &x, index_t col) {
+            return x.col < col;
         }
-        [[nodiscard]] bool in_row() const {
-            return (row_ & mask_set) != 0;
+        friend bool operator<(index_t col, Cell const &x) {
+            return col < x.col;
         }
-        bool in_row(bool x) const {
-            auto ret = in_row();
-            row_ = x ? (row_ | mask_set) : row();
-            return ret;
-        }
-        [[nodiscard]] bool in_col() const {
-            return (col_ & mask_set) != 0;
-        }
-        bool in_col(bool x) const {
-            auto ret = in_col();
-            col_ = x ? (col_ | mask_set) : col();
-            return ret;
-        }
-    private:
-        mutable index_t row_;
-        mutable index_t col_;
+
+        index_t col;
+        Number val;
     };
-    struct IndexPred {
-        [[nodiscard]] bool operator()(Index const &a, Index const &b) const {
-            return a.row() == b.row() && a.col() == b.col();
-        }
-    };
-    struct IndexHash {
-        [[nodiscard]] size_t operator()(Index const &a) const {
-            return std::hash<uint64_t>{}(a.row() + (static_cast<uint64_t>(a.col()) << width));
-        }
-    };
-    void reserve_row_(index_t i) {
+    std::vector<Cell> &reserve_row_(index_t i) {
         if (rows_.size() <= i) {
             rows_.resize(i + 1);
         }
+        return rows_[i];
     }
-    void reserve_col_(index_t j) {
+    std::vector<index_t> &reserve_col_(index_t j) {
         if (cols_.size() <= j) {
             cols_.resize(j + 1);
         }
+        return cols_[j];
     }
     static Number const &zero_() {
         static Number zero{0};
@@ -94,9 +69,12 @@ private:
 public:
     //! Get value at row `i` and column `j`.
     [[nodiscard]] Number const &get(index_t i, index_t j) const {
-        auto it = vals_.find({i, j});
-        if (it != vals_.end()) {
-            return it->second;
+        if (i < rows_.size()) {
+            auto const &row = rows_[i];
+            auto it = std::lower_bound(row.begin(), row.end(), j);
+            if (it != row.end() && it->col == j) {
+                return it->val;
+            }
         }
         return zero_();
     }
@@ -107,81 +85,52 @@ public:
     //! Only non-zero values should be accessed and they should not be set to
     //! zero.
     [[nodiscard]] Number &unsafe_get(index_t i, index_t j) {
-        return vals_.find({i, j})->second;
+        return std::lower_bound(rows_[i].begin(), rows_[i].end(), j)->val;
     }
 
     //! Set value `a` at row `i` and column `j`.
     void set(index_t i, index_t j, Number const &a) {
         if (a == 0) {
-            auto it = vals_.find({i, j});
-            if (it != vals_.end()) {
-                it->second = 0;
+            if (i < rows_.size()) {
+                auto &row = rows_[i];
+                auto it = std::lower_bound(row.begin(), row.end(), j);
+                if (it != row.end() && it->col == j) {
+                    row.erase(it);
+                }
             }
         }
         else {
-            auto it = vals_.insert_or_assign(Index{i, j}, a).first;
-            if (!it->first.in_row(true)) {
-                reserve_row_(i);
-                rows_[i].push_back(j);
+            auto &row = reserve_row_(i);
+            auto it = std::lower_bound(row.begin(), row.end(), j);
+            if (it == row.end() || it->col != j) {
+                row.emplace(it, j, a);
             }
-            if (!it->first.in_col(true)) {
-                reserve_col_(j);
-                cols_[j].push_back(i);
+            else {
+                it->val = a;
+            }
+            auto &col = reserve_col_(j);
+            auto jt = std::lower_bound(col.begin(), col.end(), i);
+            if (jt == col.end() || *jt != i) {
+                col.emplace(jt, i);
             }
         }
     }
 
-    template <typename F>
-    void update(index_t i, index_t j, F &&f) {
-        auto [it, res] = vals_.try_emplace({i, j});
-        f(it->second);
-        if (it->second == 0) {
-            if (res) {
-                vals_.erase(it);
-            }
-        }
-        else {
-            if (!it->first.in_row(true)) {
-                reserve_row_(i);
-                rows_[i].push_back(j);
-            }
-            if (!it->first.in_col(true)) {
-                reserve_col_(j);
-                cols_[j].push_back(i);
-            }
-        }
-    }
-    //! Traverse non-zero elements in a row and possibly update them.
+    //! Traverse non-zero elements in a row.
+    //!
+    //! The given function must not set the value to zero.
     template <typename F>
     void update_row(index_t i, F &&f) {
         if (i < rows_.size()) {
-            auto &row = rows_[i];
-            auto it = row.begin();
-            auto ie = row.end();
-            for (auto jt = it; jt != ie; ++jt) {
-                auto kt = vals_.find({i, *jt});
-                if (kt->second != 0) {
-                    f(*jt, kt->second);
-                }
-                if (kt->second == 0) {
-                    assert(kt->first.in_row());
-                    kt->first.in_row(false);
-                    if (!kt->first.in_col()) {
-                        vals_.erase(kt);
-                    }
-                }
-                else {
-                    if (it != jt) {
-                        std::iter_swap(it, jt);
-                    }
-                    ++it;
-                }
+            for (auto &[col, val] : rows_[i]) {
+                f(col, val);
             }
-            row.erase(it, ie);
         }
     }
 
-    //! Traverse non-zero elements in a row and possibly update them.
+    //! Traverse non-zero elements in a column.
+    //!
+    //! The given function must not set the value to zero.
     template <typename F>
     void update_col(index_t j, F &&f) {
         if (j < cols_.size()) {
@@ -189,18 +138,11 @@ public:
             auto it = col.begin();
             auto ie = col.end();
             for (auto jt = it; jt != ie; ++jt) {
-                auto kt = vals_.find({*jt, j});
-                if (kt->second != 0) {
-                    f(*jt, kt->second);
-                }
-                if (kt->second == 0) {
-                    assert(kt->first.in_col());
-                    kt->first.in_col(false);
-                    if (!kt->first.in_row()) {
-                        vals_.erase(kt);
-                    }
-                }
-                else {
+                auto i = *jt;
+                auto &row = rows_[i];
+                auto kt = std::lower_bound(row.begin(), row.end(), j);
+                if (kt != row.end() && kt->col == j) {
+                    f(i, kt->val);
                     if (it != jt) {
                         std::iter_swap(it, jt);
                     }
@@ -211,27 +153,84 @@ public:
         }
     }
 
-    //! Get the number of values in the matrix including zero values that have
-    //! not yet been deleted.
+    //! Eliminate x_j from rows k != i.
+    //!
+    //! This is the only function specific to the simplex algorithm. It is
+    //! implemented like this to offer better performance and makes a lot of
+    //! assumptions.
+    void eliminate(index_t i, index_t j) {
+        auto ib = rows_[i].begin();
+        auto ie = rows_[i].end();
+        std::vector<Cell> row;
+        update_col(j, [&](index_t k, Number const &a_kj) {
+            if (k != i) {
+                // Note that this call does not invalidate active iterators:
+                // - row i is unaffected because k != i
+                // - there are no insertions in column j because each a_kj != 0
+                for (auto it = ib, jt = rows_[k].begin(), je = rows_[k].end(); it != ie || jt != je; ) {
+                    if (jt == je || (it != ie && it->col < jt->col)) {
+                        row.emplace_back(it->col, it->val * a_kj);
+                        auto &col = cols_[it->col];
+                        auto kt = std::lower_bound(col.begin(), col.end(), k);
+                        if (kt == col.end() || *kt != k) {
+                            col.emplace(kt, k);
+                        }
+                        ++it;
+                    }
+                    else if (it == ie || jt->col < it->col) {
+                        row.emplace_back(std::move(*jt));
+                        ++jt;
+                    }
+                    else {
+                        if (jt->col != j) {
+                            row.emplace_back(jt->col, std::move(jt->val));
+                            row.back().val += it->val * a_kj;
+                            if (row.back().val == 0) {
+                                row.pop_back();
+                            }
+                        }
+                        else {
+                            row.emplace_back(jt->col, jt->val * it->val);
+                        }
+                        ++it;
+                        ++jt;
+                    }
+                }
+                std::swap(rows_[k], row);
+                row.clear();
+            }
+        });
+    }
+
+    //! Get the number of values in the matrix.
+    //!
+    //! The runtime of this function is linear in the size of the matrix.
     [[nodiscard]] size_t size() const {
-        return vals_.size();
+        size_t ret{0};
+        for (auto const &row : rows_) {
+            ret += row.size();
+        }
+        return ret;
     }
 
     //! Equivalent to `size() == 0`.
     [[nodiscard]] bool empty() const {
-        return vals_.empty();
+        for (auto const &row : rows_) {
+            if (!row.empty()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     //! Clear the tableau.
     void clear() {
         rows_.clear();
         cols_.clear();
-        vals_.clear();
     }
 
 private:
-    std::unordered_map<Index, Number, IndexHash, IndexPred> vals_;
-    std::vector<std::vector<index_t>> rows_;
+    std::vector<std::vector<Cell>> rows_;
     std::vector<std::vector<index_t>> cols_;
 };
 

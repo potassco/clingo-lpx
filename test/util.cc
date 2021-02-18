@@ -23,25 +23,25 @@ TEST_CASE("util") {
         // remove at (0,0)
         t.set(0, 0, 0);
         REQUIRE(t.get(0, 0) == 0);
-        REQUIRE(t.size() == 1);
+        REQUIRE(t.size() == 0);
 
         // set 1 at (0,2)
         t.set(0, 2, 1);
-        REQUIRE(t.size() == 2);
+        REQUIRE(t.size() == 1);
 
         // traverse the first row
         t.update_row(0, [](index_t j, Number &a) {
             REQUIRE(j == 2);
             REQUIRE(a == 1);
         });
-        REQUIRE(t.size() == 2);
+        REQUIRE(t.size() == 1);
 
         // traverse the third column
         t.update_col(2, [](index_t i, Number &a) {
             REQUIRE(i == 0);
             REQUIRE(a == 1);
         });
-        REQUIRE(t.size() == 2);
+        REQUIRE(t.size() == 1);
 
         // traverse the first column
         t.update_col(0, [](index_t j, Number &a) { });

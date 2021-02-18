@@ -547,8 +547,10 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
 
     // adjust assignment
     Value dj = (v - xi.value) / a_ij;
+    assert(dj != 0);
     xi.set_value(*this, level, v, false);
     xj.set_value(*this, level, dj, true);
+    // TODO: can this be merged into the loop below?:
     tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
         if (k != i) {
             basic_(k).set_value(*this, level, a_kj * dj, true);
@@ -571,20 +573,7 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     a_ij = 1 / a_ij;
 
     // eliminate x_j from rows k != i
-    tableau_.update_col(j, [&](index_t k, Number &a_kj) {
-        if (k != i) {
-            // Note that this call does not invalidate active iterators:
-            // - row i is unaffected because k != i
-            // - there are no insertions in column j because each a_kj != 0
-            tableau_.update_row(i, [&](index_t l, Number const &a_il) {
-                if (l != j) {
-                    tableau_.update(k, l, [&](Number &a_kl) { a_kl += a_il * a_kj; });
-                }
-            });
-            // Note that a_ij was inverted above.
-            a_kj *= a_ij;
-        }
-    });
+    tableau_.eliminate(i, j);
 
     ++statistics_.pivots_;
     assert_extra(check_tableau_());

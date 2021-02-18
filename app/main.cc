@@ -1,6 +1,6 @@
 #include <solving.hh>
 
-#ifdef CLINGOLP_PROFILE
+#ifdef CLINGOLPX_PROFILE
 #include <gperftools/profiler.h>
 #endif
 
@@ -8,7 +8,7 @@
 #include <sstream>
 #include <variant>
 
-#ifdef CLINGOLP_PROFILE
+#ifdef CLINGOLPX_PROFILE
 
 class Profiler {
 public:
@@ -97,7 +97,7 @@ public:
             ctl.load(x);
         }
         ctl.ground({{"base", {}}});
-#ifdef CLINGOLP_PROFILE
+#ifdef CLINGOLPX_PROFILE
         Profiler prof("profile.out");
 #endif
         ctl.solve(Clingo::LiteralSpan{}, this, false, false).get();
