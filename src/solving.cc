@@ -22,7 +22,7 @@ typename Solver<Factor, Value>::BoundRelation bound_rel(Relation rel) {
 }
 
 template<typename Value>
-Value bound_val(Number &&val, Relation);
+Value bound_val(Number &&x, Relation rel);
 
 template<>
 Number bound_val<Number>(Number &&x, Relation rel) {
