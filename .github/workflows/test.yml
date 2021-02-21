@@ -1,0 +1,54 @@
+name: Run CI tests
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  build:
+    name: clingo-lpx ${{ matrix.python-version }} ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['ubuntu-latest', 'macos-latest']
+        python-version: ['3.7']
+        include:
+          - os: 'ubuntu-latest'
+            compiler: 'gxx_linux-64'
+            generator: 'Ninja'
+            build_type: 'Debug'
+          - os: 'macos-latest'
+            generator: 'Ninja'
+            build_type: 'Debug'
+            compiler: 'clang_osx-64'
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: setup miniconda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        auto-update-conda: true
+        python-version: ${{ matrix.python-version }}
+        activate-environment: clingo-lpx
+        channels: potassco/label/dev,conda-forge
+
+    - name: install prerequisites
+      shell: pwsh
+      run: conda install clingo cmake ninja "${{ matrix.compiler }}" gmp
+
+    - name: print info
+      shell: pwsh
+      run: |
+        conda info
+        conda list
+
+    - name: build and test
+      shell: pwsh
+      run: >
+        ctest
+        --build-config "${{ matrix.build_type }}"
+        --build-generator "${{ matrix.generator }}"
+        --build-and-test . build
+        --test-command ctest -V --build-config "${{ matrix.build_type }}"
