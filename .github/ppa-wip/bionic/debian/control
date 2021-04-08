@@ -10,6 +10,6 @@ Vcs-Git: https://github.com/potassco/clingo-lpx.git
 
 Package: clingo-lpx
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo, libgmp10
 Description: A solver for logic programs with linear equations
  This package contains the executables.

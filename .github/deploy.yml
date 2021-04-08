@@ -5,6 +5,8 @@ conda:
     os: 
         - 'ubuntu-latest'
         - 'macos-latest'
+    macosx-sdk:
+        'MacOSX10.14.sdk.tar.xz'
     channels_release:
         - 'potassco'
     channels_dev:

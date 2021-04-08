@@ -39,6 +39,13 @@ jobs:
         conda config --set anaconda_upload yes
         conda install conda-build anaconda-client
 
+    - name: Install macos SDK
+      if: ${{ matrix.os == 'macos-latest' }}
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri 'https://github.com/phracker/MacOSX-SDKs/releases/download/10.15/MacOSX10.14.sdk.tar.xz' -OutFile 'MacOSX10.14.sdk.tar.xz'
+        sudo tar xf MacOSX10.14.sdk.tar.xz -C /opt
+
     - name: print info
       shell: pwsh
       run: |
