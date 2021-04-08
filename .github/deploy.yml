@@ -1,0 +1,138 @@
+# do not edit the workflows, they are generated from this file
+conda:
+    package_name:
+        'clingo-lpx'
+    os: 
+        - 'ubuntu-latest'
+        - 'macos-latest'
+    channels_release:
+        - 'potassco'
+    channels_dev:
+        - 'potassco'
+        - 'potassco/label/dev'
+    version: |
+        version = '1.0.0'
+    meta:
+      url: https://github.com/potassco/{{ name }}/archive/v{{ version }}.tar.gz
+      git_url: https://github.com/potassco/{{ name }}.git
+      requirements:
+        build:
+          - cmake
+          - "{{ compiler('c') }}"
+          - "{{ compiler('cxx') }}"
+        host:
+          - gmp
+          - clingo
+        run:
+          - gmp
+          - "{{ pin_compatible('clingo') }}"
+      build:
+        skip: True [win and vc<14]
+      about:
+        home:  https://potassco.org/
+        license: MIT
+        summary: A solver for logic programs with linear inequalities.
+        description: The clingo-lpx solver extends the clingo ASP system with support for liner inequalities.
+        doc_url: https://potassco.org/
+        dev_url: https://github.com/potassco/clingo-lpx
+
+    build_sh: |
+      #!/bin/bash
+
+      mkdir build
+      cd build
+
+      extra_opts=()
+      if [[ ! -z "${CONDA_BUILD_SYSROOT}" ]]; then
+        export MACOSX_DEPLOYMENT_TARGET=10.14
+        extra_opts+=("-DCMAKE_OSX_SYSROOT=${CONDA_BUILD_SYSROOT}")
+      fi
+
+      cmake .. "${extra_opts[@]}" \
+          -DCMAKE_CXX_COMPILER="${CXX}" \
+          -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
+          -DCMAKE_INSTALL_LIBDIR="lib" \
+          -DCMAKE_BUILD_TYPE=Release
+
+      make -j${CPU_COUNT}
+      make install
+
+    build_bat: |
+      mkdir build
+
+      cmake -G "%CMAKE_GENERATOR%" -H. -Bbuild ^
+          -DCMAKE_CXX_COMPILER="%CXX%" ^
+          -DCMAKE_INSTALL_PREFIX="%PREFIX%" ^
+          -DCMAKE_INSTALL_BINDIR="."
+
+      cmake --build build --config Release
+      cmake --build build --config Release --target install
+    build_config: |
+      clingo:
+          - 5.5
+
+      pin_run_as_build:
+          clingo: x.x
+
+      # from https://github.com/phracker/MacOSX-SDKs
+      CONDA_BUILD_SYSROOT:
+          - /opt/MacOSX10.14.sdk # [osx]
+
+ppa:
+    package_name:
+        'clingo-lpx'
+    upstream_name:
+        'clingo-lpx'
+    initial_version:
+        '1.0.0'
+    initial_date:
+        'Sat, 21 Feb 2021 12:00:00 +0100'
+    contact_url:
+        'https://github.com/potassco/clingo-lpx/issues'
+    source_url:
+        'https://github.com/potassco/clingo-lpx'
+    version:
+        '1.0.0'
+    build_depends: []
+    create_depends:
+        - 'libclingo-dev'
+    sync_patterns:
+        - 'app'
+        - 'cmake'
+        - 'src'
+        - 'test'
+        - 'README.md'
+        - 'CMakeLists.txt'
+        - 'LICENSE'
+    distributions:
+        focal:
+        bionic:
+            source:
+                Build-Depends: 'debhelper-compat (= 11), cmake, libclingo-dev, libgmp-dev'
+    source:
+        Source: 'clingo-lpx'
+        Section: 'devel'
+        Priority: 'optional'
+        Maintainer: 'Roland Kaminski <kaminski@cs.uni-potsdam.de>'
+        Build-Depends: 'debhelper-compat (= 12), cmake, libclingo-dev, libgmp-dev'
+        Standards-Version: '4.4.1'
+        Homepage: 'https://potassco.org/'
+        Vcs-Browser: 'https://github.com/potassco/clingo-lpx'
+        Vcs-Git: 'https://github.com/potassco/clingo-lpx.git'
+    packages:
+        clingo-lpx:
+            Architecture: 'any'
+            Depends: '${shlibs:Depends}, ${misc:Depends}, libclingo, libgmp10'
+            Description: |
+                A solver for logic programs with linear equations
+                 This package contains the executables.
+    files:
+        docs: |
+            README.md
+        rules: |
+            #!/usr/bin/make -f
+            %:
+            	dh $@
+            
+            override_dh_auto_configure:
+            	dh_auto_configure -- -DCMAKE_LIBRARY_PATH=$(DEB_HOST_MULTIARCH)

@@ -2,7 +2,7 @@ Source: clingo-lpx
 Section: devel
 Priority: optional
 Maintainer: Roland Kaminski <kaminski@cs.uni-potsdam.de>
-Build-Depends: debhelper-compat (= 12), cmake, libclingo-dev, libgmp-dev, libgmpxx4ldbl
+Build-Depends: debhelper-compat (= 12), cmake, libclingo-dev, libgmp-dev
 Standards-Version: 4.4.1
 Homepage: https://potassco.org/
 Vcs-Browser: https://github.com/potassco/clingo-lpx
@@ -10,6 +10,6 @@ Vcs-Git: https://github.com/potassco/clingo-lpx.git
 
 Package: clingo-lpx
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo, libgmp10, libgmpxx4ldbl
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: A solver for logic programs with linear equations
  This package contains the executables.
