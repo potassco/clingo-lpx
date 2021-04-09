@@ -15,7 +15,11 @@ def get_build_number(channels, version):
     '''
     Get the next build number.
     '''
-    pkgs = json.loads(subprocess.check_output(['conda', 'search', '--json', '-c', channels[-1], NAME]))
+    try:
+        pkgs = json.loads(subprocess.check_output(['conda', 'search', '--json', '-c', channels[-1], NAME]))
+    except subprocess.CalledProcessError:
+        pkgs = {NAME: []}
+
 
     build_number = -1
     for pkg in pkgs[NAME]:
@@ -40,6 +44,7 @@ def run():
         channels = ['potassco', 'potassco/label/dev']
 
     version = '1.0.0'
+    assert version is not None
     build_number = get_build_number(channels, version)
 
     build_env = os.environ.copy()
