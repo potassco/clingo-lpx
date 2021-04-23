@@ -62,7 +62,7 @@ for act in "${@}"; do
                 $rep/
             ;;
         changes)
-            VERSION="1.0.0"
+            VERSION="1.0.1"
             BUILD=$(curl -sL http://ppa.launchpad.net/potassco/${ref}/ubuntu/pool/main/c/clingo-lpx/ | sed -n "/${VERSION//./\\.}-${rep}[0-9]\+\.dsc/s/.*${rep}\([0-9]\+\).*/\1/p" | sort -rn | head -1)
             cat > ${rep}/debian/changelog <<EOF
 clingo-lpx (${VERSION}-${rep}$[BUILD+1]) ${rep}; urgency=medium

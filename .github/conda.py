@@ -43,7 +43,7 @@ def run():
         label = "dev"
         channels = ['potassco', 'potassco/label/dev']
 
-    version = '1.0.0'
+    version = '1.0.1'
     assert version is not None
     build_number = get_build_number(channels, version)
 

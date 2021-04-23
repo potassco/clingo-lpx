@@ -13,7 +13,7 @@ conda:
         - 'potassco'
         - 'potassco/label/dev'
     version: |
-        version = '1.0.0'
+        version = '1.0.1'
     meta:
       url: https://github.com/potassco/{{ name }}/archive/v{{ version }}.tar.gz
       git_url: https://github.com/potassco/{{ name }}.git
@@ -94,7 +94,7 @@ ppa:
     source_url:
         'https://github.com/potassco/clingo-lpx'
     version:
-        '1.0.0'
+        '1.0.1'
     build_depends: []
     create_depends:
         - 'libclingo-dev'
