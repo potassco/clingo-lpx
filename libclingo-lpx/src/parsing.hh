@@ -1,6 +1,6 @@
 #pragma once
 
-#include <problem.hh>
+#include "problem.hh"
 
 constexpr char const *THEORY = R"(
 #theory lp {
