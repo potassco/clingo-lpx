@@ -7,7 +7,7 @@ jobs:
   build_packages:
     runs-on: ubuntu-latest
     env:
-      PLAT: ${{ github.event.inputs.image }}
+      PLAT: manylinux2014_x86_64
 
     steps:
     - name: Checkout repo
