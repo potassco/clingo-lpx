@@ -58,7 +58,7 @@ for act in "${@}"; do
                 ../../CMakeLists.txt \
                 ../../README.md \
                 ../../INSTALL.md \
-                ../../LICENSE.md \
+                ../../LICENSE \
                 ../../CHANGES.md \
                 $rep/
             ;;
@@ -94,7 +94,7 @@ EOF
                 "${rep}"/CMakeLists.txt \
                 "${rep}"/README.md \
                 "${rep}"/INSTALL.md \
-                "${rep}"/LICENSE.md \
+                "${rep}"/LICENSE \
                 "${rep}"/CHANGES.md \
                 "${rep}"/debian/files \
                 "${rep}"/debian/.debhelper \

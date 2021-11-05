@@ -40,6 +40,6 @@ about:
   license: MIT
   summary: A solver for logic programs with difference constraints.
   description: The clingo-lpx solver extends the clingo ASP system with support for difference logic constraints.
-  license_file: LICENSE.md
+  license_file: LICENSE
   doc_url: https://potassco.org/
   dev_url: https://github.com/potassco/{{ name }}

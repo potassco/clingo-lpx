@@ -1,7 +1,7 @@
 include setup.py
 include pyproject.toml
 include CMakeLists.txt
-include LICENSE.md
+include LICENSE
 include README.md
 recursive-include app *
 recursive-include cmake *
