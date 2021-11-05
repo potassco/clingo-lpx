@@ -12,6 +12,7 @@ pip:
         sudo apt-get install gcc g++ cmake ninja-build libgmp-dev
         python3 -m pip install --user --upgrade scikit-build
     install: |
+        check_call(['yum', '-y', 'install', 'gmp-devel'])
         if ARCH != "x86_64":
             check_call(['sed', '-i', 's/, "cmake"//', 'pyproject.toml'])
     build_depends_release: |
