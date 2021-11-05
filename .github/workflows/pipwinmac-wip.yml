@@ -1,7 +1,12 @@
 name: Deploy win/mac wheels (wip)
 
 on:
-  - push
+  workflow_dispatch:
+    inputs:
+      wip:
+        description: 'Publish work in progress package.'
+        required: false
+        default: 'true'
 
 jobs:
   build:
@@ -29,9 +34,18 @@ jobs:
         pip install --user toml cffi scikit-build cmake ninja twine
 
     - name: Compile and upload wheels (wip)
+      if: ${{ github.event.inputs.wip == 'true' }}
       run: python .github/pipwinmac.py
       env:
         TWINE_NON_INTERACTIVE: True
         TWINE_REPOSITORY_URL: https://test.pypi.org/legacy/
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+
+    - name: Compile and upload wheels (release)
+      if: ${{ github.event.inputs.wip == 'false' }}
+      run: python .github/pipwinmac.py --release
+      env:
+        TWINE_NON_INTERACTIVE: True
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN_RELEASE }}

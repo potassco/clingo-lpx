@@ -18,7 +18,7 @@ jobs:
     - name: Pull images
       run: |
         docker pull multiarch/qemu-user-static
-        docker pull quay.io/pypa/${{ github.event.inputs.image }}:latest
+        docker pull quay.io/pypa/manylinux2014_x86_64:latest
 
     - name: Set up QEMU
       run: |
@@ -26,7 +26,7 @@ jobs:
 
     - name: Build wheels (wip)
       run: |
-        docker run --rm -e PLAT --workdir /github/workspace -v $GITHUB_WORKSPACE:/"/github/workspace" quay.io/pypa/${{ github.event.inputs.image }} /opt/python/cp38-cp38/bin/python ".github/manylinux.py"
+        docker run --rm -e PLAT --workdir /github/workspace -v $GITHUB_WORKSPACE:/"/github/workspace" quay.io/pypa/manylinux2014_x86_64 /opt/python/cp38-cp38/bin/python ".github/manylinux.py"
 
     - name: Publish package to TestPyPI (wip)
       uses: pypa/gh-action-pypi-publish@master
