@@ -1,86 +1,167 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.1)
 
-project(CLINGOLPX VERSION 1.0 LANGUAGES CXX)
+file(READ "libclingo-lpx/clingo-lpx.h" main)
+string(REGEX MATCH "#define CLINGOLPX_VERSION \"([^\"]*)\"" clingov ${main})
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(GNUInstallDirs)
+project(CLINGOLPX VERSION "${CMAKE_MATCH_1}" LANGUAGES C CXX)
+if (POLICY CMP0063)
+    cmake_policy(SET CMP0063 NEW)
+endif()
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "No build type selected - using 'Release'")
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
 
-option(CLINGOLPX_PROFILE "Enable profiling using gperftools" OFF)
-
+# Enable folders in IDEs like Visual Studio
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
-find_package(Clingo REQUIRED)
+include(GNUInstallDirs)
+include(CMakeDependentOption)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+option(CLINGOLPX_MANAGE_RPATH "set rpath if not installed into system directory" ON)
+option(CLINGOLPX_BUILD_TESTS "build tests" OFF)
+option(CLINGOLPX_BUILD_SHARED "build clingo-lpx library shared" ON)
+option(CLINGOLPX_CROSSCHECK "enable additional state checking" OFF)
+option(CLINGOLPX_PROFILE "Enable profiling using gperftools" OFF)
+set(PYCLINGOLPX_ENABLE "auto" CACHE STRING "build with python support: OFF, auto, require, pip
+auto: enable python support if python is available
+require: enable python support and fails if python is not available
+pip: enable python support and link against the clingo python module")
+set(PYCLINGOLPX_INSTALL "prefix" CACHE STRING "configure where to install python module: user, system, prefix
+user: install into user prefix
+system: install into python library
+prefix: install into install prefix")
+set(PYCLINGOLPX_PIP_PATH "" CACHE STRING "path to clingo pip package")
+set(PYCLINGOLPX_SUFFIX "" CACHE STRING "suffix for python module")
+set(PYCLINGOLPX_INSTALL_DIR "" CACHE STRING "path where to install python module")
+
+mark_as_advanced(CLINGOLPX_BUILD_STATIC)
+mark_as_advanced(CLINGOLPX_BUILD_SHARED)
+mark_as_advanced(CLINGOLPX_CROSSCHECK)
+mark_as_advanced(CLINGOLPX_PROFILE)
+mark_as_advanced(PYCLINGOLPX_PIP_PATH)
+mark_as_advanced(PYCLINGOLPX_SUFFIX)
+mark_as_advanced(PYCLINGOLPX_INSTALL_DIR)
+
+if (MSVC)
+    set(VC_RELEASE_LINK_OPTIONS /LTCG)
+    SET(CMAKE_EXE_LINKER_FLAGS_RELEASE    "${CMAKE_EXE_LINKER_FLAGS_RELEASE}    ${VC_RELEASE_LINK_OPTIONS}")
+    SET(CMAKE_MODULE_LINKER_FLAGS_RELEASE "${CMAKE_MODULE_LINKER_FLAGS_RELEASE} ${VC_RELEASE_LINK_OPTIONS}")
+    SET(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} ${VC_RELEASE_LINK_OPTIONS}")
+    SET(CMAKE_STATIC_LINKER_FLAGS_RELEASE "${CMAKE_STATIC_LINKER_FLAGS_RELEASE} ${VC_RELEASE_LINK_OPTIONS}")
+endif()
+
+if (POLICY CMP0063 AND CLINGOLPX_BUILD_SHARED)
+    set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+    set(CMAKE_C_VISIBILITY_PRESET hidden)
+endif()
+
+if (CLINGOLPX_BUILD_TESTS)
+    enable_testing()
+endif()
+
+if (CLINGOLPX_MANAGE_RPATH)
+    set(CMAKE_SKIP_BUILD_RPATH FALSE)
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_FULL_LIBDIR}" isSystemDir)
+    if ("${isSystemDir}" STREQUAL "-1")
+        set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}")
+    endif()
+endif()
+
+if (NOT CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+endif()
+if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+if (NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+if (NOT CMAKE_IMPORT_LIBRARY_PREFIX)
+    set(CMAKE_IMPORT_LIBRARY_PREFIX import_)
+endif()
+
 find_package(GMPXX REQUIRED)
 if (CLINGOLPX_PROFILE)
     find_package(Gperftools REQUIRED)
 endif()
 
-# [[[src: src
-set(ide_src_group "Src Files")
-set(src-group
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/util.hh")
-source_group("${ide_src_group}" FILES ${src-group})
-set(src
-    ${src-group})
-# ]]]
-# [[[app: app
-set(ide_app_group "App Files")
-set(app-group-app
-    "${CMAKE_CURRENT_SOURCE_DIR}/app/main.cc")
-source_group("${ide_app_group}\\app" FILES ${app-group-app})
-set(app
-    ${app-group-app})
-# ]]]
-# [[[test: test
-set(ide_test-group "Test Files")
-set(test-group-test
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/catch.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/main.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/parsing.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/solving.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/test/util.cc")
-source_group("${ide_test-group}\\test" FILES ${test-group-test})
-set(test
-    ${test-group-test})
-# ]]]
-
-set(libs libclingo GMPXX::GMPXX)
-set(defs)
-if (CLINGOLPX_PROFILE)
-    LIST(APPEND libs Gperftools::Gperftools)
-    LIST(APPEND defs CLINGOLPX_PROFILE)
+if (PYCLINGOLPX_ENABLE)
+    if(NOT PYCLINGOLPX_ENABLE STREQUAL "pip" AND (CMAKE_VERSION VERSION_GREATER "3.15.0" OR CMAKE_VERSION VERSION_EQUAL "3.15.0"))
+        if(DEFINED PYTHON_EXECUTABLE AND NOT DEFINED Python_EXECUTABLE)
+            set(Python_EXECUTABLE "${PYTHON_EXECUTABLE}")
+        endif()
+        if(DEFINED PYTHON_INCLUDE_DIR AND NOT DEFINED Python_INCLUDE_DIR)
+            set(Python_INCLUDE_DIR "${PYTHON_INCLUDE_DIR}")
+        endif()
+        if(DEFINED PYTHON_LIBRARY AND NOT DEFINED Python_LIBRARY)
+            set(Python_LIBRARY "${PYTHON_LIBRARY}")
+        endif()
+        if (POLICY CMP0094)
+            cmake_policy(SET CMP0094 NEW)
+        endif()
+        set(_args Interpreter)
+        set(_args ${_args} Development)
+        if (PYCLINGOLPX_ENABLE STREQUAL "require" OR PYCLINGOLPX_ENABLE STREQUAL "pip")
+            set(_args ${_args} REQUIRED)
+        endif()
+        find_package(Python COMPONENTS ${_args})
+    else()
+        set(_args)
+        if (PYCLINGOLPX_ENABLE STREQUAL "require" OR PYCLINGOLPX_ENABLE STREQUAL "pip")
+            set(_args ${_args} REQUIRED)
+        endif()
+        find_package(PythonInterp ${_args})
+        find_package(PythonLibs ${_args})
+        set(Python_EXECUTABLE "${PYTHON_EXECUTABLE}")
+        if (PYTHONLIBS_FOUND)
+            add_library(Python::Python INTERFACE IMPORTED)
+            add_library(Python::Module INTERFACE IMPORTED)
+            set(Python_Development_FOUND ON)
+            set(Python_INCLUDE_DIRS "${PYTHON_INCLUDE_DIRS}")
+            set(Python_VERSION "${PYTHONLIBS_VERSION_STRING}")
+            set_property(TARGET Python::Python PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${PYTHON_INCLUDE_DIRS}")
+            set_property(TARGET Python::Module PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${PYTHON_INCLUDE_DIRS}")
+            set_property(TARGET Python::Python PROPERTY INTERFACE_LINK_LIBRARIES "${PYTHON_LIBRARIES}")
+            if (MSVC)
+                set_property(TARGET Python::Module PROPERTY INTERFACE_LINK_LIBRARIES "${PYTHON_LIBRARIES}")
+            endif()
+        endif()
+    endif()
 endif()
 
-add_library(libclingo-lpx STATIC ${src})
-target_link_libraries(libclingo-lpx PUBLIC ${libs})
-target_include_directories(libclingo-lpx PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-)
-target_compile_definitions(libclingo-lpx PUBLIC ${defs})
-set_target_properties(libclingo-lpx PROPERTIES FOLDER src)
-
-add_executable(clingo-lpx ${app})
-target_link_libraries(clingo-lpx PRIVATE libclingo-lpx)
-target_include_directories(clingo-lpx PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/app>
-)
-set_target_properties(clingo-lpx PROPERTIES FOLDER app)
-install(TARGETS clingo-lpx RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-enable_testing()
-add_executable(test-clingo-lpx ${test})
-target_link_libraries(test-clingo-lpx PRIVATE libclingo-lpx)
-target_include_directories(test-clingo-lpx PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/test>
-)
-set_target_properties(test-clingo-lpx PROPERTIES FOLDER test)
-
-add_test(NAME test-clingo-lpx COMMAND test-clingo-lpx)
+if (PYCLINGOLPX_ENABLE STREQUAL "pip")
+    if (NOT CLINGOLPX_BUILD_SHARED)
+        message(FATAL_ERROR "building against the pip package requires CLINGOLPX_BUILD_SHARED.")
+    endif()
+    add_library(libclingo INTERFACE)
+    if (NOT PYCLINGOLPX_PIP_PATH)
+        execute_process(COMMAND ${Python_EXECUTABLE} ${CLINGOLPX_SOURCE_DIR}/cmake/python-site.py clingo OUTPUT_VARIABLE PYCLINGOLPX_PIP_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
+    endif()
+    file(TO_CMAKE_PATH "${PYCLINGOLPX_PIP_PATH}" _PYCLINGOLPX_PIP_PATH)
+    target_include_directories(libclingo INTERFACE "${_PYCLINGOLPX_PIP_PATH}")
+    if (WIN32)
+        target_link_libraries(libclingo INTERFACE "${_PYCLINGOLPX_PIP_PATH}/import__clingo.lib")
+    elseif (APPLE)
+        target_link_options(libclingo INTERFACE "-undefined" "dynamic_lookup")
+    endif()
+    if (CLINGOLPX_BUILD_TESTS)
+        add_subdirectory(app/lib)
+    endif()
+    add_subdirectory(libclingo-lpx)
+    add_subdirectory(libpyclingo-lpx)
+else()
+    find_package(Clingo REQUIRED)
+    add_subdirectory(libclingo-lpx)
+    if (PYCLINGOLPX_ENABLE)
+        add_subdirectory(libpyclingo-lpx)
+    endif()
+    add_subdirectory(app)
+endif()

@@ -38,7 +38,7 @@ for act in "${@}"; do
             apt-get install -y software-properties-common
             add-apt-repository -y ppa:potassco/${ref}
             apt-get update
-            apt-get install -y tree debhelper libclingo-dev
+            apt-get install -y tree debhelper
             ;;
         create)
             sudo pbuilder create --basetgz /var/cache/pbuilder/${ref}-${rep}.tgz --distribution ${rep} --debootstrapopts --variant=buildd
@@ -54,15 +54,16 @@ for act in "${@}"; do
                 --exclude build \
                 ../../app \
                 ../../cmake \
-                ../../src \
-                ../../test \
-                ../../README.md \
+                ../../lib* \
                 ../../CMakeLists.txt \
-                ../../LICENSE \
+                ../../README.md \
+                ../../INSTALL.md \
+                ../../LICENSE.md \
+                ../../CHANGES.md \
                 $rep/
             ;;
         changes)
-            VERSION="1.0.1"
+            VERSION="$(sed -n '/#define CLINGOLPX_VERSION "/s/.*"\([0-9]\+\.[0-9\+]\.[0-9]\+\)".*/\1/p' ../../libclingo-lpx/clingo-lpx.h)"
             BUILD=$(curl -sL http://ppa.launchpad.net/potassco/${ref}/ubuntu/pool/main/c/clingo-lpx/ | sed -n "/${VERSION//./\\.}-${rep}[0-9]\+\.dsc/s/.*${rep}\([0-9]\+\).*/\1/p" | sort -rn | head -1)
             cat > ${rep}/debian/changelog <<EOF
 clingo-lpx (${VERSION}-${rep}$[BUILD+1]) ${rep}; urgency=medium
@@ -89,11 +90,12 @@ EOF
             rm -rf \
                 "${rep}"/app \
                 "${rep}"/cmake \
-                "${rep}"/src \
-                "${rep}"/test \
-                "${rep}"/README.md \
+                "${rep}"/lib* \
                 "${rep}"/CMakeLists.txt \
-                "${rep}"/LICENSE \
+                "${rep}"/README.md \
+                "${rep}"/INSTALL.md \
+                "${rep}"/LICENSE.md \
+                "${rep}"/CHANGES.md \
                 "${rep}"/debian/files \
                 "${rep}"/debian/.debhelper \
                 "${rep}"/debian/clingo-lpx.debhelper.log \

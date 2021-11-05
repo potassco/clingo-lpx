@@ -1,4 +1,4 @@
-#include <parsing.hh>
+#include "parsing.hh"
 
 #include <map>
 #include <regex>
@@ -149,9 +149,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
 
 } // namespace
 
-[[nodiscard]] std::vector<Inequality> evaluate_theory(Clingo::TheoryAtoms const &theory) {
-    std::vector<Inequality> iqs;
-    std::map<std::pair<Clingo::Symbol, Clingo::literal_t>, Clingo::Symbol> aux;
+void evaluate_theory(Clingo::TheoryAtoms const &theory, VarMap &var_map, std::vector<Inequality> &iqs) {
     for (auto &&atom : theory) {
         if (match(atom.term(), "dom", 0)) {
             check_syntax(atom.elements().size() == 1);
@@ -182,7 +180,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
                     lhs.emplace_back(Term{1, evaluate_var(term)});
                 }
                 if (!elem.condition().empty()) {
-                    auto res = aux.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(aux.size()));
+                    auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(var_map.size()));
                     if (res.second) {
                         iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -elem.condition_id()});
                         iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, elem.condition_id()});
@@ -196,5 +194,4 @@ bool is_string(Clingo::TheoryTerm const &term) {
                                         atom.literal()});
         }
     }
-    return iqs;
 }

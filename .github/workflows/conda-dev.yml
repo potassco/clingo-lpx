@@ -43,8 +43,8 @@ jobs:
       if: ${{ matrix.os == 'macos-latest' }}
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri 'https://github.com/phracker/MacOSX-SDKs/releases/download/10.15/MacOSX10.14.sdk.tar.xz' -OutFile 'MacOSX10.14.sdk.tar.xz'
-        sudo tar xf MacOSX10.14.sdk.tar.xz -C /opt
+        Invoke-WebRequest -Uri 'https://github.com/phracker/MacOSX-SDKs/releases/download/10.15/MacOSX10.9.sdk.tar.xz' -OutFile 'MacOSX10.9.sdk.tar.xz'
+        sudo tar xf MacOSX10.9.sdk.tar.xz -C /opt
 
     - name: print info
       shell: pwsh

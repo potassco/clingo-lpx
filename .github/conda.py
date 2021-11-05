@@ -41,9 +41,14 @@ def run():
         channels = ['potassco']
     else:
         label = "dev"
-        channels = ['potassco', 'potassco/label/dev']
+        channels = ['potassco/label/dev', 'potassco']
 
-    version = '1.0.1'
+    version = None
+    with open('libclingo-lpx/clingo-lpx.h') as fh:
+        for line in fh:
+            m = match(r'#define CLINGOLPX_VERSION "([0-9]+\.[0-9]+\.[0-9]+)"', line)
+            if m is not None:
+                version = m.group(1)
     assert version is not None
     build_number = get_build_number(channels, version)
 

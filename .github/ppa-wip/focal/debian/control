@@ -2,14 +2,35 @@ Source: clingo-lpx
 Section: devel
 Priority: optional
 Maintainer: Roland Kaminski <kaminski@cs.uni-potsdam.de>
-Build-Depends: debhelper-compat (= 12), cmake, libclingo-dev, libgmp-dev
+Build-Depends: debhelper-compat (= 12), dh-python, cmake, python3-dev, python3-cffi, libclingo-dev, libgmp-dev
 Standards-Version: 4.4.1
-Homepage: https://potassco.org/
+Homepage: https://potassco.org/clingo-lpx
 Vcs-Browser: https://github.com/potassco/clingo-lpx
 Vcs-Git: https://github.com/potassco/clingo-lpx.git
 
 Package: clingo-lpx
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo, libgmp10
-Description: A solver for logic programs with linear equations
+Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo-lpx (= ${binary:Version})
+Description: A solver for logic programs with linear constraints
  This package contains the executables.
+
+Package: python3-clingo-lpx
+Section: python
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, libclingo-lpx (= ${binary:Version}), python3-cffi-backend
+Description: A solver for logic programs with linear constraints
+ This package contains python bindings for clingo-lpx.
+
+Package: libclingo-lpx
+Section: libs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo
+Description: A solver for logic programs with linear constraints
+ This package contains the shared library.
+
+Package: libclingo-lpx-dev
+Section: libdevel
+Architecture: any
+Depends: ${misc:Depends}, libclingo-lpx (= ${binary:Version})
+Description: A solver for logic programs with linear constraints
+ This package contains the development files.

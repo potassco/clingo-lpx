@@ -1,6 +1,6 @@
-#include <parsing.hh>
+#include "../src/parsing.hh"
+#include "catch.hpp"
 
-#include <catch.hpp>
 #include <sstream>
 
 template <typename T>
@@ -18,7 +18,9 @@ TEST_CASE("parsing") {
         ctl.add("base", {}, "&sum { x2; x3 } >= 10.\n");
         ctl.ground({{"base", {}}});
 
-        auto eqs = evaluate_theory(ctl.theory_atoms());
+        VarMap vars;
+        std::vector<Inequality> eqs;
+        evaluate_theory(ctl.theory_atoms(), vars, eqs);
         REQUIRE(eqs.size() == 1);
         REQUIRE(str(eqs.front()) == "x2 + x3 >= 10");
     }
@@ -27,7 +29,9 @@ TEST_CASE("parsing") {
         ctl.add("base", {}, "&sum { -x } <= 0.\n");
         ctl.ground({{"base", {}}});
 
-        auto eqs = evaluate_theory(ctl.theory_atoms());
+        VarMap vars;
+        std::vector<Inequality> eqs;
+        evaluate_theory(ctl.theory_atoms(), vars, eqs);
         REQUIRE(eqs.size() == 1);
         REQUIRE(str(eqs.front()) == "-x <= 0");
     }
@@ -36,7 +40,9 @@ TEST_CASE("parsing") {
         ctl.add("base", {}, "&sum {  -x; -2/(-3)*y } = -1.\n");
         ctl.ground({{"base", {}}});
 
-        auto eqs = evaluate_theory(ctl.theory_atoms());
+        VarMap vars;
+        std::vector<Inequality> eqs;
+        evaluate_theory(ctl.theory_atoms(), vars, eqs);
         REQUIRE(eqs.size() == 1);
         REQUIRE(str(eqs.front()) == "-x + 2/3*y = -1");
     }

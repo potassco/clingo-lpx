@@ -1,4 +1,4 @@
-#include <problem.hh>
+#include "problem.hh"
 
 Relation invert(Relation rel) {
     switch (rel) {
