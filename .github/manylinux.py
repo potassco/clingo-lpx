@@ -90,6 +90,7 @@ def run():
 
     adjust_version(url)
 
+    check_call(['yum', 'install', 'gmp-devel'])
     if ARCH != "x86_64":
         check_call(['sed', '-i', 's/, "cmake"//', 'pyproject.toml'])
 
