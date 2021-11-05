@@ -47,12 +47,44 @@ public:
         clingolpx_destroy(theory_);
     }
     //! Set program name to clingo-lpx.
-    char const *program_name() const noexcept override {
+    [[nodiscard]] char const *program_name() const noexcept override {
         return "clingo-lpx";
     }
     //! Set the version.
-    char const *version() const noexcept override {
+    [[nodiscard]] char const *version() const noexcept override {
         return CLINGOLPX_VERSION;
+    }
+    void print_model(Clingo::Model const &model, std::function<void()> default_printer) noexcept override {
+        try {
+            auto symbols = model.symbols();
+            std::sort(symbols.begin(), symbols.end());
+            bool comma = false;
+            for (auto const &sym : symbols) {
+                if (comma) {
+                    std::cout << " ";
+                }
+                std::cout << sym;
+                comma = true;
+            }
+            std::cout << "\nAssignment:\n";
+            symbols = model.symbols(Clingo::ShowType::Theory);
+            std::sort(symbols.begin(), symbols.end());
+            comma = false;
+            for (auto const &sym : symbols) {
+                if (std::strcmp("__lpx", sym.name()) != 0) {
+                    continue;
+                }
+                if (comma) {
+                    std::cout << " ";
+                }
+                auto args = sym.arguments();
+                std::cout << args.front() << "=" << args.back().string();
+                comma = true;
+            }
+            std::cout << std::endl;
+        }
+        catch(...) {
+        }
     }
     //! Pass models to the theory.
     bool on_model(Clingo::Model &model) override {

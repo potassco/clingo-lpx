@@ -9,6 +9,7 @@ set(header
 # [[[source: src
 set(ide_source_group "Source Files")
 set(source-group
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/clingo-lpx.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
@@ -93,9 +94,9 @@ endif()
 if (CLINGOLPX_BUILD_TESTS)
     # NOTE: we build statically without hiding symbols
     add_library(libclingo-lpx_t STATIC ${header} ${source})
-    target_include_directories(libclingo-lpx_t PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>")
+    target_include_directories(libclingo-lpx_t PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>" "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>")
     target_compile_definitions(libclingo-lpx_t PUBLIC CLINGOLPX_NO_VISIBILITY)
-    target_link_libraries(libclingo-lpx_t PUBLIC libclingo)
+    target_link_libraries(libclingo-lpx_t PUBLIC libclingo GMPXX::GMPXX)
     target_compile_definitions(libclingo-lpx_t PUBLIC "CLINGOLPX_CROSSCHECK")
     set_target_properties(libclingo-lpx_t PROPERTIES
         OUTPUT_NAME clingo-lpx_t

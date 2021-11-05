@@ -1,6 +1,6 @@
-#include <parsing.hh>
+#include "../src/parsing.hh"
+#include "catch.hpp"
 
-#include <catch.hpp>
 #include <sstream>
 
 template <typename T>

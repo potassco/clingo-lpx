@@ -29,7 +29,7 @@ class Application(clingo.Application):
     def print_model(self, model, printer):
         # print model
         symbols = model.symbols(shown=True)
-        sys.stdout.write(" ".join(str(symbol) for symbol in sorted(symbols) if not self.__hidden(symbol)))
+        sys.stdout.write(" ".join(str(symbol) for symbol in sorted(symbols)))
         sys.stdout.write('\n')
 
         # print assignment
@@ -38,7 +38,8 @@ class Application(clingo.Application):
         assignment = []
         for symbol in sorted(symbols):
             if symbol.match("__lpx", 2):
-                assignment.append("{}={}".format(*symbol.arguments))
+                args = symbol.arguments
+                assignment.append(f"{args[0]}={args[1].string}")
         sys.stdout.write(" ".join(assignment))
         sys.stdout.write('\n')
 
@@ -60,9 +61,6 @@ class Application(clingo.Application):
 
     def __on_statistics(self, step, accu):
         self.__theory.on_statistics(step, accu)
-
-    def __hidden(self, symbol):
-        return symbol.type == clingo.SymbolType.Function and symbol.name.startswith("__")
 
 if __name__ == "__main__":
     sys.exit(int(clingo.clingo_main(Application("clingo-lpx"), sys.argv[1:])))

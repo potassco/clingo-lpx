@@ -172,7 +172,7 @@ private:
 };
 
 template <typename Factor, typename Value>
-class Propagator : private Clingo::Propagator {
+class Propagator : public Clingo::Propagator {
 public:
     Propagator() = default;
     Propagator(Propagator const &) = default;
@@ -185,10 +185,11 @@ public:
     [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Value>> assignment(index_t thread_id) const {
         return slvs_[thread_id].assignment();
     }
-private:
+
     void init(Clingo::PropagateInit &init) override;
     void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
     void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
 
+private:
     std::vector<Solver<Factor, Value>> slvs_;
 };
