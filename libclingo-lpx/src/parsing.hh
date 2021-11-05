@@ -2,6 +2,8 @@
 
 #include "problem.hh"
 
+#include <map>
+
 constexpr char const *THEORY = R"(
 #theory lp {
     sum_term {
@@ -38,4 +40,6 @@ constexpr char const *THEORY_Q = R"(
 }.
 )";
 
-[[nodiscard]] std::vector<Inequality> evaluate_theory(Clingo::TheoryAtoms const &theory);
+using VarMap = std::map<std::pair<Clingo::Symbol, Clingo::literal_t>, Clingo::Symbol>;
+
+void evaluate_theory(Clingo::TheoryAtoms const &theory, VarMap &var_map, std::vector<Inequality> &iqs);

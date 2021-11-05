@@ -27,6 +27,25 @@ bool run_q(char const *s) {
     return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
 
+size_t run_m(std::initializer_list<char const *> m) {
+    Propagator<Number, Number> prp;
+    Clingo::Control ctl{{"0"}};
+    prp.register_control(ctl);
+
+    int i = 0;
+    int l = 0;
+    for (auto const *s : m) {
+        std::string n = "base" + std::to_string(i++);
+        ctl.add(n.c_str(), {}, s);
+        ctl.ground({{n.c_str(), {}}});
+        auto h = ctl.solve();
+        for (auto const &m : h) {
+            ++l;
+        }
+    }
+    return l;
+}
+
 } // namespace
 
 TEST_CASE("solving") {
@@ -77,6 +96,13 @@ TEST_CASE("solving") {
         REQUIRE(!run_q("&sum { x; -y } > 0.\n"
                        "&sum { y; -z } > 0.\n"
                        "&sum { z; -x } > 0.\n"));
+    }
+    SECTION("multi-shot") {
+        REQUIRE( run_m({"&sum { x1; x2 } <= 20.\n"
+                        "&sum { x1; x2 } >= 10.\n",
+                        "&sum { x1 } >= 30.\n"
+                        "&sum { x3 } >= 1.\n",
+                        "&sum { x2 } >= 10.\n"}) == 2);
     }
 };
 

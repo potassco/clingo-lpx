@@ -1,9 +1,11 @@
 #pragma once
 
 #include "problem.hh"
+#include "parsing.hh"
 #include "util.hh"
 
 #include <queue>
+#include <map>
 
 using Value = Number;
 using Factor = Number;
@@ -93,8 +95,11 @@ private:
     };
 
 public:
+    //! Construct a new solver object.
+    Solver(std::vector<Inequality> const &inequalities);
+
     //! Prepare inequalities for solving.
-    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, std::vector<Inequality> &&inequalities);
+    [[nodiscard]] bool prepare(Clingo::PropagateInit &init);
 
     //! Solve the (previously prepared) problem.
     [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
@@ -144,7 +149,7 @@ private:
     Variable &non_basic_(index_t j);
 
     //! The set of inequalities.
-    std::vector<Inequality> inequalities_;
+    std::vector<Inequality> const &inequalities_;
     //! Mapping from literals to bounds.
     std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
     //! Trail of bound assignments (variable, relation, Value).
@@ -183,13 +188,18 @@ public:
     void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
     [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Value>> assignment(index_t thread_id) const {
-        return slvs_[thread_id].assignment();
+        return slvs_[thread_id].second.assignment();
     }
 
     void init(Clingo::PropagateInit &init) override;
+    void check(Clingo::PropagateControl &ctl) override;
     void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
     void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
 
 private:
-    std::vector<Solver<Factor, Value>> slvs_;
+    VarMap var_map_;
+    std::vector<Inequality> iqs_;
+    size_t facts_offset_{0};
+    std::vector<Clingo::literal_t> facts_;
+    std::vector<std::pair<size_t, Solver<Factor, Value>>> slvs_;
 };

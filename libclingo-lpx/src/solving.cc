@@ -187,6 +187,11 @@ void Statistics::reset() {
 }
 
 template<typename Factor, typename Value>
+Solver<Factor, Value>::Solver(std::vector<Inequality> const &inequalities)
+: inequalities_{inequalities}
+{ }
+
+template<typename Factor, typename Value>
 typename Solver<Factor, Value>::Variable &Solver<Factor, Value>::basic_(index_t i) {
     assert(i < n_basic_);
     return variables_[variables_[i + n_non_basic_].index];
@@ -210,20 +215,7 @@ void Solver<Factor, Value>::enqueue_(index_t i) {
 }
 
 template<typename Factor, typename Value>
-bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, std::vector<Inequality> &&inequalities) {
-    tableau_.clear();
-    variables_.clear();
-    indices_.clear();
-    statistics_.reset();
-    n_basic_ = 0;
-    n_non_basic_ = 0;
-
-    inequalities_ = std::move(inequalities);
-    for (auto &x : inequalities_) {
-        x.lit = init.solver_literal(x.lit);
-        init.add_watch(x.lit);
-    }
-
+bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init) {
     // TODO: Bounds associated with a variable form a propagation chain. We can
     // add binary clauses to propagate them. For example
     //
@@ -661,10 +653,20 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
 
 template<typename Factor, typename Value>
 void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
+    facts_offset_ = facts_.size();
+    if (facts_offset_ > 0) {
+        init.set_check_mode(Clingo::PropagatorCheckMode::Partial);
+    }
+    evaluate_theory(init.theory_atoms(), var_map_, iqs_);
+    for (auto &x : iqs_) {
+        x.lit = init.solver_literal(x.lit);
+        init.add_watch(x.lit);
+    }
+    slvs_.clear();
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
-        slvs_.emplace_back();
-        if (!slvs_.back().prepare(init, evaluate_theory(init.theory_atoms()))) {
+        slvs_.emplace_back(0, iqs_);
+        if (!slvs_.back().second.prepare(init)) {
             return;
         }
     }
@@ -687,15 +689,31 @@ void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Cling
     auto step_pivots = step_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
     auto accu_simplex = accu.add_subkey("Simplex", Clingo::StatisticsType::Map);
     auto accu_pivots = accu_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
-    for (auto const &slv : slvs_) {
+    for (auto const &[offset, slv] : slvs_) {
         step_pivots.set_value(slv.statistics().pivots_);
         accu_pivots.set_value(accu_pivots.value() + slv.statistics().pivots_);
     }
 }
 
 template<typename Factor, typename Value>
+void Propagator<Factor, Value>::check(Clingo::PropagateControl &ctl) {
+    auto ass = ctl.assignment();
+    auto &[offset, slv] = slvs_[ctl.thread_id()];
+    if (ass.decision_level() == 0 && offset < facts_offset_) {
+        if (!slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_})) { // NOLINT
+            ctl.add_clause(slv.reason());
+        }
+        offset = facts_offset_;
+    }
+}
+
+template<typename Factor, typename Value>
 void Propagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
-    auto &slv = slvs_[ctl.thread_id()];
+    auto ass = ctl.assignment();
+    if (ass.decision_level() == 0 && ctl.thread_id() == 0) {
+        facts_.insert(facts_.end(), changes.begin(), changes.end());
+    }
+    auto &[offset, slv] = slvs_[ctl.thread_id()];
     if (!slv.solve(ctl, changes)) {
         ctl.add_clause(slv.reason());
     }
@@ -703,7 +721,7 @@ void Propagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo:
 
 template<typename Factor, typename Value>
 void Propagator<Factor, Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
-    slvs_[ctl.thread_id()].undo();
+    slvs_[ctl.thread_id()].second.undo();
 }
 
 template class Solver<Number, Number>;
