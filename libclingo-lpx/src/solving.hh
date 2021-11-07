@@ -10,6 +10,8 @@
 using Value = Number;
 using Factor = Number;
 using CoeffcientQ = NumberQ;
+using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
+using SymbolVec = std::vector<Clingo::Symbol>;
 
 struct Statistics {
     void reset();
@@ -99,7 +101,7 @@ public:
     Solver(std::vector<Inequality> const &inequalities);
 
     //! Prepare inequalities for solving.
-    [[nodiscard]] bool prepare(Clingo::PropagateInit &init);
+    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols);
 
     //! Solve the (previously prepared) problem.
     [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
@@ -107,8 +109,8 @@ public:
     //! Undo assignments on the current level.
     void undo();
 
-    //! Get the current assignment.
-    std::vector<std::pair<Clingo::Symbol, Value>> assignment() const;
+    //! Get the currently assigned value.
+    [[nodiscard]] Value get_value(index_t i) const;
 
     //! Return the solve statistics.
     [[nodiscard]] Statistics const &statistics() const;
@@ -118,7 +120,7 @@ public:
 
 private:
     //! Return the variables occuring in the inequalities.
-    std::vector<Clingo::Symbol> vars_() const;
+    [[nodiscard]] std::vector<Clingo::Symbol> vars_() const;
 
     //! Check if the tableau.
     [[nodiscard]] bool check_tableau_();
@@ -158,8 +160,6 @@ private:
     std::vector<std::tuple<index_t, index_t, Value>> assignment_trail_;
     //! Trail offsets per level.
     std::vector<TrailOffset> trail_offset_;
-    //! Mapping from symbols to their indices in the assignment.
-    std::unordered_map<Clingo::Symbol, index_t> indices_;
     //! The tableau of coefficients.
     Tableau tableau_;
     //! The non-basic and basic variables.
@@ -187,9 +187,12 @@ public:
     ~Propagator() override = default;
     void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
-    [[nodiscard]] std::vector<std::pair<Clingo::Symbol, Value>> assignment(index_t thread_id) const {
-        return slvs_[thread_id].second.assignment();
-    }
+
+    [[nodiscard]] std::optional<index_t> lookup_symbol(Clingo::Symbol symbol) const;
+    [[nodiscard]] Clingo::Symbol get_symbol(index_t i) const;
+    [[nodiscard]] bool has_value(index_t thread_id, index_t i) const;
+    [[nodiscard]] Value get_value(index_t thread_id, index_t i) const;
+    [[nodiscard]] index_t n_values(index_t thread_id) const;
 
     void init(Clingo::PropagateInit &init) override;
     void check(Clingo::PropagateControl &ctl) override;
@@ -197,7 +200,9 @@ public:
     void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
 
 private:
-    VarMap var_map_;
+    VarMap aux_map_;
+    SymbolMap var_map_;
+    SymbolVec var_vec_;
     std::vector<Inequality> iqs_;
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;

@@ -134,41 +134,44 @@ public:
     }
 
     bool lookup_symbol(clingo_symbol_t name, size_t *index) override {
-        static_cast<void>(name);
-        static_cast<void>(index);
-        throw std::runtime_error("not implemented");
+        if (auto ret = prop_.lookup_symbol(Clingo::Symbol{name}); ret) {
+            *index = *ret + 1;
+            return true;
+        }
+        return false;
     }
 
     clingo_symbol_t get_symbol(size_t index) override {
-        static_cast<void>(index);
-        throw std::runtime_error("not implemented");
+        return prop_.get_symbol(index - 1).to_c();
     }
 
     bool has_value(uint32_t thread_id, size_t index) override {
-        static_cast<void>(thread_id);
-        static_cast<void>(index);
-        throw std::runtime_error("not implemented");
+        return index > 0 && prop_.has_value(thread_id, index - 1);
     }
 
     void get_value(uint32_t thread_id, size_t index, clingolpx_value_t *value) override {
-        static_cast<void>(thread_id);
-        static_cast<void>(index);
-        static_cast<void>(value);
-        throw std::runtime_error("not implemented");
+        ss_.str();
+        ss_ << prop_.get_value(thread_id, index - 1);
+        value->type = clingolpx_value_type_symbol;
+        value->symbol = Clingo::String(ss_.str().c_str()).to_c(); // NOLINT
     }
 
     bool next(uint32_t thread_id, size_t *current) override {
-        static_cast<void>(thread_id);
-        static_cast<void>(current);
-        throw std::runtime_error("not implemented");
+        if (*current < prop_.n_values(thread_id)) {
+            ++*current;
+            return true;
+        }
+        return false;
     }
 
     void extend_model(Clingo::Model &model) override {
         std::vector<Clingo::Symbol> symbols;
-        for (auto const &[var, val] : prop_.assignment(model.thread_id())) {
+        auto thread_id = model.thread_id();
+
+        for (size_t i = 0; next(thread_id, &i);) {
             ss_.str("");
-            ss_ << val;
-            symbols.emplace_back(Clingo::Function("__lpx", {var, Clingo::String(ss_.str().c_str())}));
+            ss_ << prop_.get_value(thread_id, i - 1);
+            symbols.emplace_back(Clingo::Function("__lpx", {prop_.get_symbol(i - 1), Clingo::String(ss_.str().c_str())}));
         }
         model.extend(symbols);
     }

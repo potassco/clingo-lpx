@@ -50,70 +50,44 @@ NumberQ bound_val<NumberQ>(Number &&x, Relation rel) {
 
 template<typename Factor, typename Value>
 struct Solver<Factor, Value>::Prepare {
-    index_t add_non_basic(Solver &s, Clingo::Symbol var) {
-        auto [jt, res] = s.indices_.emplace(var, n_vars);
-        if (res) {
-            s.variables_.emplace_back();
-            // Note: that this makes it possible to use `Solver::non_basic_`
-            // during initialization
-            s.variables_[s.n_non_basic_].index = n_vars;
-            s.variables_[n_vars].reserve_index = s.n_non_basic_;
-            ++n_vars;
-            ++s.n_non_basic_;
+    Prepare(Solver &slv, SymbolMap const &map)
+    : slv{slv}
+    , map{map} {
+        slv.variables_.resize(map.size());
+        slv.n_non_basic_ = map.size();
+        for (index_t i = 0; i != slv.n_non_basic_; ++i) {
+            slv.variables_[i].index = i;
+            slv.variables_[i].reserve_index = i;
         }
-        return s.variables_[jt->second].reserve_index;
     }
 
-    index_t add_basic(Solver &s) {
-        basic.emplace_back(n_vars);
-        s.variables_.emplace_back();
-        ++n_vars;
-        return basic.size() - 1;
+    index_t get_non_basic(Clingo::Symbol var) {
+        auto jt = map.find(var);
+        assert(jt != map.end());
+        return slv.variables_[jt->second].reserve_index;
     }
 
-    std::vector<std::pair<index_t, Number>> add_row(Solver &s, Inequality const &x) {
+    index_t add_basic() {
+        auto index = slv.variables_.size();
+        slv.variables_.emplace_back();
+        slv.variables_.back().index = index;
+        slv.variables_.back().reserve_index = index;
+        return slv.n_basic_++;
+    }
+
+    std::vector<std::pair<index_t, Number>> add_row(Inequality const &x) {
         std::vector<std::pair<index_t, Number>> row;
-        std::vector<Clingo::Symbol> vars;
-        std::unordered_map<Clingo::Symbol, Number> cos;
 
-        // combine cofficients
-        for (auto const &y : x.lhs) {
-            if (y.co == 0) {
-                continue;
-            }
-            if (auto [it, res] = cos.emplace(y.var, y.co); !res) {
-                it->second += y.co;
-                if (it->second == 0) {
-                    cos.erase(it);
-                }
-            }
-            else {
-                vars.emplace_back(y.var);
-            }
-        }
-
-        // add non-basic variables for the remaining non-zero coefficients
-        for (auto &var : vars) {
-            if (auto it = cos.find(var); it != cos.end()) {
-                index_t j = add_non_basic(s, var);
-                row.emplace_back(j, it->second);
-            }
+        // add non-basic variables
+        for (auto const &term : x.lhs) {
+            row.emplace_back(get_non_basic(term.var), term.co);
         }
 
         return row;
     }
 
-    void finish(Solver &s) {
-        s.n_basic_ = basic.size();
-        int i = s.n_non_basic_;
-        for (auto &index : basic) {
-            s.variables_[index].reserve_index = i;
-            s.variables_[i].index = index;
-            ++i;
-        }
-    }
-
-    index_t n_vars{0};
+    Solver &slv;
+    SymbolMap const &map;
     std::vector<index_t> basic;
 };
 
@@ -215,7 +189,12 @@ void Solver<Factor, Value>::enqueue_(index_t i) {
 }
 
 template<typename Factor, typename Value>
-bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init) {
+Value Solver<Factor, Value>::get_value(index_t i) const {
+    return variables_[i].value;
+}
+
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols) {
     // TODO: Bounds associated with a variable form a propagation chain. We can
     // add binary clauses to propagate them. For example
     //
@@ -229,14 +208,14 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init) {
 
     auto ass = init.assignment();
 
-    Prepare prep;
+    Prepare prep{*this, symbols};
     for (auto const &x : inequalities_) {
         if (ass.is_false(x.lit)) {
             continue;
         }
 
         // transform inequality into row suitable for tableau
-        auto row = prep.add_row(*this, x);
+        auto row = prep.add_row(x);
 
         // check bound against 0
         if (row.empty()) {
@@ -286,7 +265,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init) {
         }
         // add an inequality
         else {
-            auto i = prep.add_basic(*this);
+            auto i = prep.add_basic();
             bounds_.emplace(x.lit, Bound{
                 bound_val<Value>(Factor{x.rhs}, x.rel),
                 static_cast<index_t>(variables_.size() - 1),
@@ -298,8 +277,6 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init) {
         }
     }
 
-    prep.finish(*this);
-
     for (size_t i = 0; i < n_basic_; ++i) {
         enqueue_(i);
     }
@@ -309,21 +286,6 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init) {
     assert_extra(check_non_basic_());
 
     return true;
-}
-
-template<typename Factor, typename Value>
-std::vector<std::pair<Clingo::Symbol, Value>> Solver<Factor, Value>::assignment() const {
-    std::vector<std::pair<Clingo::Symbol, Value>> ret;
-    index_t k{0};
-    for (auto var : vars_()) {
-        if (auto it = indices_.find(var); it != indices_.end()) {
-            ret.emplace_back(var, variables_[it->second].value);
-        }
-        else {
-            ret.emplace_back(var, 0);
-        }
-    }
-    return ret;
 }
 
 template<typename Factor, typename Value>
@@ -394,7 +356,7 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
             }
             case State::Unknown: {
                 assert(v != nullptr);
-                pivot_(level, i, j, *v);
+                pivot_(level, i, j, *v); // NOLINT
             }
         }
     }
@@ -448,21 +410,6 @@ template<typename Factor, typename Value>
 Statistics const &Solver<Factor, Value>::statistics() const {
     return statistics_;
 }
-
-template<typename Factor, typename Value>
-std::vector<Clingo::Symbol> Solver<Factor, Value>::vars_() const {
-    std::unordered_set<Clingo::Symbol> var_set;
-    for (auto const &x : inequalities_) {
-        for (auto const &y : x.lhs) {
-            if (y.var.type() != Clingo::SymbolType::Number) {
-                var_set.emplace(y.var);
-            }
-        }
-    }
-    std::vector<Clingo::Symbol> var_vec{var_set.begin(), var_set.end()};
-    std::sort(var_vec.begin(), var_vec.end());
-    return var_vec;
-};
 
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::check_tableau_() {
@@ -657,16 +604,40 @@ void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
     if (facts_offset_ > 0) {
         init.set_check_mode(Clingo::PropagatorCheckMode::Partial);
     }
-    evaluate_theory(init.theory_atoms(), var_map_, iqs_);
+
+    std::unordered_map<Clingo::Symbol, Term&> cos;
+    evaluate_theory(init.theory_atoms(), aux_map_, iqs_);
     for (auto &x : iqs_) {
+        auto ib = x.lhs.begin();
+        auto ie = x.lhs.end();
+
+        // combine cofficients
+        std::for_each(ib, ie, [&cos, this](Term &term) {
+            if (var_map_.emplace(term.var, var_map_.size()).second) {
+                var_vec_.emplace_back(term.var);
+            }
+            if (auto [jt, res] = cos.emplace(term.var, term); !res) {
+                jt->second.co += term.co;
+                term.co = 0;
+            }
+        });
+        cos.clear();
+
+        // remove terms with zero coeffcients
+        x.lhs.erase(std::remove_if(ib, ie, [](Term const &term) {
+            return term.co == 0;
+        }), ie);
+
+        // add watch
         x.lit = init.solver_literal(x.lit);
         init.add_watch(x.lit);
     }
+
     slvs_.clear();
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
         slvs_.emplace_back(0, iqs_);
-        if (!slvs_.back().second.prepare(init)) {
+        if (!slvs_.back().second.prepare(init, var_map_)) {
             return;
         }
     }
@@ -722,6 +693,35 @@ void Propagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo:
 template<typename Factor, typename Value>
 void Propagator<Factor, Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
     slvs_[ctl.thread_id()].second.undo();
+}
+
+template<typename Factor, typename Value>
+std::optional<index_t> Propagator<Factor, Value>::lookup_symbol(Clingo::Symbol symbol) const {
+    if (auto it = var_map_.find(symbol); it != var_map_.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+template<typename Factor, typename Value>
+Clingo::Symbol Propagator<Factor, Value>::get_symbol(index_t i) const {
+    return var_vec_[i];
+}
+
+template<typename Factor, typename Value>
+bool Propagator<Factor, Value>::has_value(index_t thread_id, index_t i) const {
+    static_cast<void>(thread_id);
+    return i < var_vec_.size();
+}
+
+template<typename Factor, typename Value>
+Value Propagator<Factor, Value>::get_value(index_t thread_id, index_t i) const {
+    return slvs_[thread_id].second.get_value(i);
+}
+
+template<typename Factor, typename Value>
+index_t Propagator<Factor, Value>::n_values(index_t thread_id) const {
+    return var_vec_.size();
 }
 
 template class Solver<Number, Number>;

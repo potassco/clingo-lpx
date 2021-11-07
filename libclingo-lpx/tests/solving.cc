@@ -103,6 +103,11 @@ TEST_CASE("solving") {
                         "&sum { x1 } >= 30.\n"
                         "&sum { x3 } >= 1.\n",
                         "&sum { x2 } >= 10.\n"}) == 2);
+        REQUIRE( run_m({"{a; b}.\n"
+                        "&sum { x1: a; x2: b } <= 10.\n"
+                        "&sum { x1: a; x2: b } >= 10.\n",
+                        ":- a.\n"
+                        ":- b."}) == 3);
     }
 };
 
