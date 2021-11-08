@@ -9,3 +9,4 @@ doc/*.log
 doc/*.synctex.gz
 *.so
 __pycache__
+_skbuild
