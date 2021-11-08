@@ -1,4 +1,4 @@
-name: Run CI tests
+name: tests
 
 on:
   - push
@@ -11,44 +11,52 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ['ubuntu-latest', 'macos-latest']
+        os: ['ubuntu-latest', 'macos-latest', 'windows-2016', 'windows-2019']
         python-version: ['3.7']
         include:
           - os: 'ubuntu-latest'
-            compiler: 'gxx_linux-64'
             generator: 'Ninja'
             build_type: 'Debug'
+            env_file: '.github/linux-env.yml'
           - os: 'macos-latest'
             generator: 'Ninja'
             build_type: 'Debug'
-            compiler: 'clang_osx-64'
+            env_file: '.github/macos-env.yml'
+          - os: 'windows-2016'
+            generator: 'Visual Studio 15 2017 Win64'
+            build_type: 'Release'
+            env_file: '.github/windows-env.yml'
+          - os: 'windows-2019'
+            generator: 'Visual Studio 16 2019'
+            build_type: 'Release'
+            env_file: '.github/windows-env.yml'
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
 
     - name: setup miniconda
       uses: conda-incubator/setup-miniconda@v2
       with:
         auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
         activate-environment: clingo-lpx
-        channels: potassco/label/dev,conda-forge
-
-    - name: install prerequisites
-      shell: pwsh
-      run: conda install clingo cmake ninja "${{ matrix.compiler }}" gmp
+        python-version: ${{ matrix.python-version }}
+        environment-file: ${{ matrix.env_file }}
 
     - name: print info
-      shell: pwsh
+      shell: bash -l {0}
       run: |
+        env
         conda info
         conda list
 
     - name: build and test
-      shell: pwsh
+      shell: bash -l {0}
       run: >
         ctest
         --build-config "${{ matrix.build_type }}"
         --build-generator "${{ matrix.generator }}"
         --build-and-test . build
+        --build-options -DCLINGOLPX_BUILD_TESTS=On
         --test-command ctest -V --build-config "${{ matrix.build_type }}"

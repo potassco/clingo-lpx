@@ -18,6 +18,8 @@
 #   define assert_extra(X) // NOLINT
 #endif
 
+#define CLINGOLPX_VS_BUG [](auto const &a, auto const &b) { return a < b; } // NOLINT
+
 using index_t = uint32_t;
 
 #ifndef CLINGOLPX_USE_IMATH
@@ -264,7 +266,7 @@ public:
     [[nodiscard]] Number const &get(index_t i, index_t j) const {
         if (i < rows_.size()) {
             auto const &row = rows_[i];
-            auto it = std::lower_bound(row.begin(), row.end(), j);
+            auto it = std::lower_bound(row.begin(), row.end(), j, CLINGOLPX_VS_BUG);
             if (it != row.end() && it->col == j) {
                 return it->val;
             }
@@ -278,7 +280,7 @@ public:
     //! Only non-zero values should be accessed and they should not be set to
     //! zero.
     [[nodiscard]] Number &unsafe_get(index_t i, index_t j) {
-        return std::lower_bound(rows_[i].begin(), rows_[i].end(), j)->val;
+        return std::lower_bound(rows_[i].begin(), rows_[i].end(), j, CLINGOLPX_VS_BUG)->val;
     }
 
     //! Set value `a` at row `i` and column `j`.
@@ -286,7 +288,7 @@ public:
         if (a == 0) {
             if (i < rows_.size()) {
                 auto &row = rows_[i];
-                auto it = std::lower_bound(row.begin(), row.end(), j);
+                auto it = std::lower_bound(row.begin(), row.end(), j, CLINGOLPX_VS_BUG);
                 if (it != row.end() && it->col == j) {
                     row.erase(it);
                 }
@@ -294,7 +296,7 @@ public:
         }
         else {
             auto &row = reserve_row_(i);
-            auto it = std::lower_bound(row.begin(), row.end(), j);
+            auto it = std::lower_bound(row.begin(), row.end(), j, CLINGOLPX_VS_BUG);
             if (it == row.end() || it->col != j) {
                 row.emplace(it, j, a);
             }
@@ -302,7 +304,7 @@ public:
                 it->val = a;
             }
             auto &col = reserve_col_(j);
-            auto jt = std::lower_bound(col.begin(), col.end(), i);
+            auto jt = std::lower_bound(col.begin(), col.end(), i, CLINGOLPX_VS_BUG);
             if (jt == col.end() || *jt != i) {
                 col.emplace(jt, i);
             }
@@ -333,7 +335,7 @@ public:
             for (auto jt = it; jt != ie; ++jt) {
                 auto i = *jt;
                 auto &row = rows_[i];
-                auto kt = std::lower_bound(row.begin(), row.end(), j);
+                auto kt = std::lower_bound(row.begin(), row.end(), j, CLINGOLPX_VS_BUG);
                 if (kt != row.end() && kt->col == j) {
                     f(i, kt->val);
                     if (it != jt) {
@@ -364,7 +366,7 @@ public:
                     if (jt == je || (it != ie && it->col < jt->col)) {
                         row.emplace_back(it->col, it->val * a_kj);
                         auto &col = cols_[it->col];
-                        auto kt = std::lower_bound(col.begin(), col.end(), k);
+                        auto kt = std::lower_bound(col.begin(), col.end(), k, CLINGOLPX_VS_BUG);
                         if (kt == col.end() || *kt != k) {
                             col.emplace(kt, k);
                         }
@@ -623,3 +625,5 @@ inline std::ostream &operator<<(std::ostream &out, NumberQ const &q) {
     }
     return out;
 }
+
+#undef CLINGOLPX_VS_BUG

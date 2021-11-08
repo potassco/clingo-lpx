@@ -6,6 +6,7 @@
 
 #include <queue>
 #include <map>
+#include <optional>
 
 using Value = Number;
 using Factor = Number;
@@ -119,9 +120,6 @@ public:
     [[nodiscard]] Clingo::LiteralSpan reason() const { return conflict_clause_; }
 
 private:
-    //! Return the variables occuring in the inequalities.
-    [[nodiscard]] std::vector<Clingo::Symbol> vars_() const;
-
     //! Check if the tableau.
     [[nodiscard]] bool check_tableau_();
     //! Check if basic variables with unsatisfied bounds are enqueued.
