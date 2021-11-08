@@ -80,3 +80,13 @@ google-pprof --gv ./build/clingo-lpx profile.out
 ## Literature
 
 - "Integrating Simplex with `DPLL(T)`" by Bruno Dutertre and Leonardo de Moura
+
+## Math Libraries
+
+The project currently uses the GMP, which is problematic on Windows.
+Below are some alternatives that could be explored.
+
+- https://gmplib.org/
+- https://github.com/creachadair/imath
+- https://github.com/suiginsoft/hebimath
+- https://libs.suckless.org/libzahl/
