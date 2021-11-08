@@ -55,12 +55,12 @@ conda:
             host:
                 - clingo
                 - python
-                - gmp
+                - gmp [not win]
             run:
                 - "{{ pin_compatible('clingo') }}"
                 - python
                 - cffi
-                - gmp
+                - gmp [not win]
         build:
             skip: True [win and vc<14]
         test:

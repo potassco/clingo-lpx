@@ -19,12 +19,12 @@ requirements:
   host:
   - clingo
   - python
-  - gmp
+  - gmp [not win]
   run:
   - {{ pin_compatible('clingo') }}
   - python
   - cffi
-  - gmp
+  - gmp [not win]
 
 build:
   number: {{ build }}
