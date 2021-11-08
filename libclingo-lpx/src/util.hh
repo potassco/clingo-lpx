@@ -5,16 +5,210 @@
 #include <cstdint>
 #include <cassert>
 #include <iostream>
+#include <memory>
+#ifndef CLINGOLPX_USE_IMATH
 #include <gmpxx.h>
-
-#ifdef CLINGOLPX_CROSSCHECK
-#   define assert_extra(X) assert(X)
 #else
-#   define assert_extra(X)
+#include <imrat.h>
 #endif
 
-using Number = mpq_class;
+#ifdef CLINGOLPX_CROSSCHECK
+#   define assert_extra(X) assert(X) // NOLINT
+#else
+#   define assert_extra(X) // NOLINT
+#endif
+
 using index_t = uint32_t;
+
+#ifndef CLINGOLPX_USE_IMATH
+
+using Number = mpq_class;
+
+inline int compare(Number const &a, Number const &b) {
+    return mpq_cmp(a.get_mpq_t(), b.get_mpq_t());
+}
+
+#else
+
+class Number {
+public:
+    Number() { // NOLINT
+        handle_error_(mp_rat_init(&num_));
+    }
+    Number(mp_small val)
+    : Number() {
+        handle_error_(mp_rat_set_value(&num_, val, 1));
+    }
+    Number(char const *val, mp_size radix)
+    : Number() {
+        handle_error_(mp_rat_read_string(&num_, radix, val));
+    }
+    Number(std::string const &val, mp_size radix)
+    : Number(val.c_str(), radix) {
+    }
+    Number(Number const &a)
+    : Number() {
+        handle_error_(mp_rat_copy(&a.num_, &num_));
+    }
+    Number(Number &&a) noexcept
+    : Number() {
+        swap(a);
+    }
+    Number &operator=(Number const &a) {
+        handle_error_(mp_rat_copy(&a.num_, &num_));
+        return *this;
+    }
+    Number &operator=(Number &&a) noexcept {
+        swap(a);
+        return *this;
+    }
+    ~Number() {
+        mp_rat_clear(&num_);
+    }
+
+    void swap(Number &x) {
+        mp_int_swap(mp_rat_numer_ref(&num_), mp_rat_numer_ref(&x.num_));
+        mp_int_swap(mp_rat_denom_ref(&num_), mp_rat_denom_ref(&x.num_));
+    }
+
+    void canonicalize() {
+        handle_error_(mp_rat_reduce(&num_));
+    }
+
+    friend Number operator*(Number const &a, Number const &b) {
+        Number c;
+        handle_error_(mp_rat_mul(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+
+    friend Number &operator*=(Number &a, Number const &b) {
+        Number c;
+        handle_error_(mp_rat_mul(&a.num_, &b.num_, &c.num_));
+        c.swap(a);
+        return a;
+    }
+
+    friend Number operator/(Number const &a, Number const &b) {
+        Number c;
+        handle_error_(mp_rat_div(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+
+    friend Number &operator/=(Number &a, Number const &b) {
+        handle_error_(mp_rat_div(&a.num_, &b.num_, &a.num_));
+        return a;
+    }
+
+    friend Number operator+(Number const &a, Number const &b) {
+        Number c;
+        handle_error_(mp_rat_add(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+    friend Number &operator+=(Number &a, Number const &b) {
+        Number c;
+        handle_error_(mp_rat_add(&a.num_, &b.num_, &c.num_));
+        c.swap(a);
+        return a;
+    }
+
+    friend Number operator-(Number const &a) {
+        Number b;
+        handle_error_(mp_rat_neg(&a.num_, &b.num_));
+        return b;
+    }
+    friend Number operator-(Number const &a, Number const &b) {
+        Number c;
+        handle_error_(mp_rat_sub(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+    friend Number &operator-=(Number &a, Number const &b) {
+        Number c;
+        handle_error_(mp_rat_sub(&a.num_, &b.num_, &c.num_));
+        c.swap(a);
+        return a;
+    }
+
+    friend bool operator<(Number const &a, Number const &b) {
+        return mp_rat_compare(&a.num_, &b.num_) < 0;
+    }
+    friend bool operator<=(Number const &a, Number const &b) {
+        return mp_rat_compare(&a.num_, &b.num_) <= 0;
+    }
+    friend bool operator>(Number const &a, Number const &b) {
+        return mp_rat_compare(&a.num_, &b.num_) > 0;
+    }
+    friend bool operator>=(Number const &a, Number const &b) {
+        return mp_rat_compare(&a.num_, &b.num_) >= 0;
+    }
+    friend bool operator==(Number const &a, Number const &b) {
+        return mp_rat_compare(&a.num_, &b.num_) == 0;
+    }
+    friend bool operator!=(Number const &a, Number const &b) {
+        return mp_rat_compare(&a.num_, &b.num_) != 0;
+    }
+    friend bool operator<(Number const &a, mp_small b) {
+        return mp_rat_compare_value(&a.num_, b, 1) < 0;
+    }
+    friend bool operator<=(Number const &a, mp_small b) {
+        return mp_rat_compare_value(&a.num_, b, 1) <= 0;
+    }
+    friend bool operator>(Number const &a, mp_small b) {
+        return mp_rat_compare_value(&a.num_, b, 1) > 0;
+    }
+    friend bool operator>=(Number const &a, mp_small b) {
+        return mp_rat_compare_value(&a.num_, b, 1) >= 0;
+    }
+    friend bool operator==(Number const &a, mp_small b) {
+        return mp_rat_compare_value(&a.num_, b, 1) == 0;
+    }
+    friend bool operator!=(Number const &a, mp_small b) {
+        return mp_rat_compare_value(&a.num_, b, 1) != 0;
+    }
+
+    friend int compare(Number const &a, Number const &b) {
+        return mp_rat_compare(&a.num_, &b.num_);
+    }
+
+    friend std::ostream &operator<<(std::ostream &out, Number const &a) {
+        constexpr int radix = 10;
+        if (mp_int_compare_value(mp_rat_denom_ref(&a.num_), 1) == 0) {
+            auto len = mp_int_string_len(mp_rat_numer_ref(&a.num_), radix);
+            auto buf = std::make_unique<char[]>(len); // NOLINT
+            handle_error_(mp_int_to_string(mp_rat_numer_ref(&a.num_), radix, buf.get(), len));
+            out << buf.get();
+        }
+        else {
+            auto len = mp_rat_string_len(&a.num_, radix);
+            auto buf = std::make_unique<char[]>(len); // NOLINT
+            handle_error_(mp_rat_to_string(&a.num_, radix, buf.get(), len));
+            out << buf.get();
+        }
+        return out;
+    }
+
+private:
+    static void handle_error_(mp_result res) {
+        if (res != MP_OK) {
+            if (res == MP_MEMORY) {
+                throw std::bad_alloc();
+            }
+            if (res == MP_RANGE || res == MP_TRUNC) {
+                throw std::range_error(mp_error_string(res));
+            }
+            if (res == MP_UNDEF) {
+                throw std::domain_error(mp_error_string(res));
+            }
+            if (res == MP_BADARG) {
+                throw std::invalid_argument(mp_error_string(res));
+            }
+            throw std::logic_error(mp_error_string(res));
+        }
+    }
+
+    mutable mpq_t num_;
+};
+
+#endif
 
 //! A sparse matrix with efficient access to both rows and columns.
 //!
@@ -346,14 +540,14 @@ public:
 
 private:
     [[nodiscard]] int cmp_(NumberQ const &q) const {
-        auto ret = mpq_cmp(c_.get_mpq_t(), q.c_.get_mpq_t());
+        auto ret = compare(c_, q.c_);
         if (ret != 0) {
             return ret;
         }
-        return mpq_cmp(k_.get_mpq_t(), q.k_.get_mpq_t());
+        return compare(k_, q.k_);
     }
     [[nodiscard]] int cmp_(Number const &c) const {
-        auto ret = mpq_cmp(c_.get_mpq_t(), c_.get_mpq_t());
+        auto ret = compare(c_, c);
         if (ret != 0) {
             return ret;
         }

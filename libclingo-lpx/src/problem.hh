@@ -1,9 +1,7 @@
 #pragma once
 
-#include <gmpxx.h>
 #include <clingo.hh>
-
-using Number = mpq_class;
+#include "util.hh"
 
 enum class Relation {
     LessEqual = 0,

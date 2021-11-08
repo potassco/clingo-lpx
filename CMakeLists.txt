@@ -28,6 +28,7 @@ option(CLINGOLPX_BUILD_TESTS "build tests" OFF)
 option(CLINGOLPX_BUILD_SHARED "build clingo-lpx library shared" ON)
 option(CLINGOLPX_CROSSCHECK "enable additional state checking" OFF)
 option(CLINGOLPX_PROFILE "Enable profiling using gperftools" OFF)
+option(CLINGOLPX_USE_IMATH "use imath instead of gmpxx" OFF)
 set(PYCLINGOLPX_ENABLE "auto" CACHE STRING "build with python support: OFF, auto, require, pip
 auto: enable python support if python is available
 require: enable python support and fails if python is not available
@@ -88,7 +89,16 @@ if (NOT CMAKE_IMPORT_LIBRARY_PREFIX)
     set(CMAKE_IMPORT_LIBRARY_PREFIX import_)
 endif()
 
-find_package(GMPXX REQUIRED)
+add_library(MATH::MATH INTERFACE IMPORTED)
+if (NOT CLINGOLPX_USE_IMATH)
+    find_package(GMPXX REQUIRED)
+    set_property(TARGET MATH::MATH PROPERTY INTERFACE_LINK_LIBRARIES GMPXX::GMPXX)
+else()
+    find_package(IMATH REQUIRED)
+    set_property(TARGET MATH::MATH PROPERTY INTERFACE_COMPILE_DEFINITIONS CLINGOLPX_USE_IMATH)
+    set_property(TARGET MATH::MATH PROPERTY INTERFACE_LINK_LIBRARIES IMATH::IMATH)
+endif()
+
 if (CLINGOLPX_PROFILE)
     find_package(Gperftools REQUIRED)
 endif()

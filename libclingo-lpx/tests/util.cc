@@ -71,7 +71,7 @@ TEST_CASE("util") {
         REQUIRE(a * c == NumberQ{12, 9});
         REQUIRE(c * a == NumberQ{12, 9});
 
-        REQUIRE(a / c == NumberQ{Number{4,3}, 1});
+        REQUIRE(a / c == NumberQ{Number{"4/3", 10}, 1});
 
         REQUIRE((a *= c) == NumberQ{12, 9});
         REQUIRE((a /= c) == NumberQ{4, 3});
