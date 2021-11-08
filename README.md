@@ -83,10 +83,15 @@ google-pprof --gv ./build/clingo-lpx profile.out
 
 ## Math Libraries
 
-The project currently uses the GMP, which is problematic on Windows.
+The project currently uses the [GMP], which is problematic on Windows.
 Below are some alternatives that could be explored.
 
 - https://gmplib.org/
 - https://github.com/creachadair/imath
 - https://github.com/suiginsoft/hebimath
 - https://libs.suckless.org/libzahl/
+
+Currently, the [IMath] library can be used as an alternative using option `CLINGOLPX_USE_IMATH`.
+This should make it possible to use the project on Windows and also to use it with MIT-only licenses.
+
+[IMath]: https://github.com/creachadair/imath
