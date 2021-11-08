@@ -7,8 +7,7 @@
 #include <iostream>
 #include <gmpxx.h>
 
-#define CLINGOLP_EXTRA_DEBUG
-#ifdef CLINGOLP_EXTRA_DEBUG
+#ifdef CLINGOLPX_CROSSCHECK
 #   define assert_extra(X) assert(X)
 #else
 #   define assert_extra(X)
