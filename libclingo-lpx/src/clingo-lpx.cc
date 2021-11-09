@@ -157,9 +157,11 @@ public:
     }
 
     bool next(uint32_t thread_id, size_t *current) override {
-        if (*current < prop_.n_values(thread_id)) {
+        while (*current < prop_.n_values(thread_id)) {
             ++*current;
-            return true;
+            if (prop_.get_symbol(*current - 1).type() != Clingo::SymbolType::Number) {
+                return true;
+            }
         }
         return false;
     }
