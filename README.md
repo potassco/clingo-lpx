@@ -2,6 +2,31 @@
 
 A simplistic simplex solver for checking satisfiability of a set of equations.
 
+## Examples
+
+There are some encodings for different systems in the `examples` folder:
+
+```
+$ clingo-lpx -c n=132 encoding-lp.lp tai4_4_1.lp
+clingo-lpx version 1.1.0
+Reading from encoding-lp.lp ...
+Solving...
+Answer: 1
+[...]
+Assignment:
+(1,1)=132 (1,2)=0 (1,3)=71 (1,4)=69 (2,1)=19 (2,2)=98 (2,3)=126 (2,4)=28 (3,1)=60 (3,2)=98 (3,3)=0 (3,4)=132 (4,1)=132 (4,2)=98 (4,3)=21 (4,4)=28
+SATISFIABLE
+
+$ clingo-dl -c n=132 encoding-dl.lp tai4_4_1.lp
+[...]
+
+$ clingcon -c n=132 encoding-casp.lp tai4_4_1.lp
+[...]
+
+$ clingo -c n=132 encoding.lp tai4_4_1.lp
+[...]
+```
+
 ## Installation
 
 To compile the package, [cmake], [gmp], [clingo], and a C++ compiler supporting C++17 have to be installed.
