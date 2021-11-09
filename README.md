@@ -14,7 +14,10 @@ Solving...
 Answer: 1
 [...]
 Assignment:
-(1,1)=132 (1,2)=0 (1,3)=71 (1,4)=69 (2,1)=19 (2,2)=98 (2,3)=126 (2,4)=28 (3,1)=60 (3,2)=98 (3,3)=0 (3,4)=132 (4,1)=132 (4,2)=98 (4,3)=21 (4,4)=28
+(1,1)=132 (1,2)=0  (1,3)=71  (1,4)=69  \
+(2,1)=19  (2,2)=98 (2,3)=126 (2,4)=28  \
+(3,1)=60  (3,2)=98 (3,3)=0   (3,4)=132 \
+(4,1)=132 (4,2)=98 (4,3)=21  (4,4)=28
 SATISFIABLE
 
 $ clingo-dl -c n=132 encoding-dl.lp tai4_4_1.lp
@@ -50,7 +53,6 @@ The system supports `&sum` constraints over rationals with relations among `<=`,
 The elements of the sum constraints must have form `x`, `-x`, `n*x`, `-n*x`, or `-n/d*x`
 where `x` is a function symbol or tuple, and `n` and `d` are numbers.
 A number has to be either a non negative integer or decimal number in quotes.
-
 
 For example, the following program is accepted:
 ```
