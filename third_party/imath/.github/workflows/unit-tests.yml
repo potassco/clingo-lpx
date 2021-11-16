@@ -1,0 +1,28 @@
+name: Unit tests
+
+on: [push, workflow_dispatch]
+    
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        compiler: ['gcc', 'clang']
+        exclude:
+          - os: macos-latest
+            compiler: gcc  # gcc is clang on macOS
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+        CC: ${{ matrix.compiler }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Log compiler version
+      run: |
+        "$CC" --version
+    - name: make test    # unit tests
+      run: make test
+    - name: make check   # unit and compatibility tests
+      run: make check
