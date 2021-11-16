@@ -9,10 +9,9 @@ pip:
                 if m is not None:
                     version = m.group(1)
     build_depends: |
-        sudo apt-get install gcc g++ cmake ninja-build libgmp-dev
+        sudo apt-get install gcc g++ cmake ninja-build
         python3 -m pip install --user --upgrade scikit-build
     install: |
-        check_call(['yum', '-y', 'install', 'gmp-devel'])
         if ARCH != "x86_64":
             check_call(['sed', '-i', 's/, "cmake"//', 'pyproject.toml'])
     build_depends_release: |
