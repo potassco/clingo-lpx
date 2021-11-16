@@ -30,9 +30,9 @@
 //! Minor version number.
 #define CLINGOLPX_VERSION_MINOR 1
 //! Revision number.
-#define CLINGOLPX_VERSION_REVISION 0
+#define CLINGOLPX_VERSION_REVISION 1
 //! String representation of version.
-#define CLINGOLPX_VERSION "1.1.0"
+#define CLINGOLPX_VERSION "1.1.1"
 
 #ifdef __cplusplus
 extern "C" {
