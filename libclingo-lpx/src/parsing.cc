@@ -149,7 +149,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
 
 } // namespace
 
-void evaluate_theory(Clingo::TheoryAtoms const &theory, VarMap &var_map, std::vector<Inequality> &iqs) {
+void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs) {
     for (auto &&atom : theory) {
         if (match(atom.term(), "dom", 0)) {
             check_syntax(atom.elements().size() == 1);
@@ -158,8 +158,9 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, VarMap &var_map, std::ve
             auto &&term = elem.tuple().front();
             check_syntax(match(term, "..", 2));
             auto var = evaluate_var(atom.guard().second);
-            iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().back()), Relation::LessEqual, atom.literal()});
-            iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().front()), Relation::GreaterEqual, atom.literal()});
+            auto lit = mapper(atom.literal());
+            iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().back()), Relation::LessEqual, lit});
+            iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().front()), Relation::GreaterEqual, lit});
         }
         else if (match(atom.term(), "sum", 0)) {
             std::vector<Term> lhs;
@@ -182,16 +183,18 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, VarMap &var_map, std::ve
                 if (!elem.condition().empty()) {
                     auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(var_map.size()));
                     if (res.second) {
-                        iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -elem.condition_id()});
-                        iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, elem.condition_id()});
+                        auto lit = mapper(elem.condition_id());
+                        iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -lit});
+                        iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, lit});
                     }
                     lhs.back().var = res.first->second;
                 }
             }
+            auto lit = mapper(atom.literal());
             iqs.emplace_back(Inequality{std::move(lhs),
                                         evaluate_num(atom.guard().second),
                                         evaluate_cmp(atom.guard().first),
-                                        atom.literal()});
+                                        lit});
         }
     }
 }

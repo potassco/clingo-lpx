@@ -13,6 +13,7 @@ std::string str(T &&x) {
 TEST_CASE("parsing") {
     Clingo::Control ctl;
     ctl.add("base", {}, THEORY);
+    auto mapper = [](Clingo::literal_t lit) { return 1; };
 
     SECTION("example 1") {
         ctl.add("base", {}, "&sum { x2; x3 } >= 10.\n");
@@ -20,7 +21,7 @@ TEST_CASE("parsing") {
 
         VarMap vars;
         std::vector<Inequality> eqs;
-        evaluate_theory(ctl.theory_atoms(), vars, eqs);
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs);
         REQUIRE(eqs.size() == 1);
         REQUIRE(str(eqs.front()) == "x2 + x3 >= 10");
     }
@@ -31,7 +32,7 @@ TEST_CASE("parsing") {
 
         VarMap vars;
         std::vector<Inequality> eqs;
-        evaluate_theory(ctl.theory_atoms(), vars, eqs);
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs);
         REQUIRE(eqs.size() == 1);
         REQUIRE(str(eqs.front()) == "-x <= 0");
     }
@@ -42,7 +43,7 @@ TEST_CASE("parsing") {
 
         VarMap vars;
         std::vector<Inequality> eqs;
-        evaluate_theory(ctl.theory_atoms(), vars, eqs);
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs);
         REQUIRE(eqs.size() == 1);
         REQUIRE(str(eqs.front()) == "-x + 2/3*y = -1");
     }
