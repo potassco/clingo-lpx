@@ -12,7 +12,6 @@ if (CLINGOLPX_USE_IMATH)
 endif()
 
 if (CLINGOLPX_BUILD_TESTS)
-    cmake_policy(SET CMP0077 NEW)
-    set(CATCH_BUILD_STATIC_LIBRARY On)
+    set(CATCH_BUILD_STATIC_LIBRARY ON CACHE INTERNAL "" FORCE)
     add_subdirectory(catch)
 endif()
