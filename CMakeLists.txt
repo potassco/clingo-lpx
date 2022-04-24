@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.13)
 
 file(READ "libclingo-lpx/clingo-lpx.h" main)
 string(REGEX MATCH "#define CLINGOLPX_VERSION \"([^\"]*)\"" clingov ${main})
@@ -89,9 +89,10 @@ if (NOT CMAKE_IMPORT_LIBRARY_PREFIX)
     set(CMAKE_IMPORT_LIBRARY_PREFIX import_)
 endif()
 
+add_subdirectory(third_party)
+
 add_library(MATH::MATH INTERFACE IMPORTED)
 if (CLINGOLPX_USE_IMATH)
-    add_subdirectory(third_party)
     set_property(TARGET MATH::MATH PROPERTY INTERFACE_COMPILE_DEFINITIONS CLINGOLPX_USE_IMATH)
     set_property(TARGET MATH::MATH PROPERTY INTERFACE_LINK_LIBRARIES libimath)
 else()

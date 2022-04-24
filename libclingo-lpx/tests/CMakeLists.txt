@@ -1,8 +1,6 @@
 # [[[source: .
 set(ide_source_group "Source Files")
 set(source-group
-    "${CMAKE_CURRENT_SOURCE_DIR}/catch.hpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/main.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/solving.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/util.cc")
@@ -12,7 +10,7 @@ set(source
 # ]]]
 
 add_executable(test_clingo-lpx ${source})
-target_link_libraries(test_clingo-lpx PRIVATE libclingo-lpx-app_t)
+target_link_libraries(test_clingo-lpx PRIVATE libclingo-lpx-app_t Catch2::Catch2WithMain)
 target_include_directories(test_clingo-lpx PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )

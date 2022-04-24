@@ -1,6 +1,6 @@
 #include <util.hh>
 
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 
 TEST_CASE("util") {
     SECTION("tableau") {
