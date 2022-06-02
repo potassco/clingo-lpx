@@ -6,6 +6,7 @@ include README.md
 recursive-include app *
 recursive-include cmake *
 recursive-include libclingo-lpx *
+recursive-include third_party *
 include libpyclingo-lpx/*.c
 include libpyclingo-lpx/CMakeLists.txt
 recursive-include libpyclingo-lpx/clingolpx *.py *.typed
