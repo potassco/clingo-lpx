@@ -8,5 +8,7 @@ doc/*.fls
 doc/*.log
 doc/*.synctex.gz
 *.so
+*.prof
+.cache
 __pycache__
 _skbuild
