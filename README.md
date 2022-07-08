@@ -98,8 +98,8 @@ cmake --build build
 The resulting binary can then be profiled using the following calls:
 
 ```bash
-CPUPROFILE_FREQUENCY=1000 ./build/clingo-lpx examples/encoding-lp.lp examples/tai4_4_1.lp --stats -c n=132 -q 0
-google-pprof --gv ./build/clingo-lpx profile.out
+CPUPROFILE_FREQUENCY=1000 ./build/bin/clingo-lpx examples/encoding-lp.lp examples/tai4_4_1.lp --stats -c n=132 -q 0
+google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 ```
 
 [gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html

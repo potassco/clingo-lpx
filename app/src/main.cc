@@ -28,8 +28,30 @@
 #include <sstream>
 #include <fstream>
 #include <limits>
+#ifdef CLINGOLPX_PROFILE
+#include <gperftools/profiler.h>
+#endif
 
 namespace ClingoLPX {
+
+#ifdef CLINGOLPX_PROFILE
+
+namespace {
+
+
+class Profiler {
+public:
+    Profiler(char const *path) {
+        ProfilerStart(path);
+    }
+    ~Profiler() {
+        ProfilerStop();
+    }
+};
+
+} // namespace
+
+#endif
 
 using Clingo::Detail::handle_error;
 
@@ -105,6 +127,9 @@ public:
         });
 
         ctl.ground({{"base", {}}});
+#ifdef CLINGOLPX_PROFILE
+        Profiler prof{"clingo-lpx-solve.prof"};
+#endif
         ctl.solve(Clingo::SymbolicLiteralSpan{}, this, false, false).get();
     }
     //! Register options of the theory and optimization related options.
