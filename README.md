@@ -73,13 +73,13 @@ is equivalent to
 &sum { x } <= 2.
 ```
 
-When option `--strict` is passed to the solver, then also strict constraints are supperted:
+When option `--strict` is passed to the solver, then also strict constraints are supported:
 ```
 { x }.
 &sum { x } > 1.
 &sum { x } < 2.
 ```
-The assignment will then contain an epsilon compontent for each variable.
+The assignment will then contain an epsilon component for each variable.
 For example, with the above program, `x>=1+e` will appear in the output.
 This feature could also be used to support constraints in rule body and the `!=` relation;
 neither is implemented at the moment.
@@ -107,6 +107,7 @@ google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 ## Literature
 
 - "Integrating Simplex with `DPLL(T)`" by Bruno Dutertre and Leonardo de Moura
+- "SPASS-SATT: A CDCL(LA) Solver" by Martin Bromberger, Mathias Fleury, Simon Schwarz, Christoph Weidenbach
 
 ## Math Libraries
 
@@ -114,6 +115,7 @@ The project currently uses the [GMP], which is problematic on Windows.
 Below are some alternatives that could be explored.
 
 - https://gmplib.org/
+- https://github.com/wbhart/flint2
 - https://github.com/creachadair/imath
 - https://github.com/suiginsoft/hebimath
 - https://libs.suckless.org/libzahl/
