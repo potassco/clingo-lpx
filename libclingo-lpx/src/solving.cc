@@ -739,7 +739,7 @@ void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Cling
 }
 
 template<typename Factor, typename Value>
-Clingo::literal_t Propagator<Factor, Value>::decide(id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) {
+Clingo::literal_t Propagator<Factor, Value>::decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) {
     return slvs_[thread_id].second.adjust(heuristic_, assign, fallback);
 }
 

@@ -214,7 +214,7 @@ public:
     void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
     void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
 
-    Clingo::literal_t decide(id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) override;
+    Clingo::literal_t decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) override;
 
 private:
     VarMap aux_map_;
