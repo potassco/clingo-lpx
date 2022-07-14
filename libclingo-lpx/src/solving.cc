@@ -1,6 +1,7 @@
 #include "solving.hh"
 #include "parsing.hh"
 
+#include <climits>
 #include <unordered_set>
 
 template<typename Factor, typename Value>
@@ -90,6 +91,22 @@ struct Solver<Factor, Value>::Prepare {
     SymbolMap const &map;
     std::vector<index_t> basic;
 };
+
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::Solver::Bound::compare(Value const &value) const {
+    switch (rel) {
+        case BoundRelation::Equal: {
+            return value == this->value;
+        }
+        case BoundRelation::LessEqual: {
+            return value <= this->value;
+        }
+        case BoundRelation::GreaterEqual: {
+            break;
+        }
+    }
+    return value >= this->value;
+}
 
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
@@ -593,9 +610,31 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
         }
     }
 
-    assert(check_solution_());
+    assert_extra(check_solution_());
 
     return State::Satisfiable;
+}
+
+template<typename Factor, typename Value>
+Clingo::literal_t Solver<Factor, Value>::adjust(SelectionHeuristic heuristic, Clingo::Assignment const &assign, Clingo::literal_t lit) const {
+    if (heuristic == SelectionHeuristic::None) {
+        return lit;
+    }
+    for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
+        Bound const &bound = it->second;
+        Value const &value = variables_[bound.variable].value;
+        if (bound.compare(value) == (heuristic == SelectionHeuristic::Conflict)) {
+            return -lit;
+        }
+    }
+    for (auto it = bounds_.find(-lit), ie = bounds_.end(); it != ie && it->first == -lit; ++it) {
+        Bound const &bound = it->second;
+        Value const &value = variables_[bound.variable].value;
+        if (bound.compare(value) == (heuristic == SelectionHeuristic::Match)) {
+            return -lit;
+        }
+    }
+    return lit;
 }
 
 template<typename Factor, typename Value>
@@ -663,6 +702,11 @@ void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Cling
         step_pivots.set_value(slv.statistics().pivots_);
         accu_pivots.set_value(accu_pivots.value() + slv.statistics().pivots_);
     }
+}
+
+template<typename Factor, typename Value>
+Clingo::literal_t Propagator<Factor, Value>::decide(id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) {
+    return slvs_[thread_id].second.adjust(heuristic_, assign, fallback);
 }
 
 template<typename Factor, typename Value>

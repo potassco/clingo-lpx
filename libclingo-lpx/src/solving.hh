@@ -4,6 +4,7 @@
 #include "parsing.hh"
 #include "util.hh"
 
+#include <clingo.hh>
 #include <queue>
 #include <map>
 #include <optional>
@@ -13,6 +14,12 @@ using Factor = Number;
 using CoeffcientQ = NumberQ;
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
+
+enum class SelectionHeuristic : int {
+    None = 0,
+    Match = 1,
+    Conflict = 2,
+};
 
 struct Statistics {
     void reset();
@@ -47,6 +54,9 @@ private:
         index_t variable{0};
         Clingo::literal_t lit{0};
         BoundRelation rel{BoundRelation::LessEqual};
+        //! Compare the given value with the value of the bound according to
+        //! the relation of the bound.
+        bool compare(Value const &value) const;
     };
     //! Capture the current state of a variable.
     struct Variable {
@@ -119,6 +129,10 @@ public:
     //! Return the conflict clause.
     [[nodiscard]] Clingo::LiteralSpan reason() const { return conflict_clause_; }
 
+    //! Adjust the sign of the given literal so that it does not conflict with
+    //! the current tableau.
+    [[nodiscard]] Clingo::literal_t adjust(SelectionHeuristic heuristic, Clingo::Assignment const &assign, Clingo::literal_t lit) const;
+
 private:
     //! Check if the tableau.
     [[nodiscard]] bool check_tableau_();
@@ -175,9 +189,10 @@ private:
 };
 
 template <typename Factor, typename Value>
-class Propagator : public Clingo::Propagator {
+class Propagator : public Clingo::Heuristic {
 public:
-    Propagator() = default;
+    Propagator(SelectionHeuristic heuristic)
+    : heuristic_{heuristic} { }
     Propagator(Propagator const &) = default;
     Propagator(Propagator &&) noexcept = default;
     Propagator &operator=(Propagator const &) = default;
@@ -197,6 +212,8 @@ public:
     void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
     void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
 
+    Clingo::literal_t decide(id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) override;
+
 private:
     VarMap aux_map_;
     SymbolMap var_map_;
@@ -205,4 +222,5 @@ private:
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;
     std::vector<std::pair<size_t, Solver<Factor, Value>>> slvs_;
+    SelectionHeuristic heuristic_;
 };

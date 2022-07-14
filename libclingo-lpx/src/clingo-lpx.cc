@@ -26,6 +26,8 @@
 #include "solving.hh"
 #include "parsing.hh"
 
+#include <clingo.h>
+#include <clingo.hh>
 #include <sstream>
 
 #define CLINGOLPX_TRY try // NOLINT
@@ -72,6 +74,16 @@ bool check(clingo_propagate_control_t* i, void* data) {
     CLINGOLPX_CATCH;
 }
 
+//! C decide callback for the LPX propagator.
+template <typename Factor, typename Value>
+bool decide(clingo_id_t thread_id, clingo_assignment_t const *assignment, clingo_literal_t fallback, void *data, clingo_literal_t *decision) {
+    CLINGOLPX_TRY {
+        Clingo::Assignment assign(const_cast<clingo_assignment_t *>(assignment)); // NOLINT
+        *decision = static_cast<Propagator<Factor, Value>*>(data)->decide(thread_id, assign, fallback);
+    }
+    CLINGOLPX_CATCH;
+}
+
 //! High level interface to use the LPX propagator hiding the value type.
 class PropagatorFacade {
 public:
@@ -107,16 +119,24 @@ public:
 template <typename Factor, typename Value>
 class LPXPropagatorFacade : public PropagatorFacade {
 public:
-    LPXPropagatorFacade(clingo_control_t *control, char const *theory) {
+    LPXPropagatorFacade(clingo_control_t *control, char const *theory, SelectionHeuristic heuristic)
+    : prop_{heuristic} {
         handle_error(clingo_control_add(control, "base", nullptr, 0, theory));
-        static clingo_propagator_t prop = {
+        static clingo_propagator_t prp = {
             init<Factor, Value>,
             propagate<Factor, Value>,
             undo<Factor, Value>,
             check<Factor, Value>,
-            nullptr
+            decide<Factor, Value>,
         };
-        handle_error(clingo_control_register_propagator(control, &prop, &prop_, false));
+        static clingo_propagator_t heu = {
+            init<Factor, Value>,
+            propagate<Factor, Value>,
+            undo<Factor, Value>,
+            check<Factor, Value>,
+            nullptr,
+        };
+        handle_error(clingo_control_register_propagator(control, heuristic != SelectionHeuristic::None ? &prp : &heu, &prop_, false));
     }
 
     bool lookup_symbol(clingo_symbol_t name, size_t *index) override {
@@ -203,6 +223,23 @@ bool parse_bool(const char *value, void *data) {
     return false;
 }
 
+bool parse_select(const char *value, void *data) {
+    auto &result = *static_cast<SelectionHeuristic*>(data);
+    if (iequals(value, "none")) {
+        result = SelectionHeuristic::None;
+        return true;
+    }
+    if (iequals(value, "match")) {
+        result = SelectionHeuristic::Match;
+        return true;
+    }
+    if (iequals(value, "conflict")) {
+        result = SelectionHeuristic::Conflict;
+        return true;
+    }
+    return false;
+}
+
 //! Set the given error message if the Boolean is false.
 //!
 //! Return false if there is a parse error.
@@ -219,6 +256,7 @@ bool check_parse(char const *key, bool ret) {
 
 struct clingolpx_theory {
     std::unique_ptr<PropagatorFacade> clingolpx{nullptr};
+    SelectionHeuristic select{SelectionHeuristic::None};
     bool strict{false};
 };
 
@@ -242,10 +280,10 @@ extern "C" bool clingolpx_create(clingolpx_theory_t **theory) {
 extern "C" bool clingolpx_register(clingolpx_theory_t *theory, clingo_control_t* control) {
     CLINGOLPX_TRY {
         if (!theory->strict) {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, Number>>(control, THEORY);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, Number>>(control, THEORY, theory->select);
         }
         else {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, NumberQ>>(control, THEORY_Q);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, NumberQ>>(control, THEORY_Q, theory->select);
         }
     }
     CLINGOLPX_CATCH;
@@ -272,6 +310,9 @@ extern "C" bool clingolpx_configure(clingolpx_theory_t *theory, char const *key,
         if (strcmp(key, "strict") == 0) {
             return check_parse("strict", parse_bool(value, &theory->strict));
         }
+        if (strcmp(key, "select") == 0) {
+            return check_parse("select", parse_select(value, &theory->select));
+        }
         std::ostringstream msg;
         msg << "invalid configuration key '" << key << "'";
         clingo_set_error(clingo_error_runtime, msg.str().c_str());
@@ -284,6 +325,7 @@ extern "C" bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_op
     CLINGOLPX_TRY {
         char const * group = "Clingo.LPX Options";
         handle_error(clingo_options_add_flag(options, group, "strict", "Enable support for strict constraints", &theory->strict));
+        handle_error(clingo_options_add(options, group, "select", "Choose phase selection heuristic", parse_select, &theory->select, false, "{none,match,conflict}"));
     }
     CLINGOLPX_CATCH;
 }
