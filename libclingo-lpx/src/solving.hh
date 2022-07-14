@@ -57,6 +57,8 @@ private:
         //! Compare the given value with the value of the bound according to
         //! the relation of the bound.
         bool compare(Value const &value) const;
+        //! Check if the bound conflicts with the other one.
+        bool conflicts(Bound const &other) const;
     };
     //! Capture the current state of a variable.
     struct Variable {
@@ -77,7 +79,7 @@ private:
         //! Return thevalue of the upper bound.
         [[nodiscard]] Value const &upper() const { return upper_bound->value; }
         //! Set a new value or add to the existing one.
-        void set_value(Solver &s, index_t level, Value const &num, bool add);
+        void set_value(Solver &s, index_t lvl, Value const &num, bool add);
 
         //! The lower bound of a variable.
         Bound const *lower_bound{nullptr};
@@ -91,6 +93,8 @@ private:
         index_t reserve_index{0};
         //! The level the variable was assigned on.
         index_t level{0};
+        //! The bounds associated with this variable.
+        std::vector<Bound const *> bounds;
         //! Whether this variales is in the queue of conflicting variables.
         bool queued{false};
     };
@@ -115,7 +119,7 @@ public:
     [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols);
 
     //! Solve the (previously prepared) problem.
-    [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
+    [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits, bool propagate_conflicts);
 
     //! Undo assignments on the current level.
     void undo();
@@ -125,9 +129,6 @@ public:
 
     //! Return the solve statistics.
     [[nodiscard]] Statistics const &statistics() const;
-
-    //! Return the conflict clause.
-    [[nodiscard]] Clingo::LiteralSpan reason() const { return conflict_clause_; }
 
     //! Adjust the sign of the given literal so that it does not conflict with
     //! the current tableau.
@@ -191,8 +192,9 @@ private:
 template <typename Factor, typename Value>
 class Propagator : public Clingo::Heuristic {
 public:
-    Propagator(SelectionHeuristic heuristic)
-    : heuristic_{heuristic} { }
+    Propagator(SelectionHeuristic heuristic, bool propagate_conflicts)
+    : heuristic_{heuristic}
+    , propagate_conflicts_{propagate_conflicts} { }
     Propagator(Propagator const &) = default;
     Propagator(Propagator &&) noexcept = default;
     Propagator &operator=(Propagator const &) = default;
@@ -223,4 +225,5 @@ private:
     std::vector<Clingo::literal_t> facts_;
     std::vector<std::pair<size_t, Solver<Factor, Value>>> slvs_;
     SelectionHeuristic heuristic_;
+    bool propagate_conflicts_;
 };

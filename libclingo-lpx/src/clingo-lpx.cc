@@ -119,8 +119,8 @@ public:
 template <typename Factor, typename Value>
 class LPXPropagatorFacade : public PropagatorFacade {
 public:
-    LPXPropagatorFacade(clingo_control_t *control, char const *theory, SelectionHeuristic heuristic)
-    : prop_{heuristic} {
+    LPXPropagatorFacade(clingo_control_t *control, char const *theory, SelectionHeuristic heuristic, bool propagate_conflicts)
+    : prop_{heuristic, propagate_conflicts} {
         handle_error(clingo_control_add(control, "base", nullptr, 0, theory));
         static clingo_propagator_t prp = {
             init<Factor, Value>,
@@ -257,6 +257,7 @@ bool check_parse(char const *key, bool ret) {
 struct clingolpx_theory {
     std::unique_ptr<PropagatorFacade> clingolpx{nullptr};
     SelectionHeuristic select{SelectionHeuristic::None};
+    bool propagate_conflicts{false};
     bool strict{false};
 };
 
@@ -280,10 +281,10 @@ extern "C" bool clingolpx_create(clingolpx_theory_t **theory) {
 extern "C" bool clingolpx_register(clingolpx_theory_t *theory, clingo_control_t* control) {
     CLINGOLPX_TRY {
         if (!theory->strict) {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, Number>>(control, THEORY, theory->select);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, Number>>(control, THEORY, theory->select, theory->propagate_conflicts);
         }
         else {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, NumberQ>>(control, THEORY_Q, theory->select);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, NumberQ>>(control, THEORY_Q, theory->select, theory->propagate_conflicts);
         }
     }
     CLINGOLPX_CATCH;
@@ -310,6 +311,9 @@ extern "C" bool clingolpx_configure(clingolpx_theory_t *theory, char const *key,
         if (strcmp(key, "strict") == 0) {
             return check_parse("strict", parse_bool(value, &theory->strict));
         }
+        if (strcmp(key, "propagate-conflicts") == 0) {
+            return check_parse("propagate-conflicts", parse_bool(value, &theory->propagate_conflicts));
+        }
         if (strcmp(key, "select") == 0) {
             return check_parse("select", parse_select(value, &theory->select));
         }
@@ -325,6 +329,7 @@ extern "C" bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_op
     CLINGOLPX_TRY {
         char const * group = "Clingo.LPX Options";
         handle_error(clingo_options_add_flag(options, group, "strict", "Enable support for strict constraints", &theory->strict));
+        handle_error(clingo_options_add_flag(options, group, "propagate-conflicts", "Propagate conflicting bounds", &theory->propagate_conflicts));
         handle_error(clingo_options_add(options, group, "select", "Choose phase selection heuristic", parse_select, &theory->select, false, "{none,match,conflict}"));
     }
     CLINGOLPX_CATCH;

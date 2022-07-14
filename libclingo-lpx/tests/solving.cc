@@ -6,7 +6,7 @@
 namespace {
 
 bool run(char const *s) {
-    Propagator<Number, Number> prp{SelectionHeuristic::Match};
+    Propagator<Number, Number> prp{SelectionHeuristic::Match, true};
     Clingo::Control ctl;
     prp.register_control(ctl);
 
@@ -17,7 +17,7 @@ bool run(char const *s) {
 }
 
 bool run_q(char const *s) {
-    Propagator<Number, NumberQ> prp{SelectionHeuristic::Match};
+    Propagator<Number, NumberQ> prp{SelectionHeuristic::Match, true};
     Clingo::Control ctl;
     prp.register_control(ctl);
 
@@ -28,7 +28,7 @@ bool run_q(char const *s) {
 }
 
 size_t run_m(std::initializer_list<char const *> m) {
-    Propagator<Number, Number> prp{SelectionHeuristic::Match};
+    Propagator<Number, Number> prp{SelectionHeuristic::Match, true};
     Clingo::Control ctl{{"0"}};
     prp.register_control(ctl);
 

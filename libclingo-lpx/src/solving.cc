@@ -109,6 +109,22 @@ bool Solver<Factor, Value>::Solver::Bound::compare(Value const &value) const {
 }
 
 template<typename Factor, typename Value>
+bool Solver<Factor, Value>::Solver::Bound::conflicts(Bound const &other) const {
+    switch (rel) {
+        case BoundRelation::Equal: {
+            return other.rel == BoundRelation::Equal ? value != other.value : other.conflicts(*this);
+        }
+        case BoundRelation::LessEqual: {
+            return other.rel != BoundRelation::LessEqual && value < other.value;
+        }
+        case BoundRelation::GreaterEqual: {
+            return other.rel != BoundRelation::GreaterEqual && other.value < value;
+        }
+    }
+    return value >= this->value;
+}
+
+template<typename Factor, typename Value>
 bool Solver<Factor, Value>::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
     if (!has_upper() || bound.value < upper()) {
         if (!has_upper() || ass.level(upper_bound->lit) < ass.decision_level()) {
@@ -298,6 +314,9 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
         enqueue_(i);
     }
 
+    for (auto const &[lit, bound] : bounds_) {
+        variables_[bound.variable].bounds.emplace_back(&bound);
+    }
     assert_extra(check_tableau_());
     assert_extra(check_basic_());
     assert_extra(check_non_basic_());
@@ -306,7 +325,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
 }
 
 template<typename Factor, typename Value>
-bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
+bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits, bool propagate_conflicts) {
     index_t i{0};
     index_t j{0};
     Value const *v{nullptr};
@@ -323,12 +342,26 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
 
     for (auto lit : lits) {
         for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
-            auto const &[lit, bound] = *it;
-            auto &x = variables_[bound.variable];
-            if (!x.update(*this, ctl.assignment(), bound)) {
+            auto const &[lit_a, bound_a] = *it;
+            assert(lit == lit_a);
+            if (propagate_conflicts) {
+                for (auto const *bound_b : variables_[it->second.variable].bounds) {
+                    if (lit_a != -bound_b->lit && !ass.is_false(bound_b->lit) && bound_a.conflicts(*bound_b)) {
+                        conflict_clause_.clear();
+                        conflict_clause_.emplace_back(-lit_a);
+                        conflict_clause_.emplace_back(-bound_b->lit);
+                        if (!ctl.add_clause(conflict_clause_) || !ctl.propagate()) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            auto &x = variables_[bound_a.variable];
+            if (!x.update(*this, ctl.assignment(), bound_a)) {
                 conflict_clause_.clear();
                 conflict_clause_.emplace_back(-x.upper_bound->lit);
                 conflict_clause_.emplace_back(-x.lower_bound->lit);
+                ctl.add_clause(conflict_clause_);
                 return false;
             }
             if (x.reserve_index < n_non_basic_) {
@@ -369,6 +402,7 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
                 return true;
             }
             case State::Unsatisfiable: {
+                ctl.add_clause(conflict_clause_);
                 return false;
             }
             case State::Unknown: {
@@ -714,9 +748,7 @@ void Propagator<Factor, Value>::check(Clingo::PropagateControl &ctl) {
     auto ass = ctl.assignment();
     auto &[offset, slv] = slvs_[ctl.thread_id()];
     if (ass.decision_level() == 0 && offset < facts_offset_) {
-        if (!slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_})) { // NOLINT
-            ctl.add_clause(slv.reason());
-        }
+        static_cast<void>(slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_}, propagate_conflicts_)); // NOLINT
         offset = facts_offset_;
     }
 }
@@ -728,9 +760,7 @@ void Propagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo:
         facts_.insert(facts_.end(), changes.begin(), changes.end());
     }
     auto &[offset, slv] = slvs_[ctl.thread_id()];
-    if (!slv.solve(ctl, changes)) {
-        ctl.add_clause(slv.reason());
-    }
+    static_cast<void>(slv.solve(ctl, changes, propagate_conflicts_));
 }
 
 template<typename Factor, typename Value>
