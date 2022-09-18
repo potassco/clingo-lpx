@@ -1,7 +1,6 @@
 name: Build and upload to PyPI
 
 on:
-  push:
   workflow_dispatch:
     inputs:
       wip:
