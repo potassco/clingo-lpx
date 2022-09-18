@@ -1,3 +1,14 @@
+set(CMAKE_CXX_CLANG_TIDY "")
+
+if (CLINGOLPX_BUILD_TESTS AND NOT TARGET Catch2::Catch2WithMain)
+    if (CLINGOLPX_USE_LOCAL_CATCH)
+        set(CATCH_BUILD_STATIC_LIBRARY ON CACHE INTERNAL "" FORCE)
+        add_subdirectory(catch)
+    else()
+        find_package(Catch2 3.1 REQUIRED)
+    endif()
+endif()
+
 if (CLINGOLPX_USE_IMATH)
     add_library(libimath STATIC)
     target_sources(libimath PRIVATE
@@ -9,9 +20,4 @@ if (CLINGOLPX_USE_IMATH)
         set_target_properties(libimath PROPERTIES
             POSITION_INDEPENDENT_CODE ON)
     endif()
-endif()
-
-if (CLINGOLPX_BUILD_TESTS)
-    set(CATCH_BUILD_STATIC_LIBRARY ON CACHE INTERNAL "" FORCE)
-    add_subdirectory(catch)
 endif()
