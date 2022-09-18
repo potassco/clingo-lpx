@@ -1,5 +1,9 @@
 # Changes
 
+## clingo-lpx 1.2.1
+
+* add option to enable python script tags
+
 ## clingo-lpx 1.2.0
 * add support for ASPIF parsing
 * add phase selection heuristic
