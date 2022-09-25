@@ -56,9 +56,9 @@ private:
         BoundRelation rel{BoundRelation::LessEqual};
         //! Compare the given value with the value of the bound according to
         //! the relation of the bound.
-        bool compare(Value const &value) const;
+        [[nodiscard]] bool compare(Value const &value) const;
         //! Check if the bound conflicts with the other one.
-        bool conflicts(Bound const &other) const;
+        [[nodiscard]] bool conflicts(Bound const &other) const;
     };
     //! Capture the current state of a variable.
     struct Variable {
@@ -79,7 +79,7 @@ private:
         //! Return thevalue of the upper bound.
         [[nodiscard]] Value const &upper() const { return upper_bound->value; }
         //! Set a new value or add to the existing one.
-        void set_value(Solver &s, index_t lvl, Value const &num, bool add);
+        void set_value(Solver &s, index_t lvl, Value const &val, bool add);
 
         //! The lower bound of a variable.
         Bound const *lower_bound{nullptr};

@@ -2,6 +2,7 @@
 #include "parsing.hh"
 
 #include <climits>
+#include <exception>
 #include <unordered_set>
 
 template<typename Factor, typename Value>
@@ -27,6 +28,7 @@ Value bound_val(Number &&x, Relation rel);
 
 template<>
 Number bound_val<Number>(Number &&x, Relation rel) {
+    static_cast<void>(rel);
     assert(rel != Relation::Less && rel != Relation::Greater);
     return std::move(x);
 }
@@ -288,7 +290,6 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
         // add a bound to a non-basic variable
         else if (row.size() == 1) {
             auto const &[j, v] = row.front();
-            auto &xj = non_basic_(j);
             auto rel = v < 0 ? invert(x.rel) : x.rel;
             bounds_.emplace(x.lit, Bound{
                 bound_val<Value>(Factor{x.rhs / v}, rel),
@@ -415,46 +416,51 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
 
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::undo() {
-    // this function restores the last satisfying assignment
-    auto &offset = trail_offset_.back();
+    try {
+        // this function restores the last satisfying assignment
+        auto &offset = trail_offset_.back();
 
-    // undo bound updates
-    for (auto it = bound_trail_.begin() + offset.bound, ie = bound_trail_.end(); it != ie; ++it) {
-        auto [var, rel, bound] = *it;
-        switch (rel) {
-            case BoundRelation::LessEqual: {
-                variables_[var].upper_bound = bound;
-                break;
-            }
-            case BoundRelation::GreaterEqual: {
-                variables_[var].lower_bound = bound;
-                break;
-            }
-            case BoundRelation::Equal: {
-                variables_[var].upper_bound = bound;
-                variables_[var].lower_bound = bound;
-                break;
+        // undo bound updates
+        for (auto it = bound_trail_.begin() + offset.bound, ie = bound_trail_.end(); it != ie; ++it) {
+            auto [var, rel, bound] = *it;
+            switch (rel) {
+                case BoundRelation::LessEqual: {
+                    variables_[var].upper_bound = bound;
+                    break;
+                }
+                case BoundRelation::GreaterEqual: {
+                    variables_[var].lower_bound = bound;
+                    break;
+                }
+                case BoundRelation::Equal: {
+                    variables_[var].upper_bound = bound;
+                    variables_[var].lower_bound = bound;
+                    break;
+                }
             }
         }
+        bound_trail_.resize(offset.bound);
+
+        // undo assignments
+        for (auto it = assignment_trail_.begin() + offset.assignment, ie = assignment_trail_.end(); it != ie; ++it) {
+            auto &[level, index, number] = *it;
+            variables_[index].level = level;
+            variables_[index].value.swap(number);
+        }
+        assignment_trail_.resize(offset.assignment);
+
+        // empty queue
+        for (; !conflicts_.empty(); conflicts_.pop()) {
+            variables_[conflicts_.top()].queued = false;
+        }
+
+        trail_offset_.pop_back();
+
+        assert_extra(check_solution_());
     }
-    bound_trail_.resize(offset.bound);
-
-    // undo assignments
-    for (auto it = assignment_trail_.begin() + offset.assignment, ie = assignment_trail_.end(); it != ie; ++it) {
-        auto &[level, index, number] = *it;
-        variables_[index].level = level;
-        variables_[index].value.swap(number);
+    catch (...) {
+        std::terminate();
     }
-    assignment_trail_.resize(offset.assignment);
-
-    // empty queue
-    for (; !conflicts_.empty(); conflicts_.pop()) {
-        variables_[conflicts_.top()].queued = false;
-    }
-
-    trail_offset_.pop_back();
-
-    assert_extra(check_solution_());
 }
 
 template<typename Factor, typename Value>
@@ -651,6 +657,7 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
 
 template<typename Factor, typename Value>
 Clingo::literal_t Solver<Factor, Value>::adjust(SelectionHeuristic heuristic, Clingo::Assignment const &assign, Clingo::literal_t lit) const {
+    static_cast<void>(assign);
     if (heuristic == SelectionHeuristic::None) {
         return lit;
     }
@@ -765,6 +772,7 @@ void Propagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo:
 
 template<typename Factor, typename Value>
 void Propagator<Factor, Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
+    static_cast<void>(changes);
     slvs_[ctl.thread_id()].second.undo();
 }
 
@@ -794,6 +802,7 @@ Value Propagator<Factor, Value>::get_value(index_t thread_id, index_t i) const {
 
 template<typename Factor, typename Value>
 index_t Propagator<Factor, Value>::n_values(index_t thread_id) const {
+    static_cast<void>(thread_id);
     return var_vec_.size();
 }
 

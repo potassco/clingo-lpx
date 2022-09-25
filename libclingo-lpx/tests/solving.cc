@@ -1,3 +1,4 @@
+#include <iterator>
 #include <parsing.hh>
 #include <solving.hh>
 
@@ -39,9 +40,7 @@ size_t run_m(std::initializer_list<char const *> m) {
         ctl.add(n.c_str(), {}, s);
         ctl.ground({{n.c_str(), {}}});
         auto h = ctl.solve();
-        for (auto const &m : h) {
-            ++l;
-        }
+        l += static_cast<int>(std::distance(begin(h), end(h)));
     }
     return l;
 }
@@ -109,5 +108,4 @@ TEST_CASE("solving") {
                         ":- a.\n"
                         ":- b."}) == 3);
     }
-};
-
+}

@@ -23,7 +23,7 @@ TEST_CASE("util") {
         // remove at (0,0)
         t.set(0, 0, 0);
         REQUIRE(t.get(0, 0) == 0);
-        REQUIRE(t.size() == 0);
+        REQUIRE(t.empty());
 
         // set 1 at (0,2)
         t.set(0, 2, 1);
@@ -44,7 +44,10 @@ TEST_CASE("util") {
         REQUIRE(t.size() == 1);
 
         // traverse the first column
-        t.update_col(0, [](index_t j, Number &a) { });
+        t.update_col(0, [](index_t j, Number &a) {
+            static_cast<void>(j);
+            static_cast<void>(a);
+        });
         REQUIRE(t.size() == 1);
     }
 
@@ -76,4 +79,4 @@ TEST_CASE("util") {
         REQUIRE((a *= c) == NumberQ{12, 9});
         REQUIRE((a /= c) == NumberQ{4, 3});
     }
-};
+}

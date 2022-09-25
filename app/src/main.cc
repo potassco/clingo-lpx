@@ -77,6 +77,7 @@ public:
         return CLINGOLPX_VERSION;
     }
     void print_model(Clingo::Model const &model, std::function<void()> default_printer) noexcept override {
+        static_cast<void>(default_printer);
         try {
             auto symbols = model.symbols();
             std::sort(symbols.begin(), symbols.end());
@@ -118,7 +119,7 @@ public:
         handle_error(clingolpx_on_statistics(theory_, step.to_c(), accu.to_c()));
     }
     //! Run main solving function.
-    void main(Clingo::Control &ctl, Clingo::StringSpan files) override { // NOLINT
+    void main(Clingo::Control &ctl, Clingo::StringSpan files) override { // NOLINT(bugprone-exception-escape)
         handle_error(clingolpx_register(theory_, ctl.to_c()));
 
         Clingo::AST::with_builder(ctl, [&](Clingo::AST::ProgramBuilder &builder) {
@@ -148,7 +149,7 @@ private:
 } // namespace ClingoLPX
 
 //! Run the clingo-lpx application.
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) { // NOLINT(bugprone-exception-escape)
     ClingoLPX::App app;
     return Clingo::clingo_main(app, {argv + 1, static_cast<size_t>(argc - 1)});
 }

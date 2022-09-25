@@ -31,6 +31,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
     }
     char const *name = term.name();
     size_t len = std::strlen(term.name());
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     return len >= 2 && name[0] == '"' && name[len - 1] == '"';
 }
 
@@ -38,6 +39,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
     if (is_string(term)) {
         char const *name = term.name();
         size_t len = std::strlen(term.name());
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         return Clingo::String(std::string{name + 1, name + len - 1}.c_str());
     }
 
@@ -93,16 +95,19 @@ bool is_string(Clingo::TheoryTerm const &term) {
         auto const *name = term.name();
         std::regex const rgx{"(-)?([0-9]+)(\\.([0-9]+))?"};
         std::cmatch match;
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         check_syntax(std::regex_match(name + 1, name + strlen(name) - 1, match, rgx));
         std::string a = match[2];
         if (match[4].matched) {
             auto const *ib = match[4].first;
             auto const *it = match[4].second;
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
             for (; it != ib && *(it - 1) == '0'; --it) { }
             a.append(ib, it);
             a.append("/1");
             a.append(it - ib, '0');
         }
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
         Number n{a, 10};
         if (match[1].matched) {
             n *= -1;
@@ -181,7 +186,7 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
                     lhs.emplace_back(Term{1, evaluate_var(term)});
                 }
                 if (!elem.condition().empty()) {
-                    auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(var_map.size()));
+                    auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(safe_cast<int>(var_map.size())));
                     if (res.second) {
                         auto lit = mapper(elem.condition_id());
                         iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -lit});
