@@ -156,7 +156,7 @@ public:
     }
 
     void get_value(uint32_t thread_id, size_t index, clingolpx_value_t *value) override {
-        ss_.str();
+        ss_.str("");
         ss_ << prop_.get_value(thread_id, index - 1);
         value->type = clingolpx_value_type_symbol;
         value->symbol = Clingo::String(ss_.str().c_str()).to_c(); // NOLINT
