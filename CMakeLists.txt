@@ -23,12 +23,17 @@ include(CMakeDependentOption)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+set(DEFAULT_CLINGOLPX_MATH_LIBRARY gmpxx)
+if (WIN32)
+    set(DEFAULT_CLINGOLPX_MATH_LIBRARY imath)
+endif()
+
 option(CLINGOLPX_MANAGE_RPATH "set rpath if not installed into system directory" ON)
 option(CLINGOLPX_BUILD_TESTS "build tests" OFF)
 option(CLINGOLPX_BUILD_SHARED "build clingo-lpx library shared" ON)
 option(CLINGOLPX_CROSSCHECK "enable additional state checking" OFF)
 option(CLINGOLPX_PROFILE "Enable profiling using gperftools" OFF)
-option(CLINGOLPX_USE_IMATH "use imath instead of gmpxx" ${WIN32})
+set(CLINGOLPX_MATH_LIBRARY "${DEFAULT_CLINGOLPX_MATH_LIBRARY}" CACHE STRING "math library: gmpxx, imath, flint")
 option(CLINGOLPX_USE_FLINT "use flint instead of gmpxx" ${WIN32})
 option(CLINGOLPX_USE_LOCAL_CATCH
 "Advanced option to build against bundled or installed catch."
@@ -97,10 +102,10 @@ endif()
 add_subdirectory(third_party)
 
 add_library(MATH::MATH INTERFACE IMPORTED)
-if (CLINGOLPX_USE_FLINT)
+if (CLINGOLPX_MATH_LIBRARY STREQUAL "flint")
     set_property(TARGET MATH::MATH PROPERTY INTERFACE_COMPILE_DEFINITIONS CLINGOLPX_USE_FLINT)
     set_property(TARGET MATH::MATH PROPERTY INTERFACE_LINK_LIBRARIES flint gmp)
-elseif (CLINGOLPX_USE_IMATH)
+elseif (CLINGOLPX_MATH_LIBRARY STREQUAL "imath")
     set_property(TARGET MATH::MATH PROPERTY INTERFACE_COMPILE_DEFINITIONS CLINGOLPX_USE_IMATH)
     set_property(TARGET MATH::MATH PROPERTY INTERFACE_LINK_LIBRARIES libimath)
 else()
