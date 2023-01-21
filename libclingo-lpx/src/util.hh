@@ -8,10 +8,13 @@
 #include <iostream>
 #include <memory>
 #include <algorithm>
-#ifndef CLINGOLPX_USE_IMATH
-#include <gmpxx.h>
-#else
+#include <limits>
+#if defined(CLINGOLPX_USE_FLINT)
+#include <flint/fmpq.h>
+#elif defined(CLINGOLPX_USE_IMATH)
 #include <imrat.h>
+#else
+#include <gmpxx.h>
 #endif
 
 #ifdef CLINGOLPX_CROSSCHECK
@@ -22,15 +25,172 @@
 
 using index_t = uint32_t;
 
-#ifndef CLINGOLPX_USE_IMATH
+#if defined(CLINGOLPX_USE_FLINT)
 
-using Number = mpq_class;
+constexpr int BASE = 10;
 
-inline int compare(Number const &a, Number const &b) {
-    return mpq_cmp(a.get_mpq_t(), b.get_mpq_t());
-}
+class Number {
+public:
+    Number() { // NOLINT
+        fmpq_init(&num_);
+    }
+    Number(slong val)
+    : Number() {
+        fmpq_set_si(&num_, val, 1);
+    }
+    Number(char const *val, int radix)
+    : Number() {
+        fmpq_set_str(&num_, val, radix);
+    }
+    Number(std::string const &val, int radix)
+    : Number(val.c_str(), radix) {
+    }
+    Number(Number const &a)
+    : Number() {
+        fmpq_set(&num_, &a.num_);
+    }
+    Number(Number &&a) noexcept
+    : Number() {
+        swap(a);
+    }
+    Number &operator=(Number const &a) {
+        fmpq_set(&num_, &a.num_);
+        return *this;
+    }
+    Number &operator=(Number &&a) noexcept {
+        swap(a);
+        return *this;
+    }
+    ~Number() {
+        fmpq_clear(&num_);
+    }
 
-#else
+    void swap(Number &x) {
+        fmpq_swap(&num_, &x.num_);
+    }
+
+    void canonicalize() {
+        fmpq_canonicalise(&num_);
+    }
+
+    friend Number operator*(Number const &a, Number const &b) {
+        Number c;
+        fmpq_mul(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Number &operator*=(Number &a, Number const &b) {
+        fmpq_mul(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend Number operator/(Number const &a, Number const &b) {
+        Number c;
+        fmpq_div(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Number &operator/=(Number &a, Number const &b) {
+        fmpq_div(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend Number operator+(Number const &a, Number const &b) {
+        Number c;
+        fmpq_add(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Number &operator+=(Number &a, Number const &b) {
+        fmpq_add(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend Number operator-(Number const &a) {
+        Number c;
+        fmpq_neg(&c.num_, &a.num_);
+        return c;
+    }
+    friend Number operator-(Number const &a, Number const &b) {
+        Number c;
+        fmpq_sub(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Number &operator-=(Number &a, Number const &b) {
+        fmpq_sub(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend bool operator<(Number const &a, Number const &b) {
+        return compare(a, b) < 0;
+    }
+    friend bool operator<=(Number const &a, Number const &b) {
+        return compare(a, b) <= 0;
+    }
+    friend bool operator>(Number const &a, Number const &b) {
+        return compare(a, b) > 0;
+    }
+    friend bool operator>=(Number const &a, Number const &b) {
+        return compare(a, b) >= 0;
+    }
+    friend bool operator==(Number const &a, Number const &b) {
+        return fmpq_equal(&a.num_, &b.num_) != 0;
+    }
+    friend bool operator!=(Number const &a, Number const &b) {
+        return fmpq_equal(&a.num_, &b.num_) == 0;
+    }
+    friend bool operator<(Number const &a, slong b) {
+        return fmpq_cmp_si(&a.num_, b) < 0;
+    }
+    friend bool operator<=(Number const &a, slong b) {
+        return fmpq_cmp_si(&a.num_, b) <= 0;
+    }
+    friend bool operator>(Number const &a, slong b) {
+        return fmpq_cmp_si(&a.num_, b) > 0;
+    }
+    friend bool operator>=(Number const &a, slong b) {
+        return fmpq_cmp_si(&a.num_, b) >= 0;
+    }
+    friend bool operator==(Number const &a, slong b) {
+        return fmpq_cmp_si(&a.num_, b) == 0;
+    }
+    friend bool operator!=(Number const &a, slong b) {
+        return fmpq_cmp_si(&a.num_, b) != 0;
+    }
+
+    friend int compare(Number const &a, Number const &b) {
+        return fmpq_cmp(&a.num_, &b.num_);
+    }
+
+    friend std::ostream &operator<<(std::ostream &out, Number const &a) {
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
+        std::unique_ptr<char, decltype(std::free) *> buf{fmpq_get_str(nullptr, 10, &a.num_), std::free};
+        out << buf.get();
+        return out;
+    }
+
+private:
+    /*
+    static void handle_error_(mp_result res) {
+        if (res != MP_OK) {
+            if (res == MP_MEMORY) {
+                throw std::bad_alloc();
+            }
+            if (res == MP_RANGE || res == MP_TRUNC) {
+                throw std::range_error(mp_error_string(res));
+            }
+            if (res == MP_UNDEF) {
+                throw std::domain_error(mp_error_string(res));
+            }
+            if (res == MP_BADARG) {
+                throw std::invalid_argument(mp_error_string(res));
+            }
+            throw std::logic_error(mp_error_string(res));
+        }
+    }
+    */
+
+    mutable fmpq num_;
+};
+
+#elif defined(CLINGOLPX_USE_IMATH)
 
 class Number {
 public:
@@ -209,6 +369,14 @@ private:
 
     mutable mpq_t num_;
 };
+
+#else
+
+using Number = mpq_class;
+
+inline int compare(Number const &a, Number const &b) {
+    return mpq_cmp(a.get_mpq_t(), b.get_mpq_t());
+}
 
 #endif
 
