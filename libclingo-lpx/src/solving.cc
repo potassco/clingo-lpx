@@ -560,16 +560,8 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     std::swap(variables_[i + n_non_basic_].index, variables_[j].index);
     enqueue_(i);
 
-    // invert row i
-    tableau_.update_row(i, [&](index_t k, Number &a_ik) {
-        if (k != j) {
-            a_ik /= -a_ij;
-        }
-    });
-    a_ij = 1 / a_ij;
-
     // eliminate x_j from rows k != i
-    tableau_.eliminate(i, j);
+    tableau_.eliminate_and_pivot(i, j, a_ij);
 
     ++statistics_.pivots_;
     assert_extra(check_tableau_());

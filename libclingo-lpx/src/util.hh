@@ -535,18 +535,27 @@ public:
         }
     }
 
-    //! Replace all rows A_k with k != i by A_kj * A_i + A_k.
-    //!
-    //! FIXME: The documentation is not correct yet: the algorithm sets
-    //!        A_kj = A_kj * A_ij at the end! This might be because of the way
-    //!        it is used in the simplex algorithm. Maybe this can still be
-    //!        made clearer.
+    //! This function eliminates elements a_kj for i != k and pivots i and j.
     //!
     //! This is the only function specific to the simplex algorithm. It is
-    //! implemented here to offer better performance.
+    //! implemented here to offer better performance. It performs the following
+    //! steps:
+    //!
+    //! 1. ignoring column j
+    //!    1. replace row i by A_i/-A_ij
+    //!    2. replace rows k != i by A_i*A_kj - A_k.
+    //! 2. changing column j
+    //!    1. devide rows k != i by -a_ij
+    //!    2. replace row i by 1/a_ij
+    //!
+    //! Observe that if step 1. would not ignore column j, the column would be
+    //! a unit vector.
+    //!
+    //! TODO: There is no need to store rational numbers in the matrix, we
+    //! could also devide by a_ij when setting values for integer variables.
     //!
     //! Runs in O(m*m).
-    void eliminate(index_t i, index_t j) {
+    void eliminate_and_pivot(index_t i, index_t j, Number &a_ij) {
         auto ib = rows_[i].begin();
         auto ie = rows_[i].end();
         std::vector<size_t> sizes;
@@ -554,13 +563,22 @@ public:
         std::vector<Cell> row;
         std::vector<index_t> col_buf;
 
+        // step 1.1
+        update_row(i, [&](index_t k, Number &a_ik) {
+            if (k != j) {
+                a_ik /= -a_ij;
+            }
+        });
+        // step 2.2
+        a_ij = 1 / a_ij;
+
         // Note that insertions into rows and columns do not invert iterators:
         // - row i is unaffected because k != i
         // - there are no insertions in column j because each a_kj != 0
         update_col(j, [&](index_t k, Number const &a_kj) {
             if (k != i) {
                 for (auto it = ib, jt = rows_[k].begin(), je = rows_[k].end(); it != ie || jt != je; ) {
-                    // case A_ix != 0 and A_kx == 0
+                    // case A_ix != 0 and A_kx == 0 (step 1.2)
                     if (jt == je || (it != ie && it->col < jt->col)) {
                         // add A_kj * A_ix for x != j
                         row.emplace_back(it->col, it->val * a_kj);
@@ -569,7 +587,7 @@ public:
                         ++sizes[it - ib];
                         ++it;
                     }
-                    // case A_ix == 0 and A_kx != 0
+                    // case A_ix == 0 and A_kx != 0 (step 1.2)
                     else if (it == ie || jt->col < it->col) {
                         // add A_kx for x != j
                         row.emplace_back(std::move(*jt));
@@ -577,6 +595,7 @@ public:
                     }
                     // case A_ix != 0 and A_kx != 0
                     else {
+                        // case x != j (step 1.2)
                         if (jt->col != j) {
                             // add A_kx + A_kj * A_ix for x != j
                             row.emplace_back(jt->col, std::move(jt->val));
@@ -585,8 +604,9 @@ public:
                                 row.pop_back();
                             }
                         }
+                        // case x == j (step 2.1)
                         else {
-                            // add A_kj * A_ij
+                            // pivot setting A_kj to A_kj/a_ij (step 2.1)
                             row.emplace_back(jt->col, jt->val * it->val);
                         }
                         ++it;
