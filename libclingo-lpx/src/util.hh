@@ -1,5 +1,6 @@
 #pragma once
 
+#include <numeric>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -31,7 +32,7 @@ constexpr int BASE = 10;
 
 class Number {
 public:
-    Number() { // NOLINT
+    Number() noexcept { // NOLINT
         fmpq_init(&num_);
     }
     Number(slong val)
@@ -61,7 +62,7 @@ public:
         swap(a);
         return *this;
     }
-    ~Number() {
+    ~Number() noexcept {
         fmpq_clear(&num_);
     }
 
@@ -419,54 +420,24 @@ inline T safe_cast(S s) {
 //! A sparse matrix with efficient access to both rows and columns.
 //!
 //! Insertion into the matrix is linear in the number of rows/columns and
-//! should be avoided.
+//! should be avoided. Runtime complexities are sometimes amortized without
+//! further comments. Algorithms are generally faster the sparser the matrix.
+//!
+//! It would also be possible to additionally keep track of non-zero elements
+//! using a hash table. Like this, logarithm factors could be removed at the
+//! expense of additional storage requirements.
+//!
+//! In the documentation below, we use A to refer to a matrix with m rows and n
+//! columns. Furthemore, we use the following common ways to work with the
+//! matrix:
+//! - A_i is the i-th row,
+//! - A_ij is the element at row i and column j, and
+//! - A^T is the transposed matrix.
 class Tableau {
-private:
-    struct Cell {
-        Cell(index_t col, Number val)
-        : col{col}
-        , val{std::move(val)} { }
-        Cell(Cell const &) = default;
-        Cell(Cell &&) = default;
-        Cell &operator=(Cell const &) = default;
-        Cell &operator=(Cell &&) = default;
-        ~Cell() = default;
-
-        friend bool operator==(Cell const &x, Cell const &y) {
-            return x.col == y.col && x.val == y.val;
-        }
-        friend bool operator<(Cell const &x, Cell const &y) {
-            return x.col < y.col;
-        }
-        friend bool operator<(Cell const &x, index_t col) {
-            return x.col < col;
-        }
-        friend bool operator<(index_t col, Cell const &x) {
-            return col < x.col;
-        }
-
-        index_t col;
-        Number val;
-    };
-    std::vector<Cell> &reserve_row_(index_t i) {
-        if (rows_.size() <= i) {
-            rows_.resize(i + 1);
-        }
-        return rows_[i];
-    }
-    std::vector<index_t> &reserve_col_(index_t j) {
-        if (cols_.size() <= j) {
-            cols_.resize(j + 1);
-        }
-        return cols_[j];
-    }
-    static Number const &zero_() {
-        static Number zero{0};
-        return zero;
-    }
-
 public:
-    //! Get value at row `i` and column `j`.
+    //! Return a const reference to A_ij.
+    //!
+    //! Runs in O(log(n)).
     [[nodiscard]] Number const &get(index_t i, index_t j) const {
         if (i < rows_.size()) {
             auto const &row = rows_[i];
@@ -478,16 +449,20 @@ public:
         return zero_();
     }
 
-    //! Get value at modifiable reference to row `i` and column `j` assuming
-    //! that the value exists.
+    //! Return a mutable reference to A_ij assuming that A_ij != 0.
     //!
-    //! Only non-zero values should be accessed and they should not be set to
-    //! zero.
+    //! Only non-zero values may be accessed and they must not be set to zero.
+    //!
+    //! Runs in O(log(n)).
     [[nodiscard]] Number &unsafe_get(index_t i, index_t j) {
         return std::lower_bound(rows_[i].begin(), rows_[i].end(), j)->val;
     }
 
-    //! Set value `a` at row `i` and column `j`.
+    //! Set A_ij to value a.
+    //!
+    //! Setting an element to zero removes it from the matrix.
+    //!
+    //! Runs in O(m + n).
     void set(index_t i, index_t j, Number const &a) {
         if (a == 0) {
             if (i < rows_.size()) {
@@ -515,21 +490,27 @@ public:
         }
     }
 
-    //! Traverse non-zero elements in a row.
+    //! Call f(j, a_ij) for each element a_ij != 0 in row A_i.
     //!
-    //! The given function must not set the value to zero.
+    //! Function f can change the value a_ij but must not set it to zero. While
+    //! it would be possible to handle this case, this functionality is simply
+    //! not required by a simplex algorithm.
+    //!
+    //! Runs in O(n).
     template <typename F>
     void update_row(index_t i, F &&f) {
         if (i < rows_.size()) {
             for (auto &[col, val] : rows_[i]) {
-                f(col, val);
+                f(static_cast<index_t>(col), val);
             }
         }
     }
 
-    //! Traverse non-zero elements in a column.
+    //! Call f(i, a_ij) for each element a_ij != 0 in column A^T_j.
     //!
-    //! The given function must not set the value to zero.
+    //! The same remark as for update_row() applies.
+    //!
+    //! Runs in O(m*log(n)).
     template <typename F>
     void update_col(index_t j, F &&f) {
         if (j < cols_.size()) {
@@ -552,11 +533,15 @@ public:
         }
     }
 
-    //! Eliminate x_j from rows k != i.
+    //! Replace all rows A_k with k != i by A_kj * A_i - A_ij * A_k.
     //!
     //! This is the only function specific to the simplex algorithm. It is
-    //! implemented like this to offer better performance and makes a lot of
-    //! assumptions.
+    //! implemented here to offer better performance.
+    //!
+    //! Runs in O(m*m*n). The hope is that in practice this is rather
+    //! O(m*log(m)*n). A tighter bound could be guaranteed by delaying
+    //! insertions into columns and merging them at the end using
+    //! std::inplace_merge.
     void eliminate(index_t i, index_t j) {
         auto ib = rows_[i].begin();
         auto ie = rows_[i].end();
@@ -601,15 +586,12 @@ public:
         });
     }
 
-    //! Get the number of values in the matrix.
+    //! Get the number of non-zero elements in the matrix.
     //!
     //! The runtime of this function is linear in the size of the matrix.
     [[nodiscard]] size_t size() const {
-        size_t ret{0};
-        for (auto const &row : rows_) {
-            ret += row.size();
-        }
-        return ret;
+        return std::accumulate(rows_.begin(), rows_.end(), static_cast<size_t>(0),
+                               [](size_t n, auto const &row) { return n + row.size(); });
     }
 
     //! Equivalent to `size() == 0`.
@@ -618,13 +600,52 @@ public:
                            [](auto const &row) { return row.empty(); });
     }
 
-    //! Clear the tableau.
+    //! Set all elements to zero.
     void clear() {
         rows_.clear();
         cols_.clear();
     }
 
 private:
+    struct Cell {
+        Cell(index_t col, Number val)
+        : col{col}
+        , val{std::move(val)} { }
+
+        friend bool operator==(Cell const &x, Cell const &y) {
+            return x.col == y.col && x.val == y.val;
+        }
+        friend bool operator<(Cell const &x, Cell const &y) {
+            return x.col < y.col;
+        }
+        friend bool operator<(Cell const &x, index_t col) {
+            return x.col < col;
+        }
+        friend bool operator<(index_t col, Cell const &x) {
+            return col < x.col;
+        }
+
+        index_t col;
+        Number val;
+    };
+
+    std::vector<Cell> &reserve_row_(index_t i) {
+        if (rows_.size() <= i) {
+            rows_.resize(i + 1);
+        }
+        return rows_[i];
+    }
+    std::vector<index_t> &reserve_col_(index_t j) {
+        if (cols_.size() <= j) {
+            cols_.resize(j + 1);
+        }
+        return cols_[j];
+    }
+    static Number const &zero_() {
+        static Number zero{0};
+        return zero;
+    }
+
     std::vector<std::vector<Cell>> rows_;
     std::vector<std::vector<index_t>> cols_;
 };
