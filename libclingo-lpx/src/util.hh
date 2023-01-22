@@ -548,11 +548,12 @@ public:
         sizes.resize(rows_[i].size());
         std::vector<Cell> row;
         std::vector<index_t> col_buf;
+
+        // Note that insertions into rows and columns do not invert iterators:
+        // - row i is unaffected because k != i
+        // - there are no insertions in column j because each a_kj != 0
         update_col(j, [&](index_t k, Number const &a_kj) {
             if (k != i) {
-                // Note that insertions into rows and columns do not invert iterators:
-                // - row i is unaffected because k != i
-                // - there are no insertions in column j because each a_kj != 0
                 for (auto it = ib, jt = rows_[k].begin(), je = rows_[k].end(); it != ie || jt != je; ) {
                     if (jt == je || (it != ie && it->col < jt->col)) {
                         row.emplace_back(it->col, it->val * a_kj);
@@ -584,6 +585,7 @@ public:
                 row.clear();
             }
         });
+
         // Ensure that column vectors are sorted.
         //
         // Note that we cannot assume that elements are unique because of the
