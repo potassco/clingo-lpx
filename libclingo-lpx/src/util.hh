@@ -1,7 +1,9 @@
 #pragma once
 
+#include <iterator>
 #include <numeric>
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 #include <cstdint>
@@ -538,27 +540,25 @@ public:
     //! This is the only function specific to the simplex algorithm. It is
     //! implemented here to offer better performance.
     //!
-    //! Runs in O(m*m*n). The hope is that in practice this is rather
-    //! O(m*log(m)*n). A tighter bound could be guaranteed by delaying
-    //! insertions into columns and merging them at the end using
-    //! std::inplace_merge.
+    //! Runs in O(m*m).
     void eliminate(index_t i, index_t j) {
         auto ib = rows_[i].begin();
         auto ie = rows_[i].end();
+        std::vector<size_t> sizes;
+        sizes.resize(rows_[i].size());
         std::vector<Cell> row;
+        std::vector<index_t> col_buf;
         update_col(j, [&](index_t k, Number const &a_kj) {
             if (k != i) {
-                // Note that this call does not invalidate active iterators:
+                // Note that insertions into rows and columns do not invert iterators:
                 // - row i is unaffected because k != i
                 // - there are no insertions in column j because each a_kj != 0
                 for (auto it = ib, jt = rows_[k].begin(), je = rows_[k].end(); it != ie || jt != je; ) {
                     if (jt == je || (it != ie && it->col < jt->col)) {
                         row.emplace_back(it->col, it->val * a_kj);
-                        auto &col = cols_[it->col];
-                        auto kt = std::lower_bound(col.begin(), col.end(), k);
-                        if (kt == col.end() || *kt != k) {
-                            col.emplace(kt, k);
-                        }
+                        // Note that vectors will be sorted at the end.
+                        cols_[it->col].emplace_back(k);
+                        ++sizes[it - ib];
                         ++it;
                     }
                     else if (it == ie || jt->col < it->col) {
@@ -584,6 +584,34 @@ public:
                 row.clear();
             }
         });
+        // Ensure that column vectors are sorted.
+        //
+        // Note that we cannot assume that elements are unique because of the
+        // lazy deletion scheme. Hence, it is not possible to use
+        // std::merge_inplace.
+        auto jt = sizes.begin();
+        for (auto it = ib; it != ie; ++it, ++jt) {
+            if (*jt == 0) {
+                continue;
+            }
+            auto &col = cols_[it->col];
+            // Optimize for the case that only one element is inserted.
+            if (*jt == 1) {
+                auto j = col.back();
+                col.pop_back();
+                auto kt = std::lower_bound(col.begin(), col.end(), j);
+                if (kt == col.end() || *kt != j) {
+                    col.emplace(kt, j);
+                }
+            }
+            // Use set_union for the general case.
+            else {
+                auto im = col.end() - static_cast<std::make_signed_t<std::size_t>>(*jt);
+                std::set_union(col.begin(), im, im, col.end(), std::back_inserter(col_buf));
+                std::swap(col_buf, col);
+                col_buf.clear();
+            }
+        }
     }
 
     //! Get the number of non-zero elements in the matrix.
