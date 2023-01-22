@@ -535,7 +535,12 @@ public:
         }
     }
 
-    //! Replace all rows A_k with k != i by A_kj * A_i - A_ij * A_k.
+    //! Replace all rows A_k with k != i by A_kj * A_i + A_k.
+    //!
+    //! FIXME: The documentation is not correct yet: the algorithm sets
+    //!        A_kj = A_kj * A_ij at the end! This might be because of the way
+    //!        it is used in the simplex algorithm. Maybe this can still be
+    //!        made clearer.
     //!
     //! This is the only function specific to the simplex algorithm. It is
     //! implemented here to offer better performance.
@@ -555,19 +560,25 @@ public:
         update_col(j, [&](index_t k, Number const &a_kj) {
             if (k != i) {
                 for (auto it = ib, jt = rows_[k].begin(), je = rows_[k].end(); it != ie || jt != je; ) {
+                    // case A_ix != 0 and A_kx == 0
                     if (jt == je || (it != ie && it->col < jt->col)) {
+                        // add A_kj * A_ix for x != j
                         row.emplace_back(it->col, it->val * a_kj);
                         // Note that vectors will be sorted at the end.
                         cols_[it->col].emplace_back(k);
                         ++sizes[it - ib];
                         ++it;
                     }
+                    // case A_ix == 0 and A_kx != 0
                     else if (it == ie || jt->col < it->col) {
+                        // add A_kx for x != j
                         row.emplace_back(std::move(*jt));
                         ++jt;
                     }
+                    // case A_ix != 0 and A_kx != 0
                     else {
                         if (jt->col != j) {
+                            // add A_kx + A_kj * A_ix for x != j
                             row.emplace_back(jt->col, std::move(jt->val));
                             row.back().val += it->val * a_kj;
                             if (row.back().val == 0) {
@@ -575,6 +586,7 @@ public:
                             }
                         }
                         else {
+                            // add A_kj * A_ij
                             row.emplace_back(jt->col, jt->val * it->val);
                         }
                         ++it;
