@@ -78,6 +78,16 @@ public:
         return a;
     }
 
+    friend Integer operator/(Integer const &a, Integer const &b) {
+        Integer c;
+        fmpz_divexact(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Integer &operator/=(Integer &a, Integer const &b) {
+        fmpz_divexact(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
     friend Integer operator+(Integer const &a, Integer const &b) {
         Integer c;
         fmpz_add(&c.num_, &a.num_, &b.num_);
@@ -153,7 +163,18 @@ public:
         return out;
     }
 
+    friend Integer gcd(Integer const &a, Integer const &b) {
+        Integer ret;
+        fmpz_gcd(&ret.num_, &a.num_, &b.num_);
+        return ret;
+    }
+
+    fmpz &impl() const {
+        return num_;
+    }
+
 private:
+
     mutable fmpz num_;
 };
 
@@ -199,6 +220,12 @@ public:
     : Number() {
         fmpq_set(&num_, &a.num_);
     }
+    Number(Integer const &num, Integer const &den)
+    : Number() {
+        fmpz_set(&num_.num, &num.impl());
+        fmpz_set(&num_.num, &den.impl());
+        fmpq_canonicalise(&num_);
+    }
     Number(Number &&a) noexcept
     : Number() {
         swap(a);
@@ -213,6 +240,22 @@ public:
     }
     ~Number() noexcept {
         fmpq_clear(&num_);
+    }
+
+    Integer &num() {
+        return reinterpret_cast<Integer&>(num_.num);
+    }
+
+    Integer const &num() const {
+        return reinterpret_cast<Integer const&>(num_.num);
+    }
+
+    Integer &den() {
+        return reinterpret_cast<Integer&>(num_.den);
+    }
+
+    Integer const &den() const {
+        return reinterpret_cast<Integer const&>(num_.den);
     }
 
     void swap(Number &x) {
@@ -284,7 +327,7 @@ public:
         return fmpq_equal(&a.num_, &b.num_) != 0;
     }
     friend bool operator!=(Number const &a, Number const &b) {
-        return fmpq_equal(&a.num_, &b.num_) == 0;
+        return !(a == b);
     }
     friend bool operator<(Number const &a, slong b) {
         return compare(a, b) < 0;
@@ -300,7 +343,7 @@ public:
     }
     friend bool operator==(Number const &a, slong b) {
 #if __FLINT_RELEASE >= 20600
-        return fmpq_equal_si(&a.num_, b) == 0;
+        return fmpq_equal_si(&a.num_, b) != 0;
 #else
         return a == Number{b};
 #endif

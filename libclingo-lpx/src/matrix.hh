@@ -32,14 +32,14 @@ public:
     //! Return a const reference to A_ij.
     //!
     //! Runs in O(log(n)).
-    [[nodiscard]] Number const &get(index_t i, index_t j) const;
+    [[nodiscard]] Number get(index_t i, index_t j) const;
 
     //! Return a mutable reference to A_ij assuming that A_ij != 0.
     //!
     //! Only non-zero values may be accessed and they must not be set to zero.
     //!
     //! Runs in O(log(n)).
-    [[nodiscard]] Number &unsafe_get(index_t i, index_t j);
+    void unsafe_get(index_t i, index_t j, Integer *&num, Integer *&den);
 
     //! Set A_ij to value a.
     //!
@@ -58,8 +58,9 @@ public:
     template <typename F>
     void update_row(index_t i, F &&f) {
         if (i < rows_.size()) {
-            for (auto &[col, val] : rows_[i]) {
-                f(static_cast<index_t>(col), val);
+            auto &row = rows_[i];
+            for (auto &[col, val] : row.cells) {
+                f(static_cast<index_t>(col), val, row.den);
             }
         }
     }
@@ -78,9 +79,9 @@ public:
             for (auto jt = it; jt != ie; ++jt) {
                 auto i = *jt;
                 auto &row = rows_[i];
-                auto kt = std::lower_bound(row.begin(), row.end(), j);
-                if (kt != row.end() && kt->col == j) {
-                    f(i, kt->val);
+                auto kt = std::lower_bound(row.cells.begin(), row.cells.end(), j);
+                if (kt != row.cells.end() && kt->col == j) {
+                    f(i, kt->val, row.den);
                     if (it != jt) {
                         std::iter_swap(it, jt);
                     }
@@ -99,7 +100,7 @@ public:
     //!
     //! 1. ignoring column j
     //!    1. replace row i by A_i/-A_ij
-    //!    2. replace rows k != i by A_i*A_kj - A_k.
+    //!    2. replace rows k != i by A_i*A_kj + A_k.
     //! 2. changing column j
     //!    1. devide rows k != i by -a_ij
     //!    2. replace row i by 1/a_ij
@@ -111,7 +112,7 @@ public:
     //! could also devide by a_ij when setting values for integer variables.
     //!
     //! Runs in O(m*m).
-    void eliminate_and_pivot(index_t i, index_t j, Number &a_ij);
+    void eliminate_and_pivot(index_t i, index_t j, Integer &a_ij);
 
     //! Get the number of non-zero elements in the matrix.
     //!
@@ -126,7 +127,7 @@ public:
 
 private:
     struct Cell {
-        Cell(index_t col, Number val)
+        Cell(index_t col, Integer val)
         : col{col}
         , val{std::move(val)} { }
 
@@ -144,16 +145,18 @@ private:
         }
 
         index_t col;
-        Number val;
+        Integer val;
+    };
+    struct Row {
+        Integer den = 1;
+        std::vector<Cell> cells;
     };
 
-    std::vector<Cell> &reserve_row_(index_t i);
+    Row &reserve_row_(index_t i);
     std::vector<index_t> &reserve_col_(index_t j);
     static Number const &zero_();
 
-    std::vector<std::vector<Cell>> rows_;
-    // TODO: combine into rows right away
-    std::vector<std::vector<Cell>> dens_;
+    std::vector<Row> rows_;
     std::vector<std::vector<index_t>> cols_;
 };
 

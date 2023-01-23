@@ -2,39 +2,59 @@
 
 #include <numeric>
 
-Number const &Matrix::get(index_t i, index_t j) const {
+Number Matrix::get(index_t i, index_t j) const {
     if (i < rows_.size()) {
-        auto const &row = rows_[i];
-        auto it = std::lower_bound(row.begin(), row.end(), j);
-        if (it != row.end() && it->col == j) {
-            return it->val;
+        auto const &r = rows_[i];
+        auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
+        if (it != r.cells.end() && it->col == j) {
+            return Number{it->val, r.den};
         }
     }
     return zero_();
 }
 
-Number &Matrix::unsafe_get(index_t i, index_t j) {
-    return std::lower_bound(rows_[i].begin(), rows_[i].end(), j)->val;
+void Matrix::unsafe_get(index_t i, index_t j, Integer *&num, Integer *&den) {
+    auto &r = rows_[i];
+    *num = std::lower_bound(r.cells.begin(), r.cells.end(), j)->val;
+    *den = r.den;
 }
 
 void Matrix::set(index_t i, index_t j, Number const &a) {
+    // This implementation assumes that the set function is only called during
+    // intialization and in the best case with already sorted elements that
+    // have the same denominator.
     if (a == 0) {
         if (i < rows_.size()) {
-            auto &row = rows_[i];
-            auto it = std::lower_bound(row.begin(), row.end(), j);
-            if (it != row.end() && it->col == j) {
-                row.erase(it);
+            auto &r = rows_[i].cells;
+            auto it = std::lower_bound(r.begin(), r.end(), j);
+            if (it != r.end() && it->col == j) {
+                r.erase(it);
             }
         }
     }
     else {
-        auto &row = reserve_row_(i);
-        auto it = std::lower_bound(row.begin(), row.end(), j);
-        if (it == row.end() || it->col != j) {
-            row.emplace(it, j, a);
+        auto &r = reserve_row_(i);
+        auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
+        // TODO: It looks a bit like the gcd function could already return at
+        // tuple with these three values to avoid having to add division to the
+        // integer class. At the very least integer division should be renamed
+        // as the flint library does.
+        auto g = gcd(a.den(), r.den);
+        auto rg = r.den / g;
+        auto ag = a.den() / g;
+        r.den *= ag;
+        if (it == r.cells.end() || it->col != j) {
+            it = r.cells.emplace(it, j, a.num() * rg);
         }
         else {
-            it->val = a;
+            it->val = a.num() * rg;
+        }
+        if (ag != 1) {
+            for (auto jt = r.cells.begin(); jt != r.cells.end(); ++jt) {
+                if (jt != it) {
+                    jt->val *= ag;
+                }
+            }
         }
         auto &col = reserve_col_(j);
         auto jt = std::lower_bound(col.begin(), col.end(), i);
@@ -44,29 +64,41 @@ void Matrix::set(index_t i, index_t j, Number const &a) {
     }
 }
 
-void Matrix::eliminate_and_pivot(index_t i, index_t j, Number &a_ij) {
-    auto ib = rows_[i].begin();
-    auto ie = rows_[i].end();
+void Matrix::eliminate_and_pivot(index_t i, index_t j, Integer &a_ij) {
+    auto ib = rows_[i].cells.begin();
+    auto ie = rows_[i].cells.end();
+    auto &d_i = rows_[i].den;
     std::vector<size_t> sizes;
-    sizes.resize(rows_[i].size());
+    sizes.resize(rows_[i].cells.size());
     std::vector<Cell> row;
     std::vector<index_t> col_buf;
 
     // step 1.1
-    update_row(i, [&](index_t k, Number &a_ik) {
+    update_row(i, [&](index_t k, Integer &a_ik, Integer const &d_i) {
+        static_cast<void>(d_i);
         if (k != j) {
-            a_ik /= -a_ij;
+            //a_ik /= -a_ij;
+            a_ik *= -1;
         }
     });
     // step 2.2
-    a_ij = 1 / a_ij;
+    // a_ij = 1 / a_ij;
+    a_ij.swap(d_i);  // TODO: setting this might allow for simplifying the row
+                     //       we can compute the gcd above
+                     //       to see if the denominator can be made smaller
+    d_i *= a_ij;
 
     // Note that insertions into rows and columns do not invert iterators:
     // - row i is unaffected because k != i
     // - there are no insertions in column j because each a_kj != 0
-    update_col(j, [&](index_t k, Number const &a_kj) {
+    update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) {
         if (k != i) {
-            for (auto it = ib, jt = rows_[k].begin(), je = rows_[k].end(); it != ie || jt != je; ) {
+            // TODO: multiply the respective values below with gd_i and gd_k.
+            auto g = gcd(d_i, d_k);
+            auto gd_i = d_i / g;
+            auto gd_k = d_k / g;
+            d_k *= gd_i;
+            for (auto it = ib, jt = rows_[k].cells.begin(), je = rows_[k].cells.end(); it != ie || jt != je; ) {
                 // case A_ix != 0 and A_kx == 0 (step 1.2)
                 if (jt == je || (it != ie && it->col < jt->col)) {
                     // add A_kj * A_ix for x != j
@@ -102,7 +134,7 @@ void Matrix::eliminate_and_pivot(index_t i, index_t j, Number &a_ij) {
                     ++jt;
                 }
             }
-            std::swap(rows_[k], row);
+            std::swap(rows_[k].cells, row);
             row.clear();
         }
     });
@@ -139,12 +171,12 @@ void Matrix::eliminate_and_pivot(index_t i, index_t j, Number &a_ij) {
 
 size_t Matrix::size() const {
     return std::accumulate(rows_.begin(), rows_.end(), static_cast<size_t>(0),
-                           [](size_t n, auto const &row) { return n + row.size(); });
+                           [](size_t n, auto const &r) { return n + r.cells.size(); });
 }
 
 bool Matrix::empty() const {
     return std::all_of(rows_.cbegin(), rows_.cend(),
-                       [](auto const &row) { return row.empty(); });
+                       [](auto const &r) { return r.cells.empty(); });
 }
 
 void Matrix::clear() {
@@ -152,7 +184,7 @@ void Matrix::clear() {
     cols_.clear();
 }
 
-std::vector<Matrix::Cell> &Matrix::reserve_row_(index_t i) {
+Matrix::Row &Matrix::reserve_row_(index_t i) {
     if (rows_.size() <= i) {
         rows_.resize(i + 1);
     }
