@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ios>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -7,6 +8,7 @@
 #include <iostream>
 
 #if defined(CLINGOLPX_USE_FLINT)
+#include <flint/fmpz.h>
 #include <flint/fmpq.h>
 #elif defined(CLINGOLPX_USE_IMATH)
 #include <imrat.h>
@@ -24,6 +26,137 @@
 
 constexpr int BASE = 10;
 
+class Integer {
+public:
+    Integer() noexcept { // NOLINT
+        fmpz_init(&num_);
+    }
+    Integer(slong val)
+    : Integer() {
+        fmpz_set_si(&num_, val);
+    }
+    Integer(char const *val, int radix)
+    : Integer() {
+        if (fmpz_set_str(&num_, val, radix) != 0) {
+            throw std::runtime_error("could not parse number");
+        }
+    }
+    Integer(std::string const &val, int radix)
+    : Integer(val.c_str(), radix) {
+    }
+    Integer(Integer const &a)
+    : Integer() {
+        fmpz_set(&num_, &a.num_);
+    }
+    Integer(Integer &&a) noexcept
+    : Integer() {
+        swap(a);
+    }
+    Integer &operator=(Integer const &a) {
+        fmpz_set(&num_, &a.num_);
+        return *this;
+    }
+    Integer &operator=(Integer &&a) noexcept {
+        swap(a);
+        return *this;
+    }
+    ~Integer() noexcept {
+        fmpz_clear(&num_);
+    }
+
+    void swap(Integer &x) {
+        fmpz_swap(&num_, &x.num_);
+    }
+
+    friend Integer operator*(Integer const &a, Integer const &b) {
+        Integer c;
+        fmpz_mul(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Integer &operator*=(Integer &a, Integer const &b) {
+        fmpz_mul(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend Integer operator+(Integer const &a, Integer const &b) {
+        Integer c;
+        fmpz_add(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Integer &operator+=(Integer &a, Integer const &b) {
+        fmpz_add(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend Integer operator-(Integer const &a) {
+        Integer c;
+        fmpz_neg(&c.num_, &a.num_);
+        return c;
+    }
+    friend Integer operator-(Integer const &a, Integer const &b) {
+        Integer c;
+        fmpz_sub(&c.num_, &a.num_, &b.num_);
+        return c;
+    }
+    friend Integer &operator-=(Integer &a, Integer const &b) {
+        fmpz_sub(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend bool operator<(Integer const &a, Integer const &b) {
+        return compare(a, b) < 0;
+    }
+    friend bool operator<=(Integer const &a, Integer const &b) {
+        return compare(a, b) <= 0;
+    }
+    friend bool operator>(Integer const &a, Integer const &b) {
+        return compare(a, b) > 0;
+    }
+    friend bool operator>=(Integer const &a, Integer const &b) {
+        return compare(a, b) >= 0;
+    }
+    friend bool operator==(Integer const &a, Integer const &b) {
+        return fmpz_equal(&a.num_, &b.num_) != 0;
+    }
+    friend bool operator!=(Integer const &a, Integer const &b) {
+        return fmpz_equal(&a.num_, &b.num_) == 0;
+    }
+    friend bool operator<(Integer const &a, slong b) {
+        return fmpz_cmp_si(&a.num_, b) < 0;
+    }
+    friend bool operator<=(Integer const &a, slong b) {
+        return fmpz_cmp_si(&a.num_, b) <= 0;
+    }
+    friend bool operator>(Integer const &a, slong b) {
+        return fmpz_cmp_si(&a.num_, b) > 0;
+    }
+    friend bool operator>=(Integer const &a, slong b) {
+        return fmpz_cmp_si(&a.num_, b) >= 0;
+    }
+    friend bool operator==(Integer const &a, slong b) {
+        return fmpz_equal_si(&a.num_, b) != 0;
+    }
+    friend bool operator!=(Integer const &a, slong b) {
+        return fmpz_equal_si(&a.num_, b) == 0;
+    }
+
+    friend int compare(Integer const &a, Integer const &b) {
+        return fmpz_cmp(&a.num_, &b.num_);
+    }
+
+    friend std::ostream &operator<<(std::ostream &out, Integer const &a) {
+        std::unique_ptr<char, decltype(std::free) *> buf{fmpz_get_str(nullptr, BASE, &a.num_), std::free};
+        if (buf == nullptr) {
+            throw std::bad_alloc();
+        }
+        out << buf.get();
+        return out;
+    }
+
+private:
+    mutable fmpz num_;
+};
+
 class Number {
 public:
     Number() noexcept { // NOLINT
@@ -35,9 +168,29 @@ public:
     }
     Number(char const *val, int radix)
     : Number() {
+#if __FLINT_RELEASE >= 20600
         if (fmpq_set_str(&num_, val, radix) != 0) {
             throw std::runtime_error("could not parse number");
         }
+#else
+        std::string buf = val;
+        auto pos = buf.find('/');
+        if (pos == std::string::npos) {
+            if (fmpz_set_str(&num_.num, buf.c_str(), radix) != 0) {
+                throw std::runtime_error("could not parse number");
+            }
+            fmpz_set_si(&num_.den, 1);
+        }
+        else {
+            if (fmpz_set_str(&num_.num, buf.substr(0, pos).c_str(), radix) != 0) {
+                throw std::runtime_error("could not parse number");
+            }
+            if (fmpz_set_str(&num_.den, buf.substr(pos+1).c_str(), radix) != 0) {
+                throw std::runtime_error("could not parse number");
+            }
+            fmpq_canonicalise(&num_);
+        }
+#endif
     }
     Number(std::string const &val, int radix)
     : Number(val.c_str(), radix) {
@@ -134,26 +287,38 @@ public:
         return fmpq_equal(&a.num_, &b.num_) == 0;
     }
     friend bool operator<(Number const &a, slong b) {
-        return fmpq_cmp_si(&a.num_, b) < 0;
+        return compare(a, b) < 0;
     }
     friend bool operator<=(Number const &a, slong b) {
-        return fmpq_cmp_si(&a.num_, b) <= 0;
+        return compare(a, b) <= 0;
     }
     friend bool operator>(Number const &a, slong b) {
-        return fmpq_cmp_si(&a.num_, b) > 0;
+        return compare(a, b) > 0;
     }
     friend bool operator>=(Number const &a, slong b) {
-        return fmpq_cmp_si(&a.num_, b) >= 0;
+        return compare(a, b) >= 0;
     }
     friend bool operator==(Number const &a, slong b) {
-        return fmpq_cmp_si(&a.num_, b) == 0;
+#if __FLINT_RELEASE >= 20600
+        return fmpq_equal_si(&a.num_, b) == 0;
+#else
+        return a == Number{b};
+#endif
     }
     friend bool operator!=(Number const &a, slong b) {
-        return fmpq_cmp_si(&a.num_, b) != 0;
+        return !(a == b);
     }
 
     friend int compare(Number const &a, Number const &b) {
         return fmpq_cmp(&a.num_, &b.num_);
+    }
+
+    friend int compare(Number const &a, slong b) {
+#if __FLINT_RELEASE >= 20600
+        return fmpq_cmp_si(&a.num_, b);
+#else
+        return compare(a, Number{b});
+#endif
     }
 
     friend std::ostream &operator<<(std::ostream &out, Number const &a) {
@@ -166,26 +331,6 @@ public:
     }
 
 private:
-    /*
-    static void handle_error_(mp_result res) {
-        if (res != MP_OK) {
-            if (res == MP_MEMORY) {
-                throw std::bad_alloc();
-            }
-            if (res == MP_RANGE || res == MP_TRUNC) {
-                throw std::range_error(mp_error_string(res));
-            }
-            if (res == MP_UNDEF) {
-                throw std::domain_error(mp_error_string(res));
-            }
-            if (res == MP_BADARG) {
-                throw std::invalid_argument(mp_error_string(res));
-            }
-            throw std::logic_error(mp_error_string(res));
-        }
-    }
-    */
-
     mutable fmpq num_;
 };
 

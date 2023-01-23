@@ -152,6 +152,8 @@ private:
     static Number const &zero_();
 
     std::vector<std::vector<Cell>> rows_;
+    // TODO: combine into rows right away
+    std::vector<std::vector<Cell>> dens_;
     std::vector<std::vector<index_t>> cols_;
 };
 
