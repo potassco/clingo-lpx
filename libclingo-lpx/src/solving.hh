@@ -3,6 +3,7 @@
 #include "problem.hh"
 #include "parsing.hh"
 #include "util.hh"
+#include "matrix.hh"
 
 #include <clingo.hh>
 #include <queue>
@@ -174,7 +175,7 @@ private:
     //! Trail offsets per level.
     std::vector<TrailOffset> trail_offset_;
     //! The tableau of coefficients.
-    Tableau tableau_;
+    Matrix tableau_;
     //! The non-basic and basic variables.
     std::vector<Variable> variables_;
     //! The set of conflicting variables.

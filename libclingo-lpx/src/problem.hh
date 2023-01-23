@@ -1,7 +1,8 @@
 #pragma once
 
 #include <clingo.hh>
-#include "util.hh"
+
+#include "number.hh"
 
 enum class Relation {
     LessEqual = 0,

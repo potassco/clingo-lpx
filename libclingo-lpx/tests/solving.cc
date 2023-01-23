@@ -1,8 +1,9 @@
-#include <iterator>
-#include <parsing.hh>
-#include <solving.hh>
+#include "solving.hh"
+#include "parsing.hh"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <iterator>
 
 namespace {
 
@@ -47,6 +48,7 @@ size_t run_m(std::initializer_list<char const *> m) {
 
 } // namespace
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 TEST_CASE("solving") {
     SECTION("non-strict") {
         REQUIRE( run("&sum { x1; x2 } <= 20.\n"

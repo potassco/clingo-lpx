@@ -1,6 +1,8 @@
 # [[[source: .
 set(ide_source_group "Source Files")
 set(source-group
+    "${CMAKE_CURRENT_SOURCE_DIR}/matrix.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/number.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/solving.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/util.cc")
