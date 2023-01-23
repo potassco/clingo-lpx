@@ -1,5 +1,7 @@
 #pragma once
 
+#include <new>
+#include <stdexcept>
 #include <string>
 #include <memory>
 #include <iostream>
@@ -33,7 +35,9 @@ public:
     }
     Number(char const *val, int radix)
     : Number() {
-        fmpq_set_str(&num_, val, radix);
+        if (fmpq_set_str(&num_, val, radix) != 0) {
+            throw std::runtime_error("could not parse number");
+        }
     }
     Number(std::string const &val, int radix)
     : Number(val.c_str(), radix) {
@@ -153,8 +157,10 @@ public:
     }
 
     friend std::ostream &operator<<(std::ostream &out, Number const &a) {
-        // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-        std::unique_ptr<char, decltype(std::free) *> buf{fmpq_get_str(nullptr, 10, &a.num_), std::free};
+        std::unique_ptr<char, decltype(std::free) *> buf{fmpq_get_str(nullptr, BASE, &a.num_), std::free};
+        if (buf == nullptr) {
+            throw std::bad_alloc();
+        }
         out << buf.get();
         return out;
     }

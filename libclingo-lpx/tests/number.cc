@@ -1,6 +1,7 @@
 #include "number.hh"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 TEST_CASE("number") {
@@ -30,5 +31,7 @@ TEST_CASE("number") {
 
     REQUIRE((a *= c) == NumberQ{12, 9});
     REQUIRE((a /= c) == NumberQ{4, 3});
+
+    REQUIRE_THROWS_WITH((Number{"xxx", 10}), "could not parse number");
 }
 
