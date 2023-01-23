@@ -6,9 +6,10 @@
 #include "matrix.hh"
 
 #include <clingo.hh>
+
 #include <queue>
-#include <map>
 #include <optional>
+#include <unordered_map>
 
 using Value = Number;
 using Factor = Number;
