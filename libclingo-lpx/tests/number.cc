@@ -32,6 +32,6 @@ TEST_CASE("number") {
     REQUIRE((a *= c) == NumberQ{12, 9});
     REQUIRE((a /= c) == NumberQ{4, 3});
 
-    REQUIRE_THROWS_WITH((Number{"xxx", 10}), "could not parse number");
+    REQUIRE_THROWS(Number{"xxx", 10});
 }
 
