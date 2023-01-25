@@ -68,6 +68,16 @@ public:
         fmpz_swap(&num_, &x.num_);
     }
 
+    Integer &add_mul(Integer const &a, Integer const &b) {
+        fmpz_addmul(&num_, &a.num_, &b.num_);
+        return *this;
+    }
+
+    Integer &neg() {
+        fmpz_neg(&num_, &num_);
+        return *this;
+    }
+
     friend Integer operator*(Integer const &a, Integer const &b) {
         Integer c;
         fmpz_mul(&c.num_, &a.num_, &b.num_);
@@ -163,10 +173,14 @@ public:
         return out;
     }
 
-    friend Integer gcd(Integer const &a, Integer const &b) {
-        Integer ret;
-        fmpz_gcd(&ret.num_, &a.num_, &b.num_);
-        return ret;
+    friend std::tuple<Integer, Integer, Integer> gcd(Integer const &a, Integer const &b) {
+        Integer g;
+        Integer ga;
+        Integer gb;
+        fmpz_gcd(&g.num_, &a.num_, &b.num_);
+        fmpz_divexact(&ga.num_, &a.num_, &g.num_);
+        fmpz_divexact(&gb.num_, &b.num_, &g.num_);
+        return {g, ga, gb};
     }
 
     fmpz &impl() const {
@@ -223,7 +237,7 @@ public:
     Number(Integer const &num, Integer const &den)
     : Number() {
         fmpz_set(&num_.num, &num.impl());
-        fmpz_set(&num_.num, &den.impl());
+        fmpz_set(&num_.den, &den.impl());
         fmpq_canonicalise(&num_);
     }
     Number(Number &&a) noexcept
@@ -243,18 +257,22 @@ public:
     }
 
     Integer &num() {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         return reinterpret_cast<Integer&>(num_.num);
     }
 
     Integer const &num() const {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         return reinterpret_cast<Integer const&>(num_.num);
     }
 
     Integer &den() {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         return reinterpret_cast<Integer&>(num_.den);
     }
 
     Integer const &den() const {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         return reinterpret_cast<Integer const&>(num_.den);
     }
 

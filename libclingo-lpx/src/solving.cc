@@ -80,6 +80,7 @@ struct Solver<Factor, Value>::Prepare {
 
     std::vector<std::pair<index_t, Number>> add_row(Inequality const &x) {
         std::vector<std::pair<index_t, Number>> row;
+        row.reserve(x.lhs.size());
 
         // add non-basic variables
         for (auto const &term : x.lhs) {
@@ -470,6 +471,8 @@ Statistics const &Solver<Factor, Value>::statistics() const {
 
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::check_tableau_() {
+    throw std::runtime_error("TODO: reimplement me!!!");
+    /*
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
         tableau_.update_row(i, [&](index_t j, Number const &a_ij){
@@ -480,6 +483,7 @@ bool Solver<Factor, Value>::check_tableau_() {
         }
     }
     return true;
+    */
 }
 
 template<typename Factor, typename Value>
@@ -525,16 +529,23 @@ bool Solver<Factor, Value>::check_solution_() {
 
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::update_(index_t level, index_t j, Value v) {
+    static_cast<void>(level);
+    static_cast<void>(j);
+    static_cast<void>(v);
+    throw std::runtime_error("TODO: reimplement me!!!");
+    /*
     auto &xj = non_basic_(j);
     tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
         basic_(i).set_value(*this, level, a_ij * (v - xj.value), true);
         enqueue_(i);
     });
     xj.set_value(*this, level, std::move(v), false);
+    */
 }
 
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value const &v) {
+    /*
     auto &a_ij = tableau_.unsafe_get(i, j);
     assert(a_ij != 0);
 
@@ -567,6 +578,12 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     assert_extra(check_tableau_());
     assert_extra(check_basic_());
     assert_extra(check_non_basic_());
+    */
+    static_cast<void>(level);
+    static_cast<void>(i);
+    static_cast<void>(j);
+    static_cast<void>(v);
+    throw std::runtime_error("TODO: reimplement me!!!");
 }
 
 template<typename Factor, typename Value>
@@ -588,6 +605,11 @@ bool Solver<Factor, Value>::select_(bool upper, Variable &x) {
 
 template<typename Factor, typename Value>
 typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) {
+    static_cast<void>(ret_i);
+    static_cast<void>(ret_j);
+    static_cast<void>(ret_v);
+    throw std::runtime_error("TODO: reimplement me!!!");
+    /*
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
@@ -645,6 +667,7 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
     assert_extra(check_solution_());
 
     return State::Satisfiable;
+    */
 }
 
 template<typename Factor, typename Value>

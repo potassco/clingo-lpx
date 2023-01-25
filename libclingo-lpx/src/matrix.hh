@@ -92,37 +92,28 @@ public:
         }
     }
 
-    //! This function eliminates elements a_kj for i != k and pivots i and j.
+    //! This functions pivots row i and column j.
     //!
-    //! This is the only function specific to the simplex algorithm. It is
-    //! implemented here to offer better performance. It performs the following
-    //! steps:
-    //!
-    //! 1. ignoring column j
-    //!    1. replace row i by A_i/-A_ij
-    //!    2. replace rows k != i by A_i*A_kj + A_k.
-    //! 2. changing column j
-    //!    1. devide rows k != i by -a_ij
-    //!    2. replace row i by 1/a_ij
-    //!
-    //! Observe that if step 1. would not ignore column j, the column would be
-    //! a unit vector.
-    //!
-    //! TODO: There is no need to store rational numbers in the matrix, we
-    //! could also devide by a_ij when setting values for integer variables.
+    //! The two integers passed in are a reference to the cell a_ij and
+    //! denominator d_j. See the description of the class for a more detailed
+    //! description.
     //!
     //! Runs in O(m*m).
-    void eliminate_and_pivot(index_t i, index_t j, Integer &a_ij);
+    void pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i);
 
     //! Get the number of non-zero elements in the matrix.
     //!
-    //! The runtime of this function is linear in the size of the matrix.
+    //! Runs in O(m).
     [[nodiscard]] size_t size() const;
 
     //! Equivalent to `size() == 0`.
+    //!
+    //! Runs in O(m).
     [[nodiscard]] bool empty() const;
 
     //! Set all elements to zero.
+    //!
+    //! Runs in O(1).
     void clear();
 
 private:

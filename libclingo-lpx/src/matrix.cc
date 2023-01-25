@@ -1,6 +1,7 @@
 #include "matrix.hh"
 
 #include <numeric>
+#include <cassert>
 
 Number Matrix::get(index_t i, index_t j) const {
     if (i < rows_.size()) {
@@ -15,10 +16,11 @@ Number Matrix::get(index_t i, index_t j) const {
 
 void Matrix::unsafe_get(index_t i, index_t j, Integer *&num, Integer *&den) {
     auto &r = rows_[i];
-    *num = std::lower_bound(r.cells.begin(), r.cells.end(), j)->val;
-    *den = r.den;
+    num = &std::lower_bound(r.cells.begin(), r.cells.end(), j)->val;
+    den = &r.den;
 }
 
+// NOLINTBEGIN(clang-analyzer-core.UndefinedBinaryOperatorResult)
 void Matrix::set(index_t i, index_t j, Number const &a) {
     // This implementation assumes that the set function is only called during
     // intialization and in the best case with already sorted elements that
@@ -35,21 +37,17 @@ void Matrix::set(index_t i, index_t j, Number const &a) {
     else {
         auto &r = reserve_row_(i);
         auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
-        // TODO: It looks a bit like the gcd function could already return at
-        // tuple with these three values to avoid having to add division to the
-        // integer class. At the very least integer division should be renamed
-        // as the flint library does.
-        auto g = gcd(a.den(), r.den);
-        auto rg = r.den / g;
-        auto ag = a.den() / g;
-        r.den *= ag;
+        auto [g, ag, rg] = gcd(a.den(), r.den);
         if (it == r.cells.end() || it->col != j) {
             it = r.cells.emplace(it, j, a.num() * rg);
         }
         else {
+            // Note: this case is only for completeness it is not going to be
+            // used in practice.
             it->val = a.num() * rg;
         }
         if (ag != 1) {
+            r.den *= ag;
             for (auto jt = r.cells.begin(); jt != r.cells.end(); ++jt) {
                 if (jt != it) {
                     jt->val *= ag;
@@ -63,8 +61,9 @@ void Matrix::set(index_t i, index_t j, Number const &a) {
         }
     }
 }
+// NOLINTEND(clang-analyzer-core.UndefinedBinaryOperatorResult)
 
-void Matrix::eliminate_and_pivot(index_t i, index_t j, Integer &a_ij) {
+void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     // Let the tableau have form
     //
     //   (A|D)
@@ -75,9 +74,9 @@ void Matrix::eliminate_and_pivot(index_t i, index_t j, Integer &a_ij) {
     // We begin by eliminating elements A_kj from rows A_k with k != i in the
     // standard way. We below list all the cells that change:
     //
-    //   A'_k  = A_kj * A_i - A_ij * A_k
-    //   D'_kk = 0 - A_ij * D_kk
-    //   D'_ik = A_kj * D_ii
+    //   A'_k  = A_kj *  A_i - A_ij * A_k
+    //   D'_kk =           0 - A_ij * D_kk
+    //   D'_ik = A_kj * D_ii -    0
     //
     // We obtain the matrix (A'|D') which is no longer in tableau form because
     // D' is no longer a diagonal matrix. We can restore this property by
@@ -86,93 +85,87 @@ void Matrix::eliminate_and_pivot(index_t i, index_t j, Integer &a_ij) {
     // Note that we can devide rows A_k by the greatest common divisior of A_kj
     // and A_ij to keep numbers smaller. In the algorithm, we can initialize
     // two variables for A_kj/g and A_ij/g right from the start to keep integer
-    // divisions to a minimum.
+    // divisions to a minimum:
+    //
+    //   A'_k  = (A_kj / g) * A_i  - (A_ij / g) * A_k
+    //   D'_kk = (A_kj / g) * 0    - (A_ij / g) * D_kk
+    //   D'_ki = (A_kj / g) * D_ii - (A_ij / g) * 0
 
-    auto ib = rows_[i].cells.begin();
-    auto ie = rows_[i].cells.end();
-    auto &d_i = rows_[i].den;
+    auto A_i0 = rows_[i].cells.begin();
+    auto A_in = rows_[i].cells.end();
     std::vector<size_t> sizes;
     sizes.resize(rows_[i].cells.size());
     std::vector<Cell> row;
     std::vector<index_t> col_buf;
-
-    // step 1.1
-    update_row(i, [&](index_t k, Integer &a_ik, Integer const &d_i) {
-        static_cast<void>(d_i);
-        if (k != j) {
-            //a_ik /= -a_ij;
-            a_ik *= -1;
-        }
-    });
-    // step 2.2
-    // a_ij = 1 / a_ij;
-    a_ij.swap(d_i);  // TODO: setting this might allow for simplifying the row
-                     //       we can compute the gcd above
-                     //       to see if the denominator can be made smaller
-    d_i *= a_ij;
 
     // Note that insertions into rows and columns do not invert iterators:
     // - row i is unaffected because k != i
     // - there are no insertions in column j because each a_kj != 0
     update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) {
         if (k != i) {
-            // TODO: multiply the respective values below with gd_i and gd_k.
-            auto g = gcd(d_i, d_k);
-            auto gd_i = d_i / g;
-            auto gd_k = d_k / g;
-            d_k *= gd_i;
-            for (auto it = ib, jt = rows_[k].cells.begin(), je = rows_[k].cells.end(); it != ie || jt != je; ) {
-                // case A_ix != 0 and A_kx == 0 (step 1.2)
-                if (jt == je || (it != ie && it->col < jt->col)) {
+            auto [g, ga_ij, ga_kj] = gcd(a_ij, a_kj);
+            ga_ij.neg();
+            size_t pivot_index = 0;
+            for (auto A_il = A_i0, A_kl = rows_[k].cells.begin(), A_kn = rows_[k].cells.end(); A_il != A_in || A_kl != A_kn; ) {
+                // case A_il != 0 and A_kl == 0
+                if (A_kl == A_kn || (A_il != A_in && A_il->col < A_kl->col)) {
+                    assert(A_il->col != j);
                     // add A_kj * A_ix for x != j
-                    row.emplace_back(it->col, it->val * a_kj);
+                    row.emplace_back(A_il->col, ga_kj * A_il->val);
                     // Note that vectors will be sorted at the end.
-                    cols_[it->col].emplace_back(k);
-                    ++sizes[it - ib];
-                    ++it;
+                    cols_[A_il->col].emplace_back(k);
+                    ++sizes[A_il - A_i0];
+                    ++A_il;
                 }
-                // case A_ix == 0 and A_kx != 0 (step 1.2)
-                else if (it == ie || jt->col < it->col) {
+                // case A_il == 0 and A_kl != 0
+                else if (A_il == A_in || A_kl->col < A_il->col) {
+                    assert(A_kl->col != j);
                     // add A_kx for x != j
-                    row.emplace_back(std::move(*jt));
-                    ++jt;
+                    row.emplace_back(A_kl->col, std::move(A_kl->val *= ga_ij));
+                    ++A_kl;
                 }
-                // case A_ix != 0 and A_kx != 0
+                // case A_il != 0 and A_kl != 0
                 else {
-                    // case x != j (step 1.2)
-                    if (jt->col != j) {
+                    // case l != j
+                    if (A_kl->col != j) {
                         // add A_kx + A_kj * A_ix for x != j
-                        row.emplace_back(jt->col, std::move(jt->val));
-                        row.back().val += it->val * a_kj;
+                        row.emplace_back(A_kl->col, std::move((A_kl->val *= ga_ij).add_mul(ga_kj, A_il->val)));
                         if (row.back().val == 0) {
                             row.pop_back();
                         }
                     }
-                    // case x == j (step 2.1)
+                    // case l == j
                     else {
-                        // pivot setting A_kj to A_kj/a_ij (step 2.1)
-                        row.emplace_back(jt->col, jt->val * it->val);
+                        // pivot
+                        pivot_index = row.size();
+                        row.emplace_back(A_kl->col, 0);
+                        d_k *= ga_ij;
                     }
-                    ++it;
-                    ++jt;
+                    ++A_il;
+                    ++A_kl;
                 }
             }
+            // finish pivoting to benefit from another move
+            row[pivot_index].val = std::move(ga_kj *= d_i);
             std::swap(rows_[k].cells, row);
             row.clear();
         }
     });
 
+    // pivot element in row i
+    a_ij.swap(d_i);
+
     // Ensure that column vectors are sorted.
     //
     // Note that we cannot assume that elements are unique because of the
-    // lazy deletion scheme. Hence, it is not possible to use
+    // lazy deletion scheme. Hence, A_il is not possible to use
     // std::merge_inplace.
     auto jt = sizes.begin();
-    for (auto it = ib; it != ie; ++it, ++jt) {
+    for (auto A_il = A_i0; A_il != A_in; ++A_il, ++jt) {
         if (*jt == 0) {
             continue;
         }
-        auto &col = cols_[it->col];
+        auto &col = cols_[A_il->col];
         // Optimize for the case that only one element is inserted.
         if (*jt == 1) {
             auto j = col.back();
