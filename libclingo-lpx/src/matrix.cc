@@ -65,6 +65,29 @@ void Matrix::set(index_t i, index_t j, Number const &a) {
 }
 
 void Matrix::eliminate_and_pivot(index_t i, index_t j, Integer &a_ij) {
+    // Let the tableau have form
+    //
+    //   (A|D)
+    //
+    // where A is a matrix of integer coefficients of size m*n and D is a
+    // diagonal matrix of size m*m.
+    //
+    // We begin by eliminating elements A_kj from rows A_k with k != i in the
+    // standard way. We below list all the cells that change:
+    //
+    //   A'_k  = A_kj * A_i - A_ij * A_k
+    //   D'_kk = 0 - A_ij * D_kk
+    //   D'_ik = A_kj * D_ii
+    //
+    // We obtain the matrix (A'|D') which is no longer in tableau form because
+    // D' is no longer a diagonal matrix. We can restore this property by
+    // swapping columns A'^T_j and D'^T_i.
+    //
+    // Note that we can devide rows A_k by the greatest common divisior of A_kj
+    // and A_ij to keep numbers smaller. In the algorithm, we can initialize
+    // two variables for A_kj/g and A_ij/g right from the start to keep integer
+    // divisions to a minimum.
+
     auto ib = rows_[i].cells.begin();
     auto ie = rows_[i].cells.end();
     auto &d_i = rows_[i].den;
