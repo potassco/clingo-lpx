@@ -12,12 +12,10 @@ TEST_CASE("number") {
     REQUIRE(a + b == NumberQ{6, 4});
     REQUIRE(b + a == NumberQ{6, 4});
     REQUIRE(a + c == NumberQ{7, 3});
-    REQUIRE(c + a == NumberQ{7, 3});
 
     REQUIRE(a - b == NumberQ{2, 2});
     REQUIRE(b - a == NumberQ{-2, -2});
     REQUIRE(a - c == NumberQ{1, 3});
-    REQUIRE(c - a == NumberQ{-1, -3});
 
     REQUIRE((a += b) == NumberQ{6, 4});
     REQUIRE((a -= b) == NumberQ{4, 3});
@@ -25,7 +23,6 @@ TEST_CASE("number") {
     REQUIRE((a -= c) == NumberQ{4, 3});
 
     REQUIRE(a * c == NumberQ{12, 9});
-    REQUIRE(c * a == NumberQ{12, 9});
 
     REQUIRE(a / c == NumberQ{Number{"4/3", 10}, 1});
 

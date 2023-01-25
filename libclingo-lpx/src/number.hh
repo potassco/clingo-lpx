@@ -16,12 +16,6 @@
 #include <gmpxx.h>
 #endif
 
-#ifdef CLINGOLPX_CROSSCHECK
-#   define assert_extra(X) assert(X) // NOLINT
-#else
-#   define assert_extra(X) // NOLINT
-#endif
-
 #if defined(CLINGOLPX_USE_FLINT)
 
 constexpr int BASE = 10;
@@ -276,6 +270,11 @@ public:
         return reinterpret_cast<Integer const&>(num_.den);
     }
 
+    Number &neg() {
+        fmpq_neg(&num_, &num_);
+        return *this;
+    }
+
     void swap(Number &x) {
         fmpq_swap(&num_, &x.num_);
     }
@@ -326,6 +325,46 @@ public:
     }
     friend Number &operator-=(Number &a, Number const &b) {
         fmpq_sub(&a.num_, &a.num_, &b.num_);
+        return a;
+    }
+
+    friend Number operator*(Number const &a, Integer const &b) {
+        Number c;
+        fmpq_mul_fmpz(&c.num_, &a.num_, &b.impl());
+        return c;
+    }
+    friend Number &operator*=(Number &a, Integer const &b) {
+        fmpq_mul_fmpz(&a.num_, &a.num_, &b.impl());
+        return a;
+    }
+
+    friend Number operator/(Number const &a, Integer const &b) {
+        Number c;
+        fmpq_div_fmpz(&c.num_, &a.num_, &b.impl());
+        return c;
+    }
+    friend Number &operator/=(Number &a, Integer const &b) {
+        fmpq_div_fmpz(&a.num_, &a.num_, &b.impl());
+        return a;
+    }
+
+    friend Number operator+(Number const &a, Integer const &b) {
+        Number c;
+        fmpq_add_fmpz(&c.num_, &a.num_, &b.impl());
+        return c;
+    }
+    friend Number &operator+=(Number &a, Integer const &b) {
+        fmpq_add_fmpz(&a.num_, &a.num_, &b.impl());
+        return a;
+    }
+
+    friend Number operator-(Number const &a, Integer const &b) {
+        Number c;
+        fmpq_sub_fmpz(&c.num_, &a.num_, &b.impl());
+        return c;
+    }
+    friend Number &operator-=(Number &a, Integer const &b) {
+        fmpq_sub_fmpz(&a.num_, &a.num_, &b.impl());
         return a;
     }
 
@@ -587,15 +626,20 @@ inline int compare(Number const &a, Number const &b) {
 
 class NumberQ {
 private:
-    friend NumberQ operator+(NumberQ const &q, Number const &c);
-    friend NumberQ operator+(Number  const &c, NumberQ const &q);
-    friend NumberQ operator+(NumberQ const &p, NumberQ const &q);
-    friend NumberQ operator-(NumberQ const &q, Number const &c);
-    friend NumberQ operator-(Number  const &c, NumberQ const &q);
-    friend NumberQ operator-(NumberQ const &p, NumberQ const &q);
-    friend NumberQ operator*(NumberQ const &q, Number const &c);
-    friend NumberQ operator*(Number  const &c, NumberQ const &q);
-    friend NumberQ operator/(NumberQ const &q, Number const &c);
+    friend NumberQ operator+(NumberQ const &a, Integer const &b);
+    friend NumberQ operator+(NumberQ const &a, Number  const &b);
+    friend NumberQ operator+(NumberQ const &a, NumberQ const &b);
+
+    friend NumberQ operator-(NumberQ const &a, Integer const &b);
+    friend NumberQ operator-(NumberQ const &a, Number  const &b);
+    friend NumberQ operator-(NumberQ const &a, NumberQ const &b);
+
+    friend NumberQ operator*(NumberQ const &a, Integer const &b);
+    friend NumberQ operator*(NumberQ const &a, Number  const &b);
+
+    friend NumberQ operator/(NumberQ const &a, Integer const &b);
+    friend NumberQ operator/(NumberQ const &a, Number  const &b);
+
     friend std::ostream &operator<<(std::ostream &out, NumberQ const &q);
 
 public:
@@ -724,46 +768,50 @@ private:
 
 // addition
 
-[[nodiscard]] inline NumberQ operator+(NumberQ const &q, Number const &c) {
-    return NumberQ{q.c_ + c, q.k_};
+[[nodiscard]] inline NumberQ operator+(NumberQ const &a, Integer const &b) {
+    return NumberQ{a.c_ + b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator+(Number  const &c, NumberQ const &q) {
-    return NumberQ{c + q.c_, q.k_};
+[[nodiscard]] inline NumberQ operator+(NumberQ const &a, Number const &b) {
+    return NumberQ{a.c_ + b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator+(NumberQ const &p, NumberQ const &q) {
-    return NumberQ{p.c_ + q.c_, p.k_ + q.k_};
+[[nodiscard]] inline NumberQ operator+(NumberQ const &a, NumberQ const &b) {
+    return NumberQ{a.c_ + b.c_, a.k_ + b.k_};
 }
 
 // subtraction
 
-[[nodiscard]] inline NumberQ operator-(NumberQ const &q, Number const &c) {
-    return NumberQ{q.c_ - c, q.k_};
+[[nodiscard]] inline NumberQ operator-(NumberQ const &a, Integer const &b) {
+    return NumberQ{a.c_ - b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator-(Number  const &c, NumberQ const &q) {
-    return NumberQ{c - q.c_, -q.k_};
+[[nodiscard]] inline NumberQ operator-(NumberQ const &a, Number const &b) {
+    return NumberQ{a.c_ - b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator-(NumberQ const &p, NumberQ const &q) {
-    return NumberQ{p.c_ - q.c_, p.k_ - q.k_};
+[[nodiscard]] inline NumberQ operator-(NumberQ const &a, NumberQ const &b) {
+    return NumberQ{a.c_ - b.c_, a.k_ - b.k_};
 }
 
 // multiplication
 
-[[nodiscard]] inline NumberQ operator*(NumberQ const &q, Number const &c) {
-    return NumberQ{q.c_ * c, q.k_ * c};
+[[nodiscard]] inline NumberQ operator*(NumberQ const &a, Integer const &b) {
+    return NumberQ{a.c_ * b, a.k_ * b};
 }
 
-[[nodiscard]] inline NumberQ operator*(Number const &c, NumberQ const &q) {
-    return NumberQ{c * q.c_, c * q.k_};
+[[nodiscard]] inline NumberQ operator*(NumberQ const &a, Number const &b) {
+    return NumberQ{a.c_ * b, a.k_ * b};
 }
 
 // division
 
-[[nodiscard]] inline NumberQ operator/(NumberQ const &q, Number const &c) {
-    return NumberQ{q.c_ / c, q.k_ / c};
+[[nodiscard]] inline NumberQ operator/(NumberQ const &a, Integer const &b) {
+    return NumberQ{a.c_ / b, a.k_ / b};
+}
+
+[[nodiscard]] inline NumberQ operator/(NumberQ const &a, Number const &b) {
+    return NumberQ{a.c_ / b, a.k_ / b};
 }
 
 inline std::ostream &operator<<(std::ostream &out, NumberQ const &q) {

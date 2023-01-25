@@ -111,7 +111,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
         Number n{a, 10};
         if (match[1].matched) {
-            n *= -1;
+            n.neg();
         }
         n.canonicalize();
         return n;

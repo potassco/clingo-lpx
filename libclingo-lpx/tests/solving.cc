@@ -49,6 +49,15 @@ size_t run_m(std::initializer_list<char const *> m) {
 } // namespace
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+TEST_CASE("fail") {
+    /* This example currently fails after the first pivot.
+     * It should be easy to debug compairing with the last working clingo-lpx.
+     * Call: make; ./build/debug/bin/test_clingo-lpx fail
+     */
+    REQUIRE(!run("&sum { x; y } >= 2.\n"
+                 "&sum { x; y } <= 0.\n"
+                 "&sum {    y } =  0.\n"));
+}
 TEST_CASE("solving") {
     SECTION("non-strict") {
         REQUIRE( run("&sum { x1; x2 } <= 20.\n"

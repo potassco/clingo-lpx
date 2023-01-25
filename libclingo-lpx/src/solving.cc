@@ -471,19 +471,16 @@ Statistics const &Solver<Factor, Value>::statistics() const {
 
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::check_tableau_() {
-    throw std::runtime_error("TODO: reimplement me!!!");
-    /*
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
-        tableau_.update_row(i, [&](index_t j, Number const &a_ij){
-            v_i += non_basic_(j).value * a_ij;
+        tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer d_i){
+            v_i += non_basic_(j).value * a_ij / d_i;
         });
         if (v_i != basic_(i).value) {
             return false;
         }
     }
     return true;
-    */
 }
 
 template<typename Factor, typename Value>
@@ -529,61 +526,51 @@ bool Solver<Factor, Value>::check_solution_() {
 
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::update_(index_t level, index_t j, Value v) {
-    static_cast<void>(level);
-    static_cast<void>(j);
-    static_cast<void>(v);
-    throw std::runtime_error("TODO: reimplement me!!!");
-    /*
     auto &xj = non_basic_(j);
-    tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
-        basic_(i).set_value(*this, level, a_ij * (v - xj.value), true);
+    tableau_.update_col(j, [&](index_t i, Integer const &a_ij, Integer d_i) {
+        // TODO: this expression currently incurs overhead like this...
+        basic_(i).set_value(*this, level, (v - xj.value) * a_ij / d_i, true);
         enqueue_(i);
     });
     xj.set_value(*this, level, std::move(v), false);
-    */
 }
 
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value const &v) {
-    /*
-    auto &a_ij = tableau_.unsafe_get(i, j);
-    assert(a_ij != 0);
+    std::cerr << "pivoting " << i << " and " << j << std::endl;
+    Integer *a_ij = nullptr;
+    Integer *d_i = nullptr;
+    tableau_.unsafe_get(i, j, a_ij, d_i);
+    assert(*a_ij != 0);
 
     auto &xi = basic_(i);
     auto &xj = non_basic_(j);
 
     // adjust assignment
-    Value dj = (v - xi.value) / a_ij;
-    assert(dj != 0);
+    Value delta_j = (v - xi.value) / *a_ij * *d_i; // TODO: overhead!!!
+    assert(delta_j != 0);
     xi.set_value(*this, level, v, false);
-    xj.set_value(*this, level, dj, true);
-    // TODO: can this be merged into the loop below?:
-    tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
+    xj.set_value(*this, level, delta_j, true);
+    tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) {
         if (k != i) {
-            basic_(k).set_value(*this, level, a_kj * dj, true);
+            basic_(k).set_value(*this, level, delta_j * a_kj / d_k, true); // TODO: overhead!!!
             enqueue_(k);
         }
     });
     assert_extra(check_tableau_());
 
     // swap variables x_i and x_j
-    std::swap(xi.reserve_index, xj.reserve_index);
+    std::swap(xi.reserve_index, xj.reserve_index); // TODO: its meant to be reverse_index
     std::swap(variables_[i + n_non_basic_].index, variables_[j].index);
     enqueue_(i);
 
     // eliminate x_j from rows k != i
-    tableau_.eliminate_and_pivot(i, j, a_ij);
+    tableau_.pivot(i, j, *a_ij, *d_i);
 
     ++statistics_.pivots_;
     assert_extra(check_tableau_());
     assert_extra(check_basic_());
     assert_extra(check_non_basic_());
-    */
-    static_cast<void>(level);
-    static_cast<void>(i);
-    static_cast<void>(j);
-    static_cast<void>(v);
-    throw std::runtime_error("TODO: reimplement me!!!");
 }
 
 template<typename Factor, typename Value>
@@ -605,11 +592,6 @@ bool Solver<Factor, Value>::select_(bool upper, Variable &x) {
 
 template<typename Factor, typename Value>
 typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) {
-    static_cast<void>(ret_i);
-    static_cast<void>(ret_j);
-    static_cast<void>(ret_v);
-    throw std::runtime_error("TODO: reimplement me!!!");
-    /*
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
@@ -629,9 +611,9 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
             conflict_clause_.clear();
             conflict_clause_.emplace_back(-xi.lower_bound->lit);
             index_t kk = variables_.size();
-            tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
+            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
                 auto jj = variables_[j].index;
-                if (jj < kk && select_(a_ij > 0, variables_[jj])) {
+                if (jj < kk && select_((a_ij > 0) == (d_i > 0), variables_[jj])) {
                     kk = jj;
                     ret_i = i;
                     ret_j = j;
@@ -648,9 +630,9 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
             conflict_clause_.clear();
             conflict_clause_.emplace_back(-xi.upper_bound->lit);
             index_t kk = variables_.size();
-            tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
+            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
                 auto jj = variables_[j].index;
-                if (jj < kk && select_(a_ij < 0, variables_[jj])) {
+                if (jj < kk && select_((a_ij < 0) != (d_i < 0), variables_[jj])) {
                     kk = jj;
                     ret_i = i;
                     ret_j = j;
@@ -667,7 +649,6 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
     assert_extra(check_solution_());
 
     return State::Satisfiable;
-    */
 }
 
 template<typename Factor, typename Value>
