@@ -471,16 +471,19 @@ Statistics const &Solver<Factor, Value>::statistics() const {
 
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::check_tableau_() {
+    std::cerr << "  check tableau" << std::endl;
+    bool ret = true;
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
         tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer d_i){
             v_i += non_basic_(j).value * a_ij / d_i;
         });
+        std::cerr << "    checking row [" << i << "] " << v_i << " == " << basic_(i).value << std::endl;
         if (v_i != basic_(i).value) {
-            return false;
+            ret = false;
         }
     }
-    return true;
+    return ret;
 }
 
 template<typename Factor, typename Value>
