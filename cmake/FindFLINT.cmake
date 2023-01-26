@@ -42,7 +42,7 @@ find_library(
     HINTS ${flint_library_search_hints})
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(FLINT DEFAULT_MSG GMP_LIBRARY FLINT_INCLUDE FLINT_LIBRARY)
+find_package_handle_standard_args(FLINT DEFAULT_MSG FLINT_LIBRARY GMP_LIBRARY FLINT_INCLUDE)
 mark_as_advanced(GMP_LIBRARY FLINT_INCLUDE FLINT_LIBRARY)
 
 set(FLINT_LIBRARIES ${FLINT_LIBRARY} ${GMP_LIBRARY})

@@ -549,6 +549,7 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     // adjust assignment
     Value delta_j = (v - xi.value) / *a_ij * *d_i;
     assert(delta_j != 0);
+
     xi.set_value(*this, level, v, false);
     xj.set_value(*this, level, delta_j, true);
     tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) {
