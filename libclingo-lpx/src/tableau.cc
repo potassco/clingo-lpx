@@ -1,27 +1,27 @@
-#include "matrix.hh"
+#include "tableau.hh"
 
 #include <numeric>
 #include <cassert>
 
-Number Matrix::get(index_t i, index_t j) const {
+Rational Tableau::get(index_t i, index_t j) const {
     if (i < rows_.size()) {
         auto const &r = rows_[i];
         auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
         if (it != r.cells.end() && it->col == j) {
-            return Number{it->val, r.den};
+            return Rational{it->val, r.den};
         }
     }
     return zero_();
 }
 
-void Matrix::unsafe_get(index_t i, index_t j, Integer *&num, Integer *&den) {
+void Tableau::unsafe_get(index_t i, index_t j, Integer *&num, Integer *&den) {
     auto &r = rows_[i];
     num = &std::lower_bound(r.cells.begin(), r.cells.end(), j)->val;
     den = &r.den;
 }
 
 // NOLINTBEGIN(clang-analyzer-core.UndefinedBinaryOperatorResult)
-void Matrix::set(index_t i, index_t j, Number const &a) {
+void Tableau::set(index_t i, index_t j, Rational const &a) {
     // This implementation assumes that the set function is only called during
     // intialization and in the best case with already sorted elements that
     // have the same denominator.
@@ -63,7 +63,7 @@ void Matrix::set(index_t i, index_t j, Number const &a) {
 }
 // NOLINTEND(clang-analyzer-core.UndefinedBinaryOperatorResult)
 
-void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
+void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     // Detailed notes how this algorithm works can be found in doc/pivot.lyx.
 
     auto A_i0 = rows_[i].cells.begin();
@@ -90,7 +90,6 @@ void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
                 // case A_il != 0 and A_kl == 0
                 if (A_kl == A_kn || (A_il != A_in && A_il->col < A_kl->col)) {
                     assert(A_il->col != j);
-                    // add A_kj * A_ix for x != j
                     row.emplace_back(A_il->col, ga_kj * A_il->val);
                     // Note that vectors will be sorted at the end.
                     cols_[A_il->col].emplace_back(k);
@@ -100,16 +99,14 @@ void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
                 // case A_il == 0 and A_kl != 0
                 else if (A_il == A_in || A_kl->col < A_il->col) {
                     assert(A_kl->col != j);
-                    // add A_kx for x != j
-                    row.emplace_back(A_kl->col, std::move(A_kl->val *= ga_ij));
+                    row.emplace_back(A_kl->col, std::move(A_kl->val) * ga_ij);
                     ++A_kl;
                 }
                 // case A_il != 0 and A_kl != 0
                 else {
                     // case l != j
                     if (A_kl->col != j) {
-                        // add A_kx + A_kj * A_ix for x != j
-                        row.emplace_back(A_kl->col, std::move((A_kl->val *= ga_ij).add_mul(ga_kj, A_il->val)));
+                        row.emplace_back(A_kl->col, (std::move(A_kl->val) * ga_ij).add_mul(ga_kj, A_il->val));
                         if (row.back().val == 0) {
                             row.pop_back();
                         }
@@ -126,7 +123,7 @@ void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
                 }
             }
             // finish pivoting to benefit from another move
-            row[pivot_index].val = std::move(ga_kj *= d_i);
+            row[pivot_index].val = std::move(ga_kj) * d_i;
             std::swap(rows_[k].cells, row);
             row.clear();
         }
@@ -164,7 +161,7 @@ void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     }
 }
 
-void Matrix::print(std::ostream &out, char const *indent) const {
+void Tableau::print(std::ostream &out, char const *indent) const {
     size_t m = rows_.size();
     size_t n = cols_.size();
     out << indent << "{";
@@ -187,35 +184,35 @@ void Matrix::print(std::ostream &out, char const *indent) const {
     out << "}";
 }
 
-size_t Matrix::size() const {
+size_t Tableau::size() const {
     return std::accumulate(rows_.begin(), rows_.end(), static_cast<size_t>(0),
                            [](size_t n, auto const &r) { return n + r.cells.size(); });
 }
 
-bool Matrix::empty() const {
+bool Tableau::empty() const {
     return std::all_of(rows_.cbegin(), rows_.cend(),
                        [](auto const &r) { return r.cells.empty(); });
 }
 
-void Matrix::clear() {
+void Tableau::clear() {
     rows_.clear();
     cols_.clear();
 }
 
-Matrix::Row &Matrix::reserve_row_(index_t i) {
+Tableau::Row &Tableau::reserve_row_(index_t i) {
     if (rows_.size() <= i) {
         rows_.resize(i + 1);
     }
     return rows_[i];
 }
-std::vector<index_t> &Matrix::reserve_col_(index_t j) {
+std::vector<index_t> &Tableau::reserve_col_(index_t j) {
     if (cols_.size() <= j) {
         cols_.resize(j + 1);
     }
     return cols_[j];
 }
 
-Number const &Matrix::zero_() {
-    static Number zero{0};
+Rational const &Tableau::zero_() {
+    static Rational zero{0};
     return zero;
 }

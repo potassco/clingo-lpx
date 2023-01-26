@@ -91,7 +91,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
     return evaluate(term);
 }
 
-[[nodiscard]] Number evaluate_num(Clingo::TheoryTerm const &term) {
+[[nodiscard]] Rational evaluate_num(Clingo::TheoryTerm const &term) {
     if (is_string(term)) {
         auto const *name = term.name();
         std::regex const rgx{"(-)?([0-9]+)(\\.([0-9]+))?"};
@@ -109,7 +109,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
             a.append(it - ib, '0');
         }
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-        Number n{a, 10};
+        Rational n{a, 10};
         if (match[1].matched) {
             n.neg();
         }
@@ -131,7 +131,7 @@ bool is_string(Clingo::TheoryTerm const &term) {
         return evaluate_num(term.arguments().front()) / evaluate_num(term.arguments().back());
     }
 
-    return throw_syntax_error<Number>();
+    return throw_syntax_error<Rational>();
 }
 
 [[nodiscard]] Relation evaluate_cmp(char const *rel) {

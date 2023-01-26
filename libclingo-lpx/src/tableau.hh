@@ -11,28 +11,28 @@
 using index_t = uint32_t;
 
 
-//! A sparse matrix with efficient access to both rows and columns.
+//! A sparse tableau with efficient access to both rows and columns.
 //!
-//! Insertion into the matrix is linear in the number of rows/columns and
+//! Insertion into the tableau is linear in the number of rows/columns and
 //! should be avoided. Runtime complexities are sometimes amortized without
-//! further comments. Algorithms are generally faster the sparser the matrix.
+//! further comments. Algorithms are generally faster the sparser the tableau.
 //!
 //! It would also be possible to additionally keep track of non-zero elements
 //! using a hash table. Like this, logarithm factors could be removed at the
 //! expense of additional storage requirements.
 //!
-//! In the documentation below, we use A to refer to a matrix with m rows and n
+//! In the documentation below, we use A to refer to a tableau with m rows and n
 //! columns. Furthemore, we use the following common ways to work with the
-//! matrix:
+//! tableau:
 //! - A_i is the i-th row,
 //! - A_ij is the element at row i and column j, and
-//! - A^T is the transposed matrix.
-class Matrix {
+//! - A^T is the transposed tableau.
+class Tableau {
 public:
     //! Return a const reference to A_ij.
     //!
     //! Runs in O(log(n)).
-    [[nodiscard]] Number get(index_t i, index_t j) const;
+    [[nodiscard]] Rational get(index_t i, index_t j) const;
 
     //! Return a mutable reference to A_ij assuming that A_ij != 0.
     //!
@@ -43,10 +43,10 @@ public:
 
     //! Set A_ij to value a.
     //!
-    //! Setting an element to zero removes it from the matrix.
+    //! Setting an element to zero removes it from the tableau.
     //!
     //! Runs in O(m + n).
-    void set(index_t i, index_t j, Number const &a);
+    void set(index_t i, index_t j, Rational const &a);
 
     //! Call f(j, a_ij) for each element a_ij != 0 in row A_i.
     //!
@@ -101,7 +101,7 @@ public:
     //! Runs in O(m*m).
     void pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i);
 
-    //! Get the number of non-zero elements in the matrix.
+    //! Get the number of non-zero elements in the tableau.
     //!
     //! Runs in O(m).
     [[nodiscard]] size_t size() const;
@@ -116,10 +116,10 @@ public:
     //! Runs in O(1).
     void clear();
 
-    //! Print matrix for debugging purposes.
+    //! Print tableau for debugging purposes.
     void print(std::ostream &out, char const *indent) const;
 
-    //! Operator to output matrix for debugging purposes.
+    //! Operator to output tableau for debugging purposes.
     std::ostream &operator<<(std::ostream &out) const {
         print(out, "");
         return out;
@@ -154,7 +154,7 @@ private:
 
     Row &reserve_row_(index_t i);
     std::vector<index_t> &reserve_col_(index_t j);
-    static Number const &zero_();
+    static Rational const &zero_();
 
     std::vector<Row> rows_;
     std::vector<std::vector<index_t>> cols_;

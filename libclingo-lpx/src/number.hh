@@ -62,9 +62,13 @@ public:
         fmpz_swap(&num_, &x.num_);
     }
 
-    Integer &add_mul(Integer const &a, Integer const &b) {
+    Integer &add_mul(Integer const &a, Integer const &b) & {
         fmpz_addmul(&num_, &a.num_, &b.num_);
         return *this;
+    }
+
+    Integer add_mul(Integer const &a, Integer const &b) && {
+        return std::move(this->add_mul(a, b));
     }
 
     Integer &neg() {
@@ -72,6 +76,9 @@ public:
         return *this;
     }
 
+    friend Integer operator*(Integer &&a, Integer const &b) {
+        return std::move(a *= b);
+    }
     friend Integer operator*(Integer const &a, Integer const &b) {
         Integer c;
         fmpz_mul(&c.num_, &a.num_, &b.num_);
@@ -186,17 +193,17 @@ private:
     mutable fmpz num_;
 };
 
-class Number {
+class Rational {
 public:
-    Number() noexcept { // NOLINT
+    Rational() noexcept { // NOLINT
         fmpq_init(&num_);
     }
-    Number(slong val)
-    : Number() {
+    Rational(slong val)
+    : Rational() {
         fmpq_set_si(&num_, val, 1);
     }
-    Number(char const *val, int radix)
-    : Number() {
+    Rational(char const *val, int radix)
+    : Rational() {
 #if __FLINT_RELEASE >= 20600
         if (fmpq_set_str(&num_, val, radix) != 0) {
             throw std::runtime_error("could not parse number");
@@ -221,32 +228,32 @@ public:
         }
 #endif
     }
-    Number(std::string const &val, int radix)
-    : Number(val.c_str(), radix) {
+    Rational(std::string const &val, int radix)
+    : Rational(val.c_str(), radix) {
     }
-    Number(Number const &a)
-    : Number() {
+    Rational(Rational const &a)
+    : Rational() {
         fmpq_set(&num_, &a.num_);
     }
-    Number(Integer const &num, Integer const &den)
-    : Number() {
+    Rational(Integer const &num, Integer const &den)
+    : Rational() {
         fmpz_set(&num_.num, &num.impl());
         fmpz_set(&num_.den, &den.impl());
         fmpq_canonicalise(&num_);
     }
-    Number(Number &&a) noexcept
-    : Number() {
+    Rational(Rational &&a) noexcept
+    : Rational() {
         swap(a);
     }
-    Number &operator=(Number const &a) {
+    Rational &operator=(Rational const &a) {
         fmpq_set(&num_, &a.num_);
         return *this;
     }
-    Number &operator=(Number &&a) noexcept {
+    Rational &operator=(Rational &&a) noexcept {
         swap(a);
         return *this;
     }
-    ~Number() noexcept {
+    ~Rational() noexcept {
         fmpq_clear(&num_);
     }
 
@@ -270,12 +277,12 @@ public:
         return reinterpret_cast<Integer const&>(num_.den);
     }
 
-    Number &neg() {
+    Rational &neg() {
         fmpq_neg(&num_, &num_);
         return *this;
     }
 
-    void swap(Number &x) {
+    void swap(Rational &x) {
         fmpq_swap(&num_, &x.num_);
     }
 
@@ -283,145 +290,151 @@ public:
         fmpq_canonicalise(&num_);
     }
 
-    friend Number operator*(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator*(Rational const &a, Rational const &b) {
+        Rational c;
         fmpq_mul(&c.num_, &a.num_, &b.num_);
         return c;
     }
-    friend Number &operator*=(Number &a, Number const &b) {
+    friend Rational &operator*=(Rational &a, Rational const &b) {
         fmpq_mul(&a.num_, &a.num_, &b.num_);
         return a;
     }
 
-    friend Number operator/(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator/(Rational const &a, Rational const &b) {
+        Rational c;
         fmpq_div(&c.num_, &a.num_, &b.num_);
         return c;
     }
-    friend Number &operator/=(Number &a, Number const &b) {
+    friend Rational &operator/=(Rational &a, Rational const &b) {
         fmpq_div(&a.num_, &a.num_, &b.num_);
         return a;
     }
 
-    friend Number operator+(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator+(Rational const &a, Rational const &b) {
+        Rational c;
         fmpq_add(&c.num_, &a.num_, &b.num_);
         return c;
     }
-    friend Number &operator+=(Number &a, Number const &b) {
+    friend Rational &operator+=(Rational &a, Rational const &b) {
         fmpq_add(&a.num_, &a.num_, &b.num_);
         return a;
     }
 
-    friend Number operator-(Number const &a) {
-        Number c;
+    friend Rational operator-(Rational const &a) {
+        Rational c;
         fmpq_neg(&c.num_, &a.num_);
         return c;
     }
-    friend Number operator-(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator-(Rational const &a, Rational const &b) {
+        Rational c;
         fmpq_sub(&c.num_, &a.num_, &b.num_);
         return c;
     }
-    friend Number &operator-=(Number &a, Number const &b) {
+    friend Rational &operator-=(Rational &a, Rational const &b) {
         fmpq_sub(&a.num_, &a.num_, &b.num_);
         return a;
     }
 
-    friend Number operator*(Number const &a, Integer const &b) {
-        Number c;
+    friend Rational operator*(Rational &&a, Integer const &b) {
+        return std::move(a /= b);
+    }
+    friend Rational operator*(Rational const &a, Integer const &b) {
+        Rational c;
         fmpq_mul_fmpz(&c.num_, &a.num_, &b.impl());
         return c;
     }
-    friend Number &operator*=(Number &a, Integer const &b) {
+    friend Rational &operator*=(Rational &a, Integer const &b) {
         fmpq_mul_fmpz(&a.num_, &a.num_, &b.impl());
         return a;
     }
 
-    friend Number operator/(Number const &a, Integer const &b) {
-        Number c;
+    friend Rational operator/(Rational const &a, Integer const &b) {
+        Rational c;
         fmpq_div_fmpz(&c.num_, &a.num_, &b.impl());
         return c;
     }
-    friend Number &operator/=(Number &a, Integer const &b) {
+    friend Rational operator/(Rational &&a, Integer const &b) {
+        return std::move(a /= b);
+    }
+    friend Rational &operator/=(Rational &a, Integer const &b) {
         fmpq_div_fmpz(&a.num_, &a.num_, &b.impl());
         return a;
     }
 
-    friend Number operator+(Number const &a, Integer const &b) {
-        Number c;
+    friend Rational operator+(Rational const &a, Integer const &b) {
+        Rational c;
         fmpq_add_fmpz(&c.num_, &a.num_, &b.impl());
         return c;
     }
-    friend Number &operator+=(Number &a, Integer const &b) {
+    friend Rational &operator+=(Rational &a, Integer const &b) {
         fmpq_add_fmpz(&a.num_, &a.num_, &b.impl());
         return a;
     }
 
-    friend Number operator-(Number const &a, Integer const &b) {
-        Number c;
+    friend Rational operator-(Rational const &a, Integer const &b) {
+        Rational c;
         fmpq_sub_fmpz(&c.num_, &a.num_, &b.impl());
         return c;
     }
-    friend Number &operator-=(Number &a, Integer const &b) {
+    friend Rational &operator-=(Rational &a, Integer const &b) {
         fmpq_sub_fmpz(&a.num_, &a.num_, &b.impl());
         return a;
     }
 
-    friend bool operator<(Number const &a, Number const &b) {
+    friend bool operator<(Rational const &a, Rational const &b) {
         return compare(a, b) < 0;
     }
-    friend bool operator<=(Number const &a, Number const &b) {
+    friend bool operator<=(Rational const &a, Rational const &b) {
         return compare(a, b) <= 0;
     }
-    friend bool operator>(Number const &a, Number const &b) {
+    friend bool operator>(Rational const &a, Rational const &b) {
         return compare(a, b) > 0;
     }
-    friend bool operator>=(Number const &a, Number const &b) {
+    friend bool operator>=(Rational const &a, Rational const &b) {
         return compare(a, b) >= 0;
     }
-    friend bool operator==(Number const &a, Number const &b) {
+    friend bool operator==(Rational const &a, Rational const &b) {
         return fmpq_equal(&a.num_, &b.num_) != 0;
     }
-    friend bool operator!=(Number const &a, Number const &b) {
+    friend bool operator!=(Rational const &a, Rational const &b) {
         return !(a == b);
     }
-    friend bool operator<(Number const &a, slong b) {
+    friend bool operator<(Rational const &a, slong b) {
         return compare(a, b) < 0;
     }
-    friend bool operator<=(Number const &a, slong b) {
+    friend bool operator<=(Rational const &a, slong b) {
         return compare(a, b) <= 0;
     }
-    friend bool operator>(Number const &a, slong b) {
+    friend bool operator>(Rational const &a, slong b) {
         return compare(a, b) > 0;
     }
-    friend bool operator>=(Number const &a, slong b) {
+    friend bool operator>=(Rational const &a, slong b) {
         return compare(a, b) >= 0;
     }
-    friend bool operator==(Number const &a, slong b) {
+    friend bool operator==(Rational const &a, slong b) {
 #if __FLINT_RELEASE >= 20600
         return fmpq_equal_si(&a.num_, b) != 0;
 #else
-        return a == Number{b};
+        return a == Rational{b};
 #endif
     }
-    friend bool operator!=(Number const &a, slong b) {
+    friend bool operator!=(Rational const &a, slong b) {
         return !(a == b);
     }
 
-    friend int compare(Number const &a, Number const &b) {
+    friend int compare(Rational const &a, Rational const &b) {
         return fmpq_cmp(&a.num_, &b.num_);
     }
 
-    friend int compare(Number const &a, slong b) {
+    friend int compare(Rational const &a, slong b) {
 #if __FLINT_RELEASE >= 20600
         return fmpq_cmp_si(&a.num_, b);
 #else
-        return compare(a, Number{b});
+        return compare(a, Rational{b});
 #endif
     }
 
-    friend std::ostream &operator<<(std::ostream &out, Number const &a) {
+    friend std::ostream &operator<<(std::ostream &out, Rational const &a) {
         std::unique_ptr<char, decltype(std::free) *> buf{fmpq_get_str(nullptr, BASE, &a.num_), std::free};
         if (buf == nullptr) {
             throw std::bad_alloc();
@@ -436,43 +449,43 @@ private:
 
 #elif defined(CLINGOLPX_USE_IMATH)
 
-class Number {
+class Rational {
 public:
-    Number() { // NOLINT
+    Rational() { // NOLINT
         handle_error_(mp_rat_init(&num_));
     }
-    Number(mp_small val)
-    : Number() {
+    Rational(mp_small val)
+    : Rational() {
         handle_error_(mp_rat_set_value(&num_, val, 1));
     }
-    Number(char const *val, mp_size radix)
-    : Number() {
+    Rational(char const *val, mp_size radix)
+    : Rational() {
         handle_error_(mp_rat_read_string(&num_, radix, val));
     }
-    Number(std::string const &val, mp_size radix)
-    : Number(val.c_str(), radix) {
+    Rational(std::string const &val, mp_size radix)
+    : Rational(val.c_str(), radix) {
     }
-    Number(Number const &a)
-    : Number() {
+    Rational(Rational const &a)
+    : Rational() {
         handle_error_(mp_rat_copy(&a.num_, &num_));
     }
-    Number(Number &&a) noexcept
-    : Number() {
+    Rational(Rational &&a) noexcept
+    : Rational() {
         swap(a);
     }
-    Number &operator=(Number const &a) {
+    Rational &operator=(Rational const &a) {
         handle_error_(mp_rat_copy(&a.num_, &num_));
         return *this;
     }
-    Number &operator=(Number &&a) noexcept {
+    Rational &operator=(Rational &&a) noexcept {
         swap(a);
         return *this;
     }
-    ~Number() {
+    ~Rational() {
         mp_rat_clear(&num_);
     }
 
-    void swap(Number &x) {
+    void swap(Rational &x) {
         mp_int_swap(mp_rat_numer_ref(&num_), mp_rat_numer_ref(&x.num_));
         mp_int_swap(mp_rat_denom_ref(&num_), mp_rat_denom_ref(&x.num_));
     }
@@ -481,101 +494,101 @@ public:
         handle_error_(mp_rat_reduce(&num_));
     }
 
-    friend Number operator*(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator*(Rational const &a, Rational const &b) {
+        Rational c;
         handle_error_(mp_rat_mul(&a.num_, &b.num_, &c.num_));
         return c;
     }
 
-    friend Number &operator*=(Number &a, Number const &b) {
-        Number c;
+    friend Rational &operator*=(Rational &a, Rational const &b) {
+        Rational c;
         handle_error_(mp_rat_mul(&a.num_, &b.num_, &c.num_));
         c.swap(a);
         return a;
     }
 
-    friend Number operator/(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator/(Rational const &a, Rational const &b) {
+        Rational c;
         handle_error_(mp_rat_div(&a.num_, &b.num_, &c.num_));
         return c;
     }
 
-    friend Number &operator/=(Number &a, Number const &b) {
+    friend Rational &operator/=(Rational &a, Rational const &b) {
         handle_error_(mp_rat_div(&a.num_, &b.num_, &a.num_));
         return a;
     }
 
-    friend Number operator+(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator+(Rational const &a, Rational const &b) {
+        Rational c;
         handle_error_(mp_rat_add(&a.num_, &b.num_, &c.num_));
         return c;
     }
-    friend Number &operator+=(Number &a, Number const &b) {
-        Number c;
+    friend Rational &operator+=(Rational &a, Rational const &b) {
+        Rational c;
         handle_error_(mp_rat_add(&a.num_, &b.num_, &c.num_));
         c.swap(a);
         return a;
     }
 
-    friend Number operator-(Number const &a) {
-        Number b;
+    friend Rational operator-(Rational const &a) {
+        Rational b;
         handle_error_(mp_rat_neg(&a.num_, &b.num_));
         return b;
     }
-    friend Number operator-(Number const &a, Number const &b) {
-        Number c;
+    friend Rational operator-(Rational const &a, Rational const &b) {
+        Rational c;
         handle_error_(mp_rat_sub(&a.num_, &b.num_, &c.num_));
         return c;
     }
-    friend Number &operator-=(Number &a, Number const &b) {
-        Number c;
+    friend Rational &operator-=(Rational &a, Rational const &b) {
+        Rational c;
         handle_error_(mp_rat_sub(&a.num_, &b.num_, &c.num_));
         c.swap(a);
         return a;
     }
 
-    friend bool operator<(Number const &a, Number const &b) {
+    friend bool operator<(Rational const &a, Rational const &b) {
         return mp_rat_compare(&a.num_, &b.num_) < 0;
     }
-    friend bool operator<=(Number const &a, Number const &b) {
+    friend bool operator<=(Rational const &a, Rational const &b) {
         return mp_rat_compare(&a.num_, &b.num_) <= 0;
     }
-    friend bool operator>(Number const &a, Number const &b) {
+    friend bool operator>(Rational const &a, Rational const &b) {
         return mp_rat_compare(&a.num_, &b.num_) > 0;
     }
-    friend bool operator>=(Number const &a, Number const &b) {
+    friend bool operator>=(Rational const &a, Rational const &b) {
         return mp_rat_compare(&a.num_, &b.num_) >= 0;
     }
-    friend bool operator==(Number const &a, Number const &b) {
+    friend bool operator==(Rational const &a, Rational const &b) {
         return mp_rat_compare(&a.num_, &b.num_) == 0;
     }
-    friend bool operator!=(Number const &a, Number const &b) {
+    friend bool operator!=(Rational const &a, Rational const &b) {
         return mp_rat_compare(&a.num_, &b.num_) != 0;
     }
-    friend bool operator<(Number const &a, mp_small b) {
+    friend bool operator<(Rational const &a, mp_small b) {
         return mp_rat_compare_value(&a.num_, b, 1) < 0;
     }
-    friend bool operator<=(Number const &a, mp_small b) {
+    friend bool operator<=(Rational const &a, mp_small b) {
         return mp_rat_compare_value(&a.num_, b, 1) <= 0;
     }
-    friend bool operator>(Number const &a, mp_small b) {
+    friend bool operator>(Rational const &a, mp_small b) {
         return mp_rat_compare_value(&a.num_, b, 1) > 0;
     }
-    friend bool operator>=(Number const &a, mp_small b) {
+    friend bool operator>=(Rational const &a, mp_small b) {
         return mp_rat_compare_value(&a.num_, b, 1) >= 0;
     }
-    friend bool operator==(Number const &a, mp_small b) {
+    friend bool operator==(Rational const &a, mp_small b) {
         return mp_rat_compare_value(&a.num_, b, 1) == 0;
     }
-    friend bool operator!=(Number const &a, mp_small b) {
+    friend bool operator!=(Rational const &a, mp_small b) {
         return mp_rat_compare_value(&a.num_, b, 1) != 0;
     }
 
-    friend int compare(Number const &a, Number const &b) {
+    friend int compare(Rational const &a, Rational const &b) {
         return mp_rat_compare(&a.num_, &b.num_);
     }
 
-    friend std::ostream &operator<<(std::ostream &out, Number const &a) {
+    friend std::ostream &operator<<(std::ostream &out, Rational const &a) {
         constexpr int radix = 10;
         if (mp_int_compare_value(mp_rat_denom_ref(&a.num_), 1) == 0) {
             auto len = mp_int_string_len(mp_rat_numer_ref(&a.num_), radix);
@@ -616,139 +629,163 @@ private:
 
 #else
 
-using Number = mpq_class;
+using Rational = mpq_class;
 
-inline int compare(Number const &a, Number const &b) {
+inline int compare(Rational const &a, Rational const &b) {
     return mpq_cmp(a.get_mpq_t(), b.get_mpq_t());
 }
 
 #endif
 
-class NumberQ {
+class RationalQ {
 private:
-    friend NumberQ operator+(NumberQ const &a, Integer const &b);
-    friend NumberQ operator+(NumberQ const &a, Number  const &b);
-    friend NumberQ operator+(NumberQ const &a, NumberQ const &b);
+    friend RationalQ operator+(RationalQ const &a, Integer const &b);
+    friend RationalQ operator+(RationalQ const &a, Rational  const &b);
+    friend RationalQ operator+(RationalQ const &a, RationalQ const &b);
 
-    friend NumberQ operator-(NumberQ const &a, Integer const &b);
-    friend NumberQ operator-(NumberQ const &a, Number  const &b);
-    friend NumberQ operator-(NumberQ const &a, NumberQ const &b);
+    friend RationalQ operator-(RationalQ const &a, Integer const &b);
+    friend RationalQ operator-(RationalQ const &a, Rational  const &b);
+    friend RationalQ operator-(RationalQ const &a, RationalQ const &b);
 
-    friend NumberQ operator*(NumberQ const &a, Integer const &b);
-    friend NumberQ operator*(NumberQ const &a, Number  const &b);
+    friend RationalQ operator*(RationalQ &&a, Integer const &b);
+    friend RationalQ operator*(RationalQ const &a, Integer const &b);
+    friend RationalQ operator*(RationalQ const &a, Rational  const &b);
 
-    friend NumberQ operator/(NumberQ const &a, Integer const &b);
-    friend NumberQ operator/(NumberQ const &a, Number  const &b);
+    friend RationalQ operator/(RationalQ &&a, Integer const &b);
+    friend RationalQ operator/(RationalQ const &a, Integer const &b);
+    friend RationalQ operator/(RationalQ const &a, Rational  const &b);
 
-    friend std::ostream &operator<<(std::ostream &out, NumberQ const &q);
+    friend std::ostream &operator<<(std::ostream &out, RationalQ const &q);
 
 public:
-    explicit NumberQ(Number c = Number{}, Number k = Number{})
+    explicit RationalQ(Rational c = Rational{}, Rational k = Rational{})
     : c_{std::move(c)}
     , k_{std::move(k)} { }
-    NumberQ(NumberQ const &) = default;
-    NumberQ(NumberQ &&) = default;
-    NumberQ &operator=(NumberQ const &) = default;
-    NumberQ &operator=(NumberQ &&) = default;
-    ~NumberQ() = default;
+    RationalQ(RationalQ const &) = default;
+    RationalQ(RationalQ &&) = default;
+    RationalQ &operator=(RationalQ const &) = default;
+    RationalQ &operator=(RationalQ &&) = default;
+    ~RationalQ() = default;
 
-    void swap(NumberQ &q) {
+    void swap(RationalQ &q) {
         c_.swap(q.c_);
         k_.swap(q.k_);
     }
 
     // addition
-    NumberQ &operator+=(Number const &c) {
+    RationalQ &operator+=(Integer const &c) {
         c_ += c;
         return *this;
     }
 
-    NumberQ &operator+=(NumberQ const &q) {
+    RationalQ &operator+=(Rational const &c) {
+        c_ += c;
+        return *this;
+    }
+
+    RationalQ &operator+=(RationalQ const &q) {
         c_ += q.c_;
         k_ += q.k_;
         return *this;
     }
 
-    NumberQ &operator-=(Number const &c) {
+    RationalQ &operator-=(Integer const &c) {
         c_ -= c;
         return *this;
     }
 
-    NumberQ &operator-=(NumberQ const &q) {
+    RationalQ &operator-=(Rational const &c) {
+        c_ -= c;
+        return *this;
+    }
+
+    RationalQ &operator-=(RationalQ const &q) {
         c_ -= q.c_;
         k_ -= q.k_;
         return *this;
     }
 
-    NumberQ &operator*=(Number const &c) {
+    RationalQ &operator*=(Integer const &c) {
         c_ *= c;
         k_ *= c;
         return *this;
     }
 
-    NumberQ &operator/=(Number const &c) {
+    RationalQ &operator*=(Rational const &c) {
+        c_ *= c;
+        k_ *= c;
+        return *this;
+    }
+
+    RationalQ &operator/=(Integer const &c) {
         c_ /= c;
         k_ /= c;
         return *this;
     }
 
-    [[nodiscard]] bool operator<(Number const &c) const {
+    RationalQ &operator/=(Rational const &c) {
+        c_ /= c;
+        k_ /= c;
+        return *this;
+    }
+
+    [[nodiscard]] bool operator<(Rational const &c) const {
         return cmp_(c) < 0;
     }
 
-    [[nodiscard]] bool operator<(NumberQ const &q) const {
+    [[nodiscard]] bool operator<(RationalQ const &q) const {
         return cmp_(q) < 0;
     }
 
-    [[nodiscard]] bool operator<=(Number const &c) const {
+    [[nodiscard]] bool operator<=(Rational const &c) const {
         return cmp_(c) <= 0;
     }
 
-    [[nodiscard]] bool operator<=(NumberQ const &q) const {
+    [[nodiscard]] bool operator<=(RationalQ const &q) const {
         return cmp_(q) <= 0;
     }
 
-    [[nodiscard]] bool operator>(Number const &c) const {
+    [[nodiscard]] bool operator>(Rational const &c) const {
         return cmp_(c) > 0;
     }
 
-    [[nodiscard]] bool operator>(NumberQ const &q) const {
+    [[nodiscard]] bool operator>(RationalQ const &q) const {
         return cmp_(q) > 0;
     }
 
-    [[nodiscard]] bool operator>=(Number const &c) const {
+    [[nodiscard]] bool operator>=(Rational const &c) const {
         return cmp_(c) >= 0;
     }
 
-    [[nodiscard]] bool operator>=(NumberQ const &q) const {
+    [[nodiscard]] bool operator>=(RationalQ const &q) const {
         return cmp_(q) >= 0;
     }
 
-    [[nodiscard]] bool operator==(NumberQ const &q) const {
+    [[nodiscard]] bool operator==(RationalQ const &q) const {
         return c_ == q.c_ && k_ == q.k_;
     }
 
-    [[nodiscard]] bool operator==(Number const &c) const {
+    [[nodiscard]] bool operator==(Rational const &c) const {
         return c_ == c && k_ == 0;
     }
 
-    [[nodiscard]] bool operator!=(NumberQ const &q) const {
+    [[nodiscard]] bool operator!=(RationalQ const &q) const {
         return c_ != q.c_ || k_ != q.k_;
     }
 
-    [[nodiscard]] bool operator!=(Number const &c) const {
+    [[nodiscard]] bool operator!=(Rational const &c) const {
         return c_ != c || k_ != 0;
     }
 
 private:
-    [[nodiscard]] int cmp_(NumberQ const &q) const {
+    [[nodiscard]] int cmp_(RationalQ const &q) const {
         auto ret = compare(c_, q.c_);
         if (ret != 0) {
             return ret;
         }
         return compare(k_, q.k_);
     }
-    [[nodiscard]] int cmp_(Number const &c) const {
+    [[nodiscard]] int cmp_(Rational const &c) const {
         auto ret = compare(c_, c);
         if (ret != 0) {
             return ret;
@@ -762,59 +799,67 @@ private:
         return 0;
     }
 
-    Number c_;
-    Number k_;
+    Rational c_;
+    Rational k_;
 };
 
 // addition
 
-[[nodiscard]] inline NumberQ operator+(NumberQ const &a, Integer const &b) {
-    return NumberQ{a.c_ + b, a.k_};
+[[nodiscard]] inline RationalQ operator+(RationalQ const &a, Integer const &b) {
+    return RationalQ{a.c_ + b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator+(NumberQ const &a, Number const &b) {
-    return NumberQ{a.c_ + b, a.k_};
+[[nodiscard]] inline RationalQ operator+(RationalQ const &a, Rational const &b) {
+    return RationalQ{a.c_ + b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator+(NumberQ const &a, NumberQ const &b) {
-    return NumberQ{a.c_ + b.c_, a.k_ + b.k_};
+[[nodiscard]] inline RationalQ operator+(RationalQ const &a, RationalQ const &b) {
+    return RationalQ{a.c_ + b.c_, a.k_ + b.k_};
 }
 
 // subtraction
 
-[[nodiscard]] inline NumberQ operator-(NumberQ const &a, Integer const &b) {
-    return NumberQ{a.c_ - b, a.k_};
+[[nodiscard]] inline RationalQ operator-(RationalQ const &a, Integer const &b) {
+    return RationalQ{a.c_ - b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator-(NumberQ const &a, Number const &b) {
-    return NumberQ{a.c_ - b, a.k_};
+[[nodiscard]] inline RationalQ operator-(RationalQ const &a, Rational const &b) {
+    return RationalQ{a.c_ - b, a.k_};
 }
 
-[[nodiscard]] inline NumberQ operator-(NumberQ const &a, NumberQ const &b) {
-    return NumberQ{a.c_ - b.c_, a.k_ - b.k_};
+[[nodiscard]] inline RationalQ operator-(RationalQ const &a, RationalQ const &b) {
+    return RationalQ{a.c_ - b.c_, a.k_ - b.k_};
 }
 
 // multiplication
 
-[[nodiscard]] inline NumberQ operator*(NumberQ const &a, Integer const &b) {
-    return NumberQ{a.c_ * b, a.k_ * b};
+[[nodiscard]] inline RationalQ operator*(RationalQ &&a, Integer const &b) {
+    return std::move(a *= b);
 }
 
-[[nodiscard]] inline NumberQ operator*(NumberQ const &a, Number const &b) {
-    return NumberQ{a.c_ * b, a.k_ * b};
+[[nodiscard]] inline RationalQ operator*(RationalQ const &a, Integer const &b) {
+    return RationalQ{a.c_ * b, a.k_ * b};
+}
+
+[[nodiscard]] inline RationalQ operator*(RationalQ const &a, Rational const &b) {
+    return RationalQ{a.c_ * b, a.k_ * b};
 }
 
 // division
 
-[[nodiscard]] inline NumberQ operator/(NumberQ const &a, Integer const &b) {
-    return NumberQ{a.c_ / b, a.k_ / b};
+[[nodiscard]] inline RationalQ operator/(RationalQ &&a, Integer const &b) {
+    return std::move(a /= b);
 }
 
-[[nodiscard]] inline NumberQ operator/(NumberQ const &a, Number const &b) {
-    return NumberQ{a.c_ / b, a.k_ / b};
+[[nodiscard]] inline RationalQ operator/(RationalQ const &a, Integer const &b) {
+    return RationalQ{a.c_ / b, a.k_ / b};
 }
 
-inline std::ostream &operator<<(std::ostream &out, NumberQ const &q) {
+[[nodiscard]] inline RationalQ operator/(RationalQ const &a, Rational const &b) {
+    return RationalQ{a.c_ / b, a.k_ / b};
+}
+
+inline std::ostream &operator<<(std::ostream &out, RationalQ const &q) {
     if (q.c_ != 0 || q.k_ == 0) {
         out << q.c_;
     }

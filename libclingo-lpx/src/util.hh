@@ -5,10 +5,7 @@
 #include <cassert>
 
 #ifdef CLINGOLPX_CROSSCHECK
-//#   define assert_extra(X) assert(X) // NOLINT
-inline void assert_extra(bool x) {
-    if (!x) { throw std::runtime_error("assert extra failed"); }
-}
+#   define assert_extra(X) assert(X) // NOLINT
 #else
 #   define assert_extra(X) // NOLINT
 #endif
