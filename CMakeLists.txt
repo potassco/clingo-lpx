@@ -93,8 +93,6 @@ if (NOT CMAKE_IMPORT_LIBRARY_PREFIX)
     set(CMAKE_IMPORT_LIBRARY_PREFIX import_)
 endif()
 
-add_subdirectory(third_party)
-
 if (CLINGOLPX_MATH_LIBRARY STREQUAL "auto")
     find_package(FLINT)
     if (FLINT_FOUND)
@@ -110,6 +108,8 @@ elseif (CLINGOLPX_MATH_LIBRARY STREQUAL "imath")
 else()
     message(FATAL_ERROR "error unknown math library")
 endif()
+
+add_subdirectory(third_party)
 
 add_library(MATH::MATH INTERFACE IMPORTED)
 if (_CLINGOLPX_MATH_LIBRARY STREQUAL "flint")
