@@ -151,13 +151,13 @@ TEST_CASE("matrix") {
         std::vector<std::vector<Integer>> int_ret = as_int_mat(mat, 3, 3);
 
         std::vector<std::vector<Number>> num_sol = {
-            { { 3, -5}, {2, -5}, {-3, -5} },
-            { { 4,  5}, {1,  5}, { 6,  5} },
-            { {-3, -5}, {8, -5}, { 3, -5} } };
+            { {-3, 5}, {2, 5}, { 3, 5} },
+            { {-4, 5}, {1, 5}, {-6, 5} },
+            { { 3, 5}, {8, 5}, {-3, 5} } };
         std::vector<std::vector<Integer>> int_sol = {
-            {  3, 2, -3, -5 },
-            {  4, 1,  6, 5 },
-            { -3, 8,  3, -5 } };
+            { -3, 2,  3, 5 },
+            { -4, 1, -6, 5 },
+            {  3, 8, -3, 5 } };
 
         REQUIRE(num_ret == num_sol);
         REQUIRE(int_ret == int_sol);

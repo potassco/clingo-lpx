@@ -64,32 +64,7 @@ void Matrix::set(index_t i, index_t j, Number const &a) {
 // NOLINTEND(clang-analyzer-core.UndefinedBinaryOperatorResult)
 
 void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
-    // Let the tableau have form
-    //
-    //   (A|D)
-    //
-    // where A is a matrix of integer coefficients of size m*n and D is a
-    // diagonal matrix of size m*m.
-    //
-    // We begin by eliminating elements A_kj from rows A_k with k != i in the
-    // standard way. We below list all the cells that change:
-    //
-    //   A'_k  = A_kj *  A_i - A_ij * A_k
-    //   D'_kk =           0 - A_ij * D_kk
-    //   D'_ik = A_kj * D_ii -    0
-    //
-    // We obtain the matrix (A'|D') which is no longer in tableau form because
-    // D' is no longer a diagonal matrix. We can restore this property by
-    // swapping columns A'^T_j and D'^T_i.
-    //
-    // Note that we can devide rows A_k by the greatest common divisior of A_kj
-    // and A_ij to keep numbers smaller. In the algorithm, we can initialize
-    // two variables for A_kj/g and A_ij/g right from the start to keep integer
-    // divisions to a minimum:
-    //
-    //   A'_k  = (A_kj / g) * A_i  - (A_ij / g) * A_k
-    //   D'_kk = (A_kj / g) * 0    - (A_ij / g) * D_kk
-    //   D'_ki = (A_kj / g) * D_ii - (A_ij / g) * 0
+    // Detailed notes how this algorithm works can be found in doc/pivot.lyx.
 
     auto A_i0 = rows_[i].cells.begin();
     auto A_in = rows_[i].cells.end();
@@ -98,13 +73,18 @@ void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     std::vector<Cell> row;
     std::vector<index_t> col_buf;
 
+    update_row(i, [&](index_t k, Integer &a_il, Integer &d_i) {
+        static_cast<void>(d_i);
+        if (k != j) {
+            a_il.neg();
+        }
+    });
     // Note that insertions into rows and columns do not invert iterators:
     // - row i is unaffected because k != i
     // - there are no insertions in column j because each a_kj != 0
     update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) {
         if (k != i) {
             auto [g, ga_ij, ga_kj] = gcd(a_ij, a_kj);
-            ga_ij.neg();
             size_t pivot_index = 0;
             for (auto A_il = A_i0, A_kl = rows_[k].cells.begin(), A_kn = rows_[k].cells.end(); A_il != A_in || A_kl != A_kn; ) {
                 // case A_il != 0 and A_kl == 0
@@ -151,7 +131,6 @@ void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
             row.clear();
         }
     });
-
     // pivot element in row i
     a_ij.swap(d_i);
 
@@ -183,6 +162,29 @@ void Matrix::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
             col_buf.clear();
         }
     }
+}
+
+void Matrix::print(std::ostream &out, char const *indent) const {
+    size_t m = rows_.size();
+    size_t n = cols_.size();
+    out << indent << "{";
+    for (size_t i = 0; i < m; ++i) {
+        if (i > 0) {
+            out << indent << " ";
+        }
+        out << "{";
+        for (size_t j = 0; j < n; ++j) {
+            if (j > 0) {
+                out << ", ";
+            }
+            out << get(i, j);
+        }
+        out << "}";
+        if (i < m - 1) {
+            out << ",\n";
+        }
+    }
+    out << "}";
 }
 
 size_t Matrix::size() const {

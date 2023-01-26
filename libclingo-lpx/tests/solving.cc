@@ -54,6 +54,9 @@ TEST_CASE("fail") {
      * It should be easy to debug compairing with the last working clingo-lpx.
      * Call: make; ./build/debug/bin/test_clingo-lpx fail
      */
+    REQUIRE( run("&sum {   x;   y } >= 2.\n"
+                 "&sum { 2*x;  -y } >= 0.\n"
+                 "&sum {  -x; 2*y } >= 1.\n"));
     REQUIRE(!run("&sum { x; y } >= 2.\n"
                  "&sum { x; y } <= 0.\n"
                  "&sum {    y } =  0.\n"));

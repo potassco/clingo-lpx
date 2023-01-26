@@ -116,6 +116,15 @@ public:
     //! Runs in O(1).
     void clear();
 
+    //! Print matrix for debugging purposes.
+    void print(std::ostream &out, char const *indent) const;
+
+    //! Operator to output matrix for debugging purposes.
+    std::ostream &operator<<(std::ostream &out) const {
+        print(out, "");
+        return out;
+    }
+
 private:
     struct Cell {
         Cell(index_t col, Integer val)
