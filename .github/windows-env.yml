@@ -1,9 +1,9 @@
-name: clingcon
+name: clingo-lpx
 channels:
-  - potassco/label/dev
   - conda-forge
 dependencies:
   - clingo
   - cmake
   - ninja
   - cxx-compiler
+  - libflint

@@ -30,7 +30,7 @@ setup(
     url = 'https://github.com/potassco/clingo-lpx',
     install_requires=[ 'cffi', 'clingo' ],
     cmake_args=[ '-DCLINGOLPX_MANAGE_RPATH=OFF',
-                 '-DCLINGOLPX_USE_IMATH=ON',
+                 '-DCLINGOLPX_MATH_LIBRARY="imath"',
                  '-DPYCLINGOLPX_ENABLE=pip',
                  '-DPYCLINGOLPX_INSTALL_DIR=libpyclingo-lpx',
                  f'-DPYCLINGOLPX_PIP_PATH={clingopath}' ],

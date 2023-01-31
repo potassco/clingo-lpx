@@ -2,7 +2,7 @@ Source: clingo-lpx
 Section: devel
 Priority: optional
 Maintainer: Roland Kaminski <kaminski@cs.uni-potsdam.de>
-Build-Depends: debhelper-compat (= 12), dh-python, cmake, python3-dev, python3-cffi, libclingo-dev, libgmp-dev
+Build-Depends: debhelper-compat (= 12), dh-python, cmake, python3-dev, python3-cffi, libclingo-dev, libflint-dev
 Standards-Version: 4.4.1
 Homepage: https://potassco.org/clingo-lpx
 Vcs-Browser: https://github.com/potassco/clingo-lpx
