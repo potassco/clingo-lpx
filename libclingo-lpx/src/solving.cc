@@ -471,17 +471,16 @@ Statistics const &Solver<Factor, Value>::statistics() const {
 
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::check_tableau_() {
-    bool ret = true;
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
         tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer d_i){
             v_i += non_basic_(j).value * a_ij / d_i;
         });
         if (v_i != basic_(i).value) {
-            ret = false;
+            return false;
         }
     }
-    return ret;
+    return true;
 }
 
 template<typename Factor, typename Value>

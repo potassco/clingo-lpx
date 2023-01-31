@@ -572,7 +572,7 @@ inline void Rational::canonicalize() {
 [[nodiscard]] inline Rational operator+(Rational const &a, fixed_int b) {
 #if __FLINT_RELEASE >= 20600
     Rational c;
-    fmpq_add_si(&c.num_, &a.num_, &b.num_);
+    fmpq_add_si(&c.num_, &a.num_, b);
     return c;
 #else
     return a + Rational{b};
@@ -628,7 +628,7 @@ inline Rational &operator+=(Rational &a, Rational const &b) {
 [[nodiscard]] inline Rational operator-(Rational const &a, fixed_int b) {
 #if __FLINT_RELEASE >= 20600
     Rational c;
-    fmpq_sub_si(&c.num_, &a.num_, &b.num_);
+    fmpq_sub_si(&c.num_, &a.num_, b);
     return c;
 #else
     return a - Rational{b};
@@ -679,7 +679,7 @@ inline Rational &operator-=(Rational &a, Rational const &b) {
 [[nodiscard]] inline Rational operator*(Rational const &a, fixed_int b) {
 #if __FLINT_RELEASE >= 20600
     Rational c;
-    fmpq_mul_si(&c.num_, &a.num_, &b.num_);
+    fmpq_mul_si(&c.num_, &a.num_, b);
     return c;
 #else
     return a * Rational{b};
@@ -732,13 +732,7 @@ inline Rational &operator*=(Rational &a, Rational const &b) {
 // division
 
 [[nodiscard]] inline Rational operator/(Rational const &a, fixed_int b) {
-#if __FLINT_RELEASE >= 20600
-    Rational c;
-    fmpq_div_si(&c.num_, &a.num_, &b.num_);
-    return c;
-#else
-    return a / Rational{b};
-#endif
+    return a / Integer{b};
 }
 
 [[nodiscard]] inline Rational operator/(Rational const &a, Integer const &b) {
@@ -766,12 +760,7 @@ inline Rational &operator*=(Rational &a, Rational const &b) {
 }
 
 inline Rational &operator/=(Rational &a, fixed_int b) {
-#if __FLINT_RELEASE >= 20600
-    fmpq_div_si(&a.num_, &a.num_, b);
-    return a;
-#else
-    return a /= Rational{b};
-#endif
+    return a /= Integer{b};
 }
 
 inline Rational &operator/=(Rational &a, Integer const &b) {
@@ -852,7 +841,7 @@ inline Rational &operator/=(Rational &a, Rational const &b) {
 
 [[nodiscard]] inline bool operator==(Rational const &a, Integer const &b) {
 #if __FLINT_RELEASE >= 20600
-        return fmpq_equal_fmpz(&a.num_, b) != 0;
+        return fmpq_equal_fmpz(&a.num_, &b.impl()) != 0;
 #else
         return a == Rational{b, Integer{1}};
 #endif

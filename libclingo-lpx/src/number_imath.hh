@@ -500,7 +500,7 @@ inline Rational::Rational(Rational &&a) noexcept
 }
 
 inline Rational &Rational::operator=(Rational const &a) {
-    mp_handle_error_(mp_rat_copy(&num_, &a.num_));
+    mp_handle_error_(mp_rat_copy(&a.num_, &num_));
     return *this;
 }
 
