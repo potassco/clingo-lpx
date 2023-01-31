@@ -413,21 +413,21 @@ inline Integer &operator*=(Integer &a, Integer const &b) {
 
 
 [[nodiscard]] inline bool operator==(Integer const &a, fixed_int b) {
-    return compare(a, b) != 0;
+    return compare(a, b) == 0;
 }
 
 [[nodiscard]] inline bool operator==(Integer const &a, Integer const &b) {
-    return compare(a, b) != 0;
+    return compare(a, b) == 0;
 }
 
 // not equal to
 
 [[nodiscard]] inline bool operator!=(Integer const &a, fixed_int b) {
-    return compare(a, b) == 0;
+    return compare(a, b) != 0;
 }
 
 [[nodiscard]] inline bool operator!=(Integer const &a, Integer const &b) {
-    return compare(a, b) == 0;
+    return compare(a, b) != 0;
 }
 
 // printing
