@@ -9,37 +9,51 @@
 
 class RationalQ {
 private:
+    friend RationalQ operator+(RationalQ const &a, fixed_int b);
     friend RationalQ operator+(RationalQ const &a, Integer const &b);
     friend RationalQ operator+(RationalQ const &a, Rational  const &b);
     friend RationalQ operator+(RationalQ const &a, RationalQ const &b);
+    friend RationalQ operator+(RationalQ &&a, fixed_int b);
     friend RationalQ operator+(RationalQ &&a, Integer const &b);
     friend RationalQ operator+(RationalQ &&a, Rational  const &b);
     friend RationalQ operator+(RationalQ &&a, RationalQ const &b);
+    friend RationalQ &operator+=(RationalQ &a, fixed_int b);
     friend RationalQ &operator+=(RationalQ &a, Integer const &b);
     friend RationalQ &operator+=(RationalQ &a, Rational const &b);
     friend RationalQ &operator+=(RationalQ &a, RationalQ const &b);
 
+    friend RationalQ operator-(RationalQ a);
+
+    friend RationalQ operator-(RationalQ const &a, fixed_int b);
     friend RationalQ operator-(RationalQ const &a, Integer const &b);
     friend RationalQ operator-(RationalQ const &a, Rational  const &b);
     friend RationalQ operator-(RationalQ const &a, RationalQ const &b);
+    friend RationalQ operator-(RationalQ &&a, fixed_int b);
     friend RationalQ operator-(RationalQ &&a, Integer const &b);
     friend RationalQ operator-(RationalQ &&a, Rational const &b);
     friend RationalQ operator-(RationalQ &&a, RationalQ const &b);
+    friend RationalQ &operator-=(RationalQ &a, fixed_int b);
     friend RationalQ &operator-=(RationalQ &a, Integer const &b);
     friend RationalQ &operator-=(RationalQ &a, Rational const &b);
     friend RationalQ &operator-=(RationalQ &a, RationalQ const &b);
 
+    friend RationalQ operator*(RationalQ const &a, fixed_int b);
     friend RationalQ operator*(RationalQ const &a, Integer const &b);
     friend RationalQ operator*(RationalQ const &a, Rational  const &b);
+    friend RationalQ operator*(RationalQ &&a, fixed_int b);
     friend RationalQ operator*(RationalQ &&a, Integer const &b);
     friend RationalQ operator*(RationalQ &&a, Rational const &b);
+    friend RationalQ &operator*=(RationalQ &a, fixed_int b);
     friend RationalQ &operator*=(RationalQ &a, Integer const &b);
     friend RationalQ &operator*=(RationalQ &a, Rational const &b);
 
+    friend RationalQ operator/(RationalQ const &a, fixed_int b);
     friend RationalQ operator/(RationalQ const &a, Integer const &b);
     friend RationalQ operator/(RationalQ const &a, Rational  const &b);
+    friend RationalQ operator/(RationalQ &&a, fixed_int b);
     friend RationalQ operator/(RationalQ &&a, Integer const &b);
     friend RationalQ operator/(RationalQ &&a, Rational const &b);
+    friend RationalQ &operator/=(RationalQ &a, fixed_int b);
     friend RationalQ &operator/=(RationalQ &a, Integer const &b);
     friend RationalQ &operator/=(RationalQ &a, Rational const &b);
 
@@ -154,6 +168,10 @@ private:
 
 // addition
 
+[[nodiscard]] inline RationalQ operator+(RationalQ const &a, fixed_int b) {
+    return RationalQ{a.c_ + b, a.k_};
+}
+
 [[nodiscard]] inline RationalQ operator+(RationalQ const &a, Integer const &b) {
     return RationalQ{a.c_ + b, a.k_};
 }
@@ -166,6 +184,10 @@ private:
     return RationalQ{a.c_ + b.c_, a.k_ + b.k_};
 }
 
+[[nodiscard]] inline RationalQ operator+(RationalQ &&a, fixed_int b) {
+    return std::move(a += b);
+}
+
 [[nodiscard]] inline RationalQ operator+(RationalQ &&a, Integer const &b) {
     return std::move(a += b);
 }
@@ -176,6 +198,11 @@ private:
 
 [[nodiscard]] inline RationalQ operator+(RationalQ &&a, RationalQ const &b) {
     return std::move(a += b);
+}
+
+inline RationalQ &operator+=(RationalQ &a, fixed_int b) {
+    a.c_ += b;
+    return a;
 }
 
 inline RationalQ &operator+=(RationalQ &a, Integer const &b) {
@@ -196,6 +223,16 @@ inline RationalQ &operator+=(RationalQ &a, RationalQ const &b) {
 
 // subtraction
 
+[[nodiscard]] inline RationalQ operator-(RationalQ a) {
+    a.c_.neg();
+    a.k_.neg();
+    return a;
+}
+
+[[nodiscard]] inline RationalQ operator-(RationalQ const &a, fixed_int b) {
+    return RationalQ{a.c_ - b, a.k_};
+}
+
 [[nodiscard]] inline RationalQ operator-(RationalQ const &a, Integer const &b) {
     return RationalQ{a.c_ - b, a.k_};
 }
@@ -208,6 +245,10 @@ inline RationalQ &operator+=(RationalQ &a, RationalQ const &b) {
     return RationalQ{a.c_ - b.c_, a.k_ - b.k_};
 }
 
+[[nodiscard]] inline RationalQ operator-(RationalQ &&a, fixed_int b) {
+    return std::move(a -= b);
+}
+
 [[nodiscard]] inline RationalQ operator-(RationalQ &&a, Integer const &b) {
     return std::move(a -= b);
 }
@@ -218,6 +259,11 @@ inline RationalQ &operator+=(RationalQ &a, RationalQ const &b) {
 
 [[nodiscard]] inline RationalQ operator-(RationalQ &&a, RationalQ const &b) {
     return std::move(a -= b);
+}
+
+inline RationalQ &operator-=(RationalQ &a, fixed_int b) {
+    a.c_ -= b;
+    return a;
 }
 
 inline RationalQ &operator-=(RationalQ &a, Integer const &b) {
@@ -238,6 +284,10 @@ inline RationalQ &operator-=(RationalQ &a, RationalQ const &b) {
 
 // multiplication
 
+[[nodiscard]] inline RationalQ operator*(RationalQ const &a, fixed_int b) {
+    return RationalQ{a.c_ * b, a.k_ * b};
+}
+
 [[nodiscard]] inline RationalQ operator*(RationalQ const &a, Integer const &b) {
     return RationalQ{a.c_ * b, a.k_ * b};
 }
@@ -246,12 +296,22 @@ inline RationalQ &operator-=(RationalQ &a, RationalQ const &b) {
     return RationalQ{a.c_ * b, a.k_ * b};
 }
 
+[[nodiscard]] inline RationalQ operator*(RationalQ &&a, fixed_int b) {
+    return std::move(a *= b);
+}
+
 [[nodiscard]] inline RationalQ operator*(RationalQ &&a, Integer const &b) {
     return std::move(a *= b);
 }
 
 [[nodiscard]] inline RationalQ operator*(RationalQ &&a, Rational const &b) {
     return std::move(a *= b);
+}
+
+inline RationalQ &operator*=(RationalQ &a, fixed_int b) {
+    a.c_ *= b;
+    a.k_ *= b;
+    return a;
 }
 
 inline RationalQ &operator*=(RationalQ &a, Integer const &b) {
@@ -268,6 +328,10 @@ inline RationalQ &operator*=(RationalQ &a, Rational const &b) {
 
 // division
 
+[[nodiscard]] inline RationalQ operator/(RationalQ const &a, fixed_int b) {
+    return RationalQ{a.c_ / b, a.k_ / b};
+}
+
 [[nodiscard]] inline RationalQ operator/(RationalQ const &a, Integer const &b) {
     return RationalQ{a.c_ / b, a.k_ / b};
 }
@@ -276,12 +340,22 @@ inline RationalQ &operator*=(RationalQ &a, Rational const &b) {
     return RationalQ{a.c_ / b, a.k_ / b};
 }
 
+[[nodiscard]] inline RationalQ operator/(RationalQ &&a, fixed_int b) {
+    return std::move(a /= b);
+}
+
 [[nodiscard]] inline RationalQ operator/(RationalQ &&a, Integer const &b) {
     return std::move(a /= b);
 }
 
 [[nodiscard]] inline RationalQ operator/(RationalQ &&a, Rational const &b) {
     return std::move(a /= b);
+}
+
+inline RationalQ &operator/=(RationalQ &a, fixed_int b) {
+    a.c_ /= b;
+    a.k_ /= b;
+    return a;
 }
 
 inline RationalQ &operator/=(RationalQ &a, Integer const &b) {
