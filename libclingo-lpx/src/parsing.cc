@@ -3,6 +3,7 @@
 
 #include <map>
 #include <regex>
+#include <stdexcept>
 
 namespace {
 
@@ -201,6 +202,9 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
                                         evaluate_num(atom.guard().second),
                                         evaluate_cmp(atom.guard().first),
                                         lit});
+        }
+        else if (match(atom.term(), "minimize", 0) || match(atom.term(), "maximize", 0)) {
+            throw std::runtime_error("implement me!!!");
         }
     }
 }

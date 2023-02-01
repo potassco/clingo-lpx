@@ -17,6 +17,8 @@ constexpr char const *THEORY = R"(
     /  : 1, binary, left;
     -  : 3, unary
     };
+    &minimize/0 : sum_term, directive;
+    &maximize/0 : sum_term, directive;
     &sum/0 : sum_term, {<=,=,>=}, sum_term, head;
     &dom/0 : dom_term, {=}, sum_term, head
 }.
@@ -35,6 +37,8 @@ constexpr char const *THEORY_Q = R"(
     /  : 1, binary, left;
     -  : 3, unary
     };
+    &minimize/0 : sum_term, directive;
+    &maximize/0 : sum_term, directive;
     &sum/0 : sum_term, {<=,=,>=,<,>}, sum_term, head;
     &dom/0 : dom_term, {=}, sum_term, head
 }.

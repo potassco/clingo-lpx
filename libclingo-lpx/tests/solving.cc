@@ -110,4 +110,9 @@ TEST_CASE("solving") {
                         ":- a.\n"
                         ":- b."}) == 3);
     }
+    SECTION("optimize") {
+        REQUIRE( run("&sum { 2*x_1;  -x_2 } <= 2.\n"
+                     "&sum { x_1;  -5*x_2 } <= -4.\n"
+                     "&maximize { 2*x_1; -x_2 }.\n"));
+    }
 }
