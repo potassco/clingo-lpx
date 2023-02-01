@@ -112,7 +112,7 @@ private:
 
 public:
     //! Construct a new solver object.
-    Solver(std::vector<Inequality> const &inequalities);
+    Solver(std::vector<Inequality> const &inequalities, std::vector<Term> const &objective);
 
     //! Prepare inequalities for solving.
     [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols);
@@ -164,6 +164,8 @@ private:
 
     //! The set of inequalities.
     std::vector<Inequality> const &inequalities_;
+    //! The objective function.
+    std::vector<Term> const &objective_;
     //! Mapping from literals to bounds.
     std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
     //! Trail of bound assignments (variable, relation, Value).
@@ -219,6 +221,7 @@ private:
     VarMap aux_map_;
     SymbolMap var_map_;
     SymbolVec var_vec_;
+    std::vector<Term> objective_;
     std::vector<Inequality> iqs_;
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;

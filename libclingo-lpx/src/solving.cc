@@ -4,7 +4,9 @@
 #include <climits>
 #include <exception>
 #include <stdexcept>
+#include <tuple>
 #include <unordered_set>
+#include <utility>
 
 template<typename Factor, typename Value>
 typename Solver<Factor, Value>::BoundRelation bound_rel(Relation rel) {
@@ -198,9 +200,9 @@ void Statistics::reset() {
 }
 
 template<typename Factor, typename Value>
-Solver<Factor, Value>::Solver(std::vector<Inequality> const &inequalities)
+Solver<Factor, Value>::Solver(std::vector<Inequality> const &inequalities, std::vector<Term> const &objective)
 : inequalities_{inequalities}
-{ }
+, objective_{objective} { }
 
 template<typename Factor, typename Value>
 typename Solver<Factor, Value>::Variable &Solver<Factor, Value>::basic_(index_t i) {
@@ -311,6 +313,11 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
                 tableau_.set(i, j, v);
             }
         }
+    }
+
+    // TODO: handle objective function
+    if (!objective_.empty()) {
+        throw std::logic_error("todo implement optimization");
     }
 
     for (size_t i = 0; i < n_basic_; ++i) {
@@ -681,8 +688,7 @@ void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
         init.set_check_mode(Clingo::PropagatorCheckMode::Partial);
     }
 
-    std::vector<Term> objective;
-    evaluate_theory(init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_, objective);
+    evaluate_theory(init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_, objective_);
     for (auto &x : iqs_) {
         // gather variables
         for (auto &term: x.lhs) {
@@ -694,14 +700,12 @@ void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
         init.add_watch(x.lit);
     }
 
-    if (!objective.empty()) {
-        throw std::logic_error("todo implement optimization");
-    }
-
     slvs_.clear();
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
-        slvs_.emplace_back(0, iqs_);
+        slvs_.emplace_back(std::piecewise_construct,
+                           std::forward_as_tuple(0),
+                           std::forward_as_tuple(iqs_, objective_));
         if (!slvs_.back().second.prepare(init, var_map_)) {
             return;
         }
