@@ -3,6 +3,7 @@
 
 #include <climits>
 #include <exception>
+#include <stdexcept>
 #include <unordered_set>
 
 template<typename Factor, typename Value>
@@ -680,31 +681,21 @@ void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
         init.set_check_mode(Clingo::PropagatorCheckMode::Partial);
     }
 
-    std::unordered_map<Clingo::Symbol, Term&> cos;
-    evaluate_theory(init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_);
+    std::vector<Term> objective;
+    evaluate_theory(init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_, objective);
     for (auto &x : iqs_) {
-        auto ib = x.lhs.begin();
-        auto ie = x.lhs.end();
-
-        // combine cofficients
-        std::for_each(ib, ie, [&cos, this](Term &term) {
+        // gather variables
+        for (auto &term: x.lhs) {
             if (var_map_.emplace(term.var, var_map_.size()).second) {
                 var_vec_.emplace_back(term.var);
             }
-            if (auto [jt, res] = cos.emplace(term.var, term); !res) {
-                jt->second.co += term.co;
-                term.co = 0;
-            }
-        });
-        cos.clear();
-
-        // remove terms with zero coeffcients
-        x.lhs.erase(std::remove_if(ib, ie, [](Term const &term) {
-            return term.co == 0;
-        }), ie);
-
+        }
         // add watch
         init.add_watch(x.lit);
+    }
+
+    if (!objective.empty()) {
+        throw std::logic_error("todo implement optimization");
     }
 
     slvs_.clear();

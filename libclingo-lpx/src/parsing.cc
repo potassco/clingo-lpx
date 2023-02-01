@@ -3,6 +3,8 @@
 
 #include <clingo.hh>
 
+#include <algorithm>
+#include <iterator>
 #include <map>
 #include <regex>
 #include <stdexcept>
@@ -187,9 +189,29 @@ bool is_string(Clingo::TheoryTerm const &term) {
     return lhs;
 }
 
+void simplify(std::unordered_map<Clingo::Symbol, Term&> &cos, std::vector<Term> &terms) {
+    auto ib = terms.begin();
+    auto ie = terms.end();
+
+    // combine cofficients
+    cos.clear();
+    std::for_each(ib, ie, [&cos](Term &term) {
+        if (auto [jt, res] = cos.emplace(term.var, term); !res) {
+            jt->second.co += term.co;
+            term.co = 0;
+        }
+    });
+
+    // remove terms with zero coeffcients
+    terms.erase(std::remove_if(ib, ie, [](Term const &term) {
+        return term.co == 0;
+    }), ie);
+}
+
 } // namespace
 
-void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs) {
+void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective) {
+    std::unordered_map<Clingo::Symbol, Term&> cos;
     for (auto &&atom : theory) {
         if (match(atom.term(), "dom", 0)) {
             check_syntax(atom.elements().size() == 1);
@@ -205,6 +227,7 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
         else if (match(atom.term(), "sum", 0)) {
             auto lhs = evaluate_terms(mapper, var_map, iqs, atom.elements());
             auto lit = mapper(atom.literal());
+            simplify(cos, lhs);
             iqs.emplace_back(Inequality{std::move(lhs),
                                         evaluate_num(atom.guard().second),
                                         evaluate_cmp(atom.guard().first),
@@ -212,7 +235,13 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
         }
         else if (match(atom.term(), "minimize", 0) || match(atom.term(), "maximize", 0)) {
             auto lhs = evaluate_terms(mapper, var_map, iqs, atom.elements());
-            throw std::runtime_error("implement me!!!");
+            if (match(atom.term(), "minimize", 0)) {
+                for (auto &term: lhs) {
+                    term.co.neg();
+                }
+            }
+            std::move(lhs.begin(), lhs.end(), std::back_inserter(objective));
         }
     }
+    simplify(cos, objective);
 }

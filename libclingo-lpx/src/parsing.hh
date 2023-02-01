@@ -47,4 +47,4 @@ constexpr char const *THEORY_Q = R"(
 using VarMap = std::map<std::pair<Clingo::Symbol, Clingo::literal_t>, Clingo::Symbol>;
 using LitMapper = std::function<Clingo::literal_t(Clingo::literal_t)>;
 
-void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs);
+void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective);
