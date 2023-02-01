@@ -111,16 +111,9 @@ google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 
 ## Math Libraries
 
-The project currently uses the [GMP], which is problematic on Windows.
-Below are some alternatives that could be explored.
+The project currently uses [FLINT] for arithmetics.
+Alternatively, the slower but more lightwight [IMath] library can be used when configuring with `CLINGOLPX_MATH_LIBRARY=imath`.
+Furthermore, note that [IMath] uses the MIT and [FLINT] the LGPL license.
 
-- https://gmplib.org/
-- https://github.com/wbhart/flint2
-- https://github.com/creachadair/imath
-- https://github.com/suiginsoft/hebimath
-- https://libs.suckless.org/libzahl/
-
-Currently, the [IMath] library can be used as an alternative using option `CLINGOLPX_USE_IMATH`.
-This should make it possible to use the project on Windows and also to use it with MIT-only licenses.
-
+[FLINT]: https://github.com/wbhart/flint2
 [IMath]: https://github.com/creachadair/imath
