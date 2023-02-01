@@ -350,8 +350,85 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::optimize() {
     assert(!objective_.empty());
+    assert(variables_[idx_objective_].reverse_index >= n_non_basic_);
 
-    throw std::runtime_error("implement me!!!");
+    auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
+
+    std::cerr << "z = ";
+    bool comma = false;
+    tableau_.update_row(z, [&comma](int j, Integer const &x_zj, Integer const &d_z) {
+        if (comma) {
+            std::cerr << " + ";
+        }
+        std::cerr << Rational{x_zj, d_z} << "*" << "x_" << j;
+        comma = true;
+    });
+    std::cerr << std::endl;
+
+    std::cerr << variables_[idx_objective_].value << " = ";
+    comma = false;
+    tableau_.update_row(z, [&comma, this](int j, Integer const &x_zj, Integer const &d_z) {
+        if (comma) {
+            std::cerr << " + ";
+        }
+        std::cerr << Rational{x_zj, d_z} << "*" << non_basic_(j).value;
+        comma = true;
+    });
+    std::cerr << std::endl;
+
+    // Here we select an entering variable among the non-basic variables
+    // corresponding to a non-zero coefficient a_ze in the objective function.
+    // We consider the sign of the coefficient.
+    //
+    // Case a_ze > 0. We can select x_e as an entering variable if it is less
+    // than its upper bound (or has no upper bound).
+    //
+    // Case a_ze < 0. We can select x_e as an entering variable if it is
+    // greater than its lower bound (or has no lower bound).
+    tableau_.update_row(z, [this](int j, Integer const &a_zj, Integer const &d_z) {
+        auto &x_j = non_basic_(j);
+        if (x_j.has_lower() && (a_zj > 0) == (d_z > 0)) {
+
+        }
+    });
+
+    // Here we select a leaving variable x_l among the basic variables. This
+    // has to be a variable that can be adjusted so that the value a_ze*x_e
+    // increases.
+    //
+    // We pick a row l such that a_le is non-zero. It has the form
+    //   x_l = C + a_le*x_e.
+    // This can be rearranged as
+    //   x_e = x_l/a_le - C/a_le.
+    //
+    // We consider the signs of the coefficients.
+    //
+    // Case a_ze > 0 and a_le > 0. We can increase x_l to increase a_ze*x_e. If x_l has no upper bound, then this row is unbounded.
+    //
+    // Case a_ze > 0 and a_le < 0. We can decrease x_l to increase a_ze*x_e. If x_l has no lower bound, then this row is unbounded.
+    //
+    // Case a_ze < 0 and a_le > 0. ...
+    //
+    // Case a_ze < 0 and a_le < 0. ...
+    //
+    // Unboundedness:
+    // Case a_ze > 0 and x_e has no upper bound and all rows are unbounded,
+    // then the problem is unbounded.
+    // Case a_ze < 0 and x_e has no lower bound and all rows are unbounded,
+    // then the problem is unbounded.
+    //
+    // Otherwise, we change the value of x_e such that neither its own nor the
+    // bounds of the x_l are violated. This means that either x_e or one of the
+    // x_l will be bounded.
+    //
+    // In case x_e is bounded, there is no need to pivot. Variable x_e is no
+    // entering variable anymore and we can proceed to select another one.
+    // Otherwise, there will be a pivot and proceed to select another entering
+    // variable.
+    //
+    // I still have to further refine the cases, above. The general idea should
+    // be clear, though.
+    throw std::runtime_error("TODO: pivot according to objective function");
 }
 
 template<typename Factor, typename Value>
