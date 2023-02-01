@@ -528,7 +528,6 @@ template<typename Factor, typename Value>
 void Solver<Factor, Value>::update_(index_t level, index_t j, Value v) {
     auto &xj = non_basic_(j);
     tableau_.update_col(j, [&](index_t i, Integer const &a_ij, Integer d_i) {
-        // TODO: this expression currently incurs overhead like this...
         basic_(i).set_value(*this, level, (v - xj.value) * a_ij / d_i, true);
         enqueue_(i);
     });
@@ -560,7 +559,7 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     assert_extra(check_tableau_());
 
     // swap variables x_i and x_j
-    std::swap(xi.reverse_index, xj.reverse_index); // TODO: its meant to be reverse_index
+    std::swap(xi.reverse_index, xj.reverse_index);
     std::swap(variables_[i + n_non_basic_].index, variables_[j].index);
     enqueue_(i);
 
