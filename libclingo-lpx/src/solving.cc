@@ -3,6 +3,7 @@
 
 #include <climits>
 #include <exception>
+#include <optional>
 #include <stdexcept>
 #include <tuple>
 #include <unordered_set>
@@ -81,12 +82,12 @@ struct Solver<Factor, Value>::Prepare {
         return slv.n_basic_++;
     }
 
-    std::vector<std::pair<index_t, Rational>> add_row(Inequality const &x) {
+    std::vector<std::pair<index_t, Rational>> add_row(std::vector<Term> const &x) {
         std::vector<std::pair<index_t, Rational>> row;
-        row.reserve(x.lhs.size());
+        row.reserve(x.size());
 
         // add non-basic variables
-        for (auto const &term : x.lhs) {
+        for (auto const &term : x) {
             row.emplace_back(get_non_basic(term.var), term.co);
         }
 
@@ -95,7 +96,6 @@ struct Solver<Factor, Value>::Prepare {
 
     Solver &slv;
     SymbolMap const &map;
-    std::vector<index_t> basic;
 };
 
 template<typename Factor, typename Value>
@@ -233,6 +233,14 @@ Value Solver<Factor, Value>::get_value(index_t i) const {
 }
 
 template<typename Factor, typename Value>
+std::optional<Value> Solver<Factor, Value>::get_objective() const {
+    if (!objective_.empty()) {
+        return variables_[idx_objective_].value;
+    }
+    return std::nullopt;
+}
+
+template<typename Factor, typename Value>
 bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols) {
     // TODO: Bounds associated with a variable form a propagation chain. We can
     // add binary clauses to propagate them. For example
@@ -254,7 +262,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
         }
 
         // transform inequality into row suitable for tableau
-        auto row = prep.add_row(x);
+        auto row = prep.add_row(x.lhs);
 
         // check bound against 0
         if (row.empty()) {
@@ -315,9 +323,14 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
         }
     }
 
-    // TODO: handle objective function
+    // add objective function to tableau
     if (!objective_.empty()) {
-        throw std::logic_error("todo implement optimization");
+        auto row = prep.add_row(objective_);
+        auto i = prep.add_basic();
+        idx_objective_ = variables_.size() - 1;
+        for (auto const &[j, v] : row) {
+            tableau_.set(i, j, v);
+        }
     }
 
     for (size_t i = 0; i < n_basic_; ++i) {
@@ -332,6 +345,13 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
     assert_extra(check_non_basic_());
 
     return true;
+}
+
+template<typename Factor, typename Value>
+void Solver<Factor, Value>::optimize() {
+    assert(!objective_.empty());
+
+    throw std::runtime_error("implement me!!!");
 }
 
 template<typename Factor, typename Value>
@@ -689,14 +709,17 @@ void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
     }
 
     evaluate_theory(init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_, objective_);
-    for (auto &x : iqs_) {
-        // gather variables
-        for (auto &term: x.lhs) {
+
+    auto gather_vars = [this](std::vector<Term> const &terms) {
+        for (auto const &term: terms) {
             if (var_map_.emplace(term.var, var_map_.size()).second) {
                 var_vec_.emplace_back(term.var);
             }
         }
-        // add watch
+    };
+    gather_vars(objective_);
+    for (auto &x : iqs_) {
+        gather_vars(x.lhs);
         init.add_watch(x.lit);
     }
 
@@ -748,6 +771,9 @@ void Propagator<Factor, Value>::check(Clingo::PropagateControl &ctl) {
         static_cast<void>(slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_}, propagate_conflicts_)); // NOLINT
         offset = facts_offset_;
     }
+    if (ass.is_total() && !objective_.empty()) {
+        slv.optimize();
+    }
 }
 
 template<typename Factor, typename Value>
@@ -788,6 +814,11 @@ bool Propagator<Factor, Value>::has_value(index_t thread_id, index_t i) const {
 template<typename Factor, typename Value>
 Value Propagator<Factor, Value>::get_value(index_t thread_id, index_t i) const {
     return slvs_[thread_id].second.get_value(i);
+}
+
+template<typename Factor, typename Value>
+std::optional<Value> Propagator<Factor, Value>::get_objective(index_t thread_id) const {
+    return slvs_[thread_id].second.get_objective();
 }
 
 template<typename Factor, typename Value>

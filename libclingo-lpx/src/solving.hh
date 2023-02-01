@@ -126,6 +126,12 @@ public:
     //! Get the currently assigned value.
     [[nodiscard]] Value get_value(index_t i) const;
 
+    //! Get the currently assigned objective value.
+    [[nodiscard]] std::optional<Value> get_objective() const;
+
+    //! Compute the optimal value for the objective function.
+    void optimize();
+
     //! Return the solve statistics.
     [[nodiscard]] Statistics const &statistics() const;
 
@@ -188,6 +194,8 @@ private:
     index_t n_non_basic_{0};
     //! The number of basic variables.
     index_t n_basic_{0};
+    //! The index of the objective value.
+    index_t idx_objective_{0};
 };
 
 template <typename Factor, typename Value>
@@ -208,6 +216,7 @@ public:
     [[nodiscard]] Clingo::Symbol get_symbol(index_t i) const;
     [[nodiscard]] bool has_value(index_t thread_id, index_t i) const;
     [[nodiscard]] Value get_value(index_t thread_id, index_t i) const;
+    [[nodiscard]] std::optional<Value> get_objective(index_t thread_id) const;
     [[nodiscard]] index_t n_values(index_t thread_id) const;
 
     void init(Clingo::PropagateInit &init) override;

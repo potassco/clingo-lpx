@@ -25,6 +25,7 @@
 #include <clingo.hh>
 #include <clingo-lpx.h>
 #include <clingo-lpx-app/app.hh>
+#include <optional>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -93,16 +94,23 @@ public:
             symbols = model.symbols(Clingo::ShowType::Theory);
             std::sort(symbols.begin(), symbols.end());
             comma = false;
+            std::optional<Clingo::Symbol> objective;
             for (auto const &sym : symbols) {
-                if (std::strcmp("__lpx", sym.name()) != 0) {
-                    continue;
+                if (std::strcmp("__lpx", sym.name()) == 0) {
+                    if (comma) {
+                        std::cout << " ";
+                    }
+                    auto args = sym.arguments();
+                    std::cout << args.front() << "=" << args.back().string();
+                    comma = true;
                 }
-                if (comma) {
-                    std::cout << " ";
+                else if (std::strcmp("__lpx_objective", sym.name()) == 0) {
+                    auto args = sym.arguments();
+                    objective = args.front();
                 }
-                auto args = sym.arguments();
-                std::cout << args.front() << "=" << args.back().string();
-                comma = true;
+            }
+            if (objective.has_value()) {
+                std::cout << "\nOptimization: " << objective->string() << "\n";
             }
             std::cout << std::endl;
         }

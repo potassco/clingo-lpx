@@ -181,6 +181,12 @@ public:
             ss_ << prop_.get_value(thread_id, i - 1);
             symbols.emplace_back(Clingo::Function("__lpx", {prop_.get_symbol(i - 1), Clingo::String(ss_.str().c_str())}));
         }
+        auto objective = prop_.get_objective(thread_id);
+        if (objective.has_value()) {
+            ss_.str("");
+            ss_ << *objective;
+            symbols.emplace_back(Clingo::Function("__lpx_objective", {Clingo::String(ss_.str().c_str())}));
+        }
         model.extend(symbols);
     }
 
