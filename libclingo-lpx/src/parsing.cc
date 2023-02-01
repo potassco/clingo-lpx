@@ -1,6 +1,8 @@
 #include "parsing.hh"
 #include "util.hh"
 
+#include <clingo.hh>
+
 #include <map>
 #include <regex>
 #include <stdexcept>
@@ -154,6 +156,37 @@ bool is_string(Clingo::TheoryTerm const &term) {
     return throw_syntax_error<Relation>();
 }
 
+[[nodiscard]] std::vector<Term> evaluate_terms(LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs, Clingo::TheoryElementSpan elements) {
+    std::vector<Term> lhs;
+    for (auto &&elem : elements) {
+        check_syntax(elem.tuple().size() == 1);
+        auto &&term = elem.tuple().front();
+        if (match(term, "-", 1)) {
+            lhs.emplace_back(Term{
+                -1,
+                evaluate_var(term.arguments().back())});
+        }
+        else if (match(term, "*", 2)) {
+            lhs.emplace_back(Term{
+                evaluate_num(term.arguments().front()),
+                evaluate_var(term.arguments().back())});
+        }
+        else {
+            lhs.emplace_back(Term{1, evaluate_var(term)});
+        }
+        if (!elem.condition().empty()) {
+            auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(safe_cast<int>(var_map.size())));
+            if (res.second) {
+                auto lit = mapper(elem.condition_id());
+                iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -lit});
+                iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, lit});
+            }
+            lhs.back().var = res.first->second;
+        }
+    }
+    return lhs;
+}
+
 } // namespace
 
 void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs) {
@@ -170,33 +203,7 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
             iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().front()), Relation::GreaterEqual, lit});
         }
         else if (match(atom.term(), "sum", 0)) {
-            std::vector<Term> lhs;
-            for (auto &&elem : atom.elements()) {
-                check_syntax(elem.tuple().size() == 1);
-                auto &&term = elem.tuple().front();
-                if (match(term, "-", 1)) {
-                    lhs.emplace_back(Term{
-                        -1,
-                        evaluate_var(term.arguments().back())});
-                }
-                else if (match(term, "*", 2)) {
-                    lhs.emplace_back(Term{
-                        evaluate_num(term.arguments().front()),
-                        evaluate_var(term.arguments().back())});
-                }
-                else {
-                    lhs.emplace_back(Term{1, evaluate_var(term)});
-                }
-                if (!elem.condition().empty()) {
-                    auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(safe_cast<int>(var_map.size())));
-                    if (res.second) {
-                        auto lit = mapper(elem.condition_id());
-                        iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -lit});
-                        iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, lit});
-                    }
-                    lhs.back().var = res.first->second;
-                }
-            }
+            auto lhs = evaluate_terms(mapper, var_map, iqs, atom.elements());
             auto lit = mapper(atom.literal());
             iqs.emplace_back(Inequality{std::move(lhs),
                                         evaluate_num(atom.guard().second),
@@ -204,6 +211,7 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
                                         lit});
         }
         else if (match(atom.term(), "minimize", 0) || match(atom.term(), "maximize", 0)) {
+            auto lhs = evaluate_terms(mapper, var_map, iqs, atom.elements());
             throw std::runtime_error("implement me!!!");
         }
     }
