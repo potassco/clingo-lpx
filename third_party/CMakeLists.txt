@@ -9,7 +9,7 @@ if (CLINGOLPX_BUILD_TESTS AND NOT TARGET Catch2::Catch2WithMain)
     endif()
 endif()
 
-if (CLINGOLPX_MATH_LIBRARY STREQUAL "imath")
+if (_CLINGOLPX_MATH_LIBRARY STREQUAL "imath")
     add_library(libimath STATIC)
     target_sources(libimath PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/imath/imath.c

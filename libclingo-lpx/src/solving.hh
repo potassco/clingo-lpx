@@ -3,7 +3,7 @@
 #include "problem.hh"
 #include "parsing.hh"
 #include "util.hh"
-#include "matrix.hh"
+#include "tableau.hh"
 
 #include <clingo.hh>
 
@@ -11,9 +11,6 @@
 #include <optional>
 #include <unordered_map>
 
-using Value = Number;
-using Factor = Number;
-using CoeffcientQ = NumberQ;
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
 
@@ -92,7 +89,7 @@ private:
         //! Helper index for pivoting variables.
         index_t index{0};
         //! Helper index to obtain row/column index of a variable.
-        index_t reserve_index{0};
+        index_t reverse_index{0};
         //! The level the variable was assigned on.
         index_t level{0};
         //! The bounds associated with this variable.
@@ -176,7 +173,7 @@ private:
     //! Trail offsets per level.
     std::vector<TrailOffset> trail_offset_;
     //! The tableau of coefficients.
-    Matrix tableau_;
+    Tableau tableau_;
     //! The non-basic and basic variables.
     std::vector<Variable> variables_;
     //! The set of conflicting variables.

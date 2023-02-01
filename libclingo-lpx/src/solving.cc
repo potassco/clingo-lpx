@@ -24,23 +24,23 @@ typename Solver<Factor, Value>::BoundRelation bound_rel(Relation rel) {
 }
 
 template<typename Value>
-Value bound_val(Number &&x, Relation rel);
+Value bound_val(Rational &&x, Relation rel);
 
 template<>
-Number bound_val<Number>(Number &&x, Relation rel) {
+Rational bound_val<Rational>(Rational &&x, Relation rel) {
     static_cast<void>(rel);
     assert(rel != Relation::Less && rel != Relation::Greater);
     return std::move(x);
 }
 
 template<>
-NumberQ bound_val<NumberQ>(Number &&x, Relation rel) {
+RationalQ bound_val<RationalQ>(Rational &&x, Relation rel) {
     switch (rel) {
         case Relation::Less: {
-            return NumberQ{std::move(x), -1};
+            return RationalQ{std::move(x), -1};
         }
         case Relation::Greater: {
-            return NumberQ{std::move(x), 1};
+            return RationalQ{std::move(x), 1};
         }
         case Relation::LessEqual:
         case Relation::GreaterEqual:
@@ -48,7 +48,7 @@ NumberQ bound_val<NumberQ>(Number &&x, Relation rel) {
             break;
         }
     }
-    return NumberQ{std::move(x)};
+    return RationalQ{std::move(x)};
 }
 
 template<typename Factor, typename Value>
@@ -60,26 +60,27 @@ struct Solver<Factor, Value>::Prepare {
         slv.n_non_basic_ = map.size();
         for (index_t i = 0; i != slv.n_non_basic_; ++i) {
             slv.variables_[i].index = i;
-            slv.variables_[i].reserve_index = i;
+            slv.variables_[i].reverse_index = i;
         }
     }
 
     index_t get_non_basic(Clingo::Symbol var) {
         auto jt = map.find(var);
         assert(jt != map.end());
-        return slv.variables_[jt->second].reserve_index;
+        return slv.variables_[jt->second].reverse_index;
     }
 
     index_t add_basic() {
         auto index = slv.variables_.size();
         slv.variables_.emplace_back();
         slv.variables_.back().index = index;
-        slv.variables_.back().reserve_index = index;
+        slv.variables_.back().reverse_index = index;
         return slv.n_basic_++;
     }
 
-    std::vector<std::pair<index_t, Number>> add_row(Inequality const &x) {
-        std::vector<std::pair<index_t, Number>> row;
+    std::vector<std::pair<index_t, Rational>> add_row(Inequality const &x) {
+        std::vector<std::pair<index_t, Rational>> row;
+        row.reserve(x.lhs.size());
 
         // add non-basic variables
         for (auto const &term : x.lhs) {
@@ -365,16 +366,16 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
                 ctl.add_clause(conflict_clause_);
                 return false;
             }
-            if (x.reserve_index < n_non_basic_) {
+            if (x.reverse_index < n_non_basic_) {
                 if (x.has_lower() && x.value < x.lower()) {
-                    update_(level, x.reserve_index, x.lower());
+                    update_(level, x.reverse_index, x.lower());
                 }
                 else if (x.has_upper() && x.value > x.upper()) {
-                    update_(level, x.reserve_index, x.upper());
+                    update_(level, x.reverse_index, x.upper());
                 }
             }
             else {
-                enqueue_(x.reserve_index - n_non_basic_);
+                enqueue_(x.reverse_index - n_non_basic_);
             }
         }
     }
@@ -472,8 +473,8 @@ template<typename Factor, typename Value>
 bool Solver<Factor, Value>::check_tableau_() {
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
-        tableau_.update_row(i, [&](index_t j, Number const &a_ij){
-            v_i += non_basic_(j).value * a_ij;
+        tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer d_i){
+            v_i += non_basic_(j).value * a_ij / d_i;
         });
         if (v_i != basic_(i).value) {
             return false;
@@ -526,8 +527,9 @@ bool Solver<Factor, Value>::check_solution_() {
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::update_(index_t level, index_t j, Value v) {
     auto &xj = non_basic_(j);
-    tableau_.update_col(j, [&](index_t i, Number const &a_ij) {
-        basic_(i).set_value(*this, level, a_ij * (v - xj.value), true);
+    tableau_.update_col(j, [&](index_t i, Integer const &a_ij, Integer d_i) {
+        // TODO: this expression currently incurs overhead like this...
+        basic_(i).set_value(*this, level, (v - xj.value) * a_ij / d_i, true);
         enqueue_(i);
     });
     xj.set_value(*this, level, std::move(v), false);
@@ -535,33 +537,35 @@ void Solver<Factor, Value>::update_(index_t level, index_t j, Value v) {
 
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value const &v) {
-    auto &a_ij = tableau_.unsafe_get(i, j);
-    assert(a_ij != 0);
+    Integer *a_ij = nullptr;
+    Integer *d_i = nullptr;
+    tableau_.unsafe_get(i, j, a_ij, d_i);
+    assert(*a_ij != 0);
 
     auto &xi = basic_(i);
     auto &xj = non_basic_(j);
 
     // adjust assignment
-    Value dj = (v - xi.value) / a_ij;
-    assert(dj != 0);
+    Value delta_j = (v - xi.value) / *a_ij * *d_i;
+    assert(delta_j != 0);
+
     xi.set_value(*this, level, v, false);
-    xj.set_value(*this, level, dj, true);
-    // TODO: can this be merged into the loop below?:
-    tableau_.update_col(j, [&](index_t k, Number const &a_kj) {
+    xj.set_value(*this, level, delta_j, true);
+    tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) {
         if (k != i) {
-            basic_(k).set_value(*this, level, a_kj * dj, true);
+            basic_(k).set_value(*this, level, delta_j * a_kj / d_k, true);
             enqueue_(k);
         }
     });
     assert_extra(check_tableau_());
 
     // swap variables x_i and x_j
-    std::swap(xi.reserve_index, xj.reserve_index);
+    std::swap(xi.reverse_index, xj.reverse_index); // TODO: its meant to be reverse_index
     std::swap(variables_[i + n_non_basic_].index, variables_[j].index);
     enqueue_(i);
 
     // eliminate x_j from rows k != i
-    tableau_.eliminate_and_pivot(i, j, a_ij);
+    tableau_.pivot(i, j, *a_ij, *d_i);
 
     ++statistics_.pivots_;
     assert_extra(check_tableau_());
@@ -594,7 +598,7 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
     for (; !conflicts_.empty(); conflicts_.pop()) {
         auto ii = conflicts_.top();
         auto &xi = variables_[ii];
-        auto i = xi.reserve_index;
+        auto i = xi.reverse_index;
         assert(ii == variables_[i].index);
         xi.queued = false;
         // the queue might contain variables that meanwhile became basic
@@ -607,9 +611,9 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
             conflict_clause_.clear();
             conflict_clause_.emplace_back(-xi.lower_bound->lit);
             index_t kk = variables_.size();
-            tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
+            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
                 auto jj = variables_[j].index;
-                if (jj < kk && select_(a_ij > 0, variables_[jj])) {
+                if (jj < kk && select_((a_ij > 0) == (d_i > 0), variables_[jj])) {
                     kk = jj;
                     ret_i = i;
                     ret_j = j;
@@ -626,9 +630,9 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
             conflict_clause_.clear();
             conflict_clause_.emplace_back(-xi.upper_bound->lit);
             index_t kk = variables_.size();
-            tableau_.update_row(i, [&](index_t j, Number const &a_ij) {
+            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
                 auto jj = variables_[j].index;
-                if (jj < kk && select_(a_ij < 0, variables_[jj])) {
+                if (jj < kk && select_((a_ij < 0) != (d_i < 0), variables_[jj])) {
                     kk = jj;
                     ret_i = i;
                     ret_j = j;
@@ -717,7 +721,7 @@ void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
 template<typename Factor, typename Value>
 void Propagator<Factor, Value>::register_control(Clingo::Control &ctl) {
     ctl.register_propagator(*this);
-    if constexpr(std::is_same_v<Value, NumberQ>) {
+    if constexpr(std::is_same_v<Value, RationalQ>) {
         ctl.add("base", {}, THEORY_Q);
     }
     else {
@@ -798,7 +802,7 @@ index_t Propagator<Factor, Value>::n_values(index_t thread_id) const {
     return var_vec_.size();
 }
 
-template class Solver<Number, Number>;
-template class Solver<Number, NumberQ>;
-template class Propagator<Number, Number>;
-template class Propagator<Number, NumberQ>;
+template class Solver<Rational, Rational>;
+template class Solver<Rational, RationalQ>;
+template class Propagator<Rational, Rational>;
+template class Propagator<Rational, RationalQ>;

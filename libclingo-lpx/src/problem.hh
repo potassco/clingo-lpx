@@ -17,7 +17,7 @@ enum class Relation {
 std::ostream &operator<<(std::ostream &out, Relation const &rel);
 
 struct Term {
-    Number co;
+    Rational co;
     Clingo::Symbol var;
 };
 
@@ -25,7 +25,7 @@ std::ostream &operator<<(std::ostream &out, Term const &term);
 
 struct Inequality {
     std::vector<Term> lhs;
-    Number rhs;
+    Rational rhs;
     Relation rel;
     Clingo::literal_t lit;
 };

@@ -6,6 +6,7 @@ cmake -G "Ninja" -H. -Bbuild ^
     -DCMAKE_CXX_COMPILER="%CXX%" ^
     -DCMAKE_INSTALL_BINDIR="." ^
     -DCMAKE_INSTALL_PREFIX="%PREFIX%" ^
+    -DCLINGOLPX_MATH_LIBRARY="imath" ^
     -DPYCLINGOLPX_ENABLE="require" ^
     -DPython_ROOT_DIR="%PREFIX%"
 

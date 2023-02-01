@@ -2,6 +2,13 @@
 
 #include <stdexcept>
 #include <limits>
+#include <cassert>
+
+#ifdef CLINGOLPX_CROSSCHECK
+#   define assert_extra(X) assert(X) // NOLINT
+#else
+#   define assert_extra(X) // NOLINT
+#endif
 
 namespace detail {
 

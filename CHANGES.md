@@ -1,5 +1,10 @@
 # Changes
 
+## clingo-lpx 1.3.0
+
+* switch from gmpxx to libflint
+* optimize tableau representation
+
 ## clingo-lpx 1.2.1
 
 * add option to enable python script tags

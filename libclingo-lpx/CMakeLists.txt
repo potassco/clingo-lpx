@@ -10,8 +10,6 @@ set(header
 set(ide_source_group "Source Files")
 set(source-group
     "${CMAKE_CURRENT_SOURCE_DIR}/src/clingo-lpx.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/matrix.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/matrix.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/number.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.hh"
@@ -19,6 +17,8 @@ set(source-group
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tableau.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tableau.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/util.hh")
 source_group("${ide_source_group}" FILES ${source-group})
 set(source

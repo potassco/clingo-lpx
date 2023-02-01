@@ -9,6 +9,7 @@ cmake .. \
     -DCMAKE_CXX_COMPILER="${CXX}" \
     -DCMAKE_INSTALL_LIBDIR="lib" \
     -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
+    -DCLINGOLPX_MATH_LIBRARY="imath" \
     -DPYCLINGOLPX_ENABLE="require" \
     -DPython_ROOT_DIR="${PREFIX}"
 

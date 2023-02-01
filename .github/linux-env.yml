@@ -1,4 +1,4 @@
-name: clingcon
+name: clingo-lpx
 channels:
   - potassco/label/dev
 dependencies:
@@ -6,4 +6,3 @@ dependencies:
   - cmake
   - ninja
   - gxx_linux-64
-  - gmp

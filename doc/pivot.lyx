@@ -1,0 +1,338 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Section
+Setup
+\end_layout
+
+\begin_layout Standard
+The goal is to find a solution that satisfies a set of constrains.
+ A constraint has form
+\begin_inset Formula 
+\begin{align}
+a_{1}x_{1}+\dots+a_{n}x_{n} & \prec b,\label{eq:constraint}
+\end{align}
+
+\end_inset
+
+where each 
+\begin_inset Formula $a_{i}$
+\end_inset
+
+ is a rational number, each 
+\begin_inset Formula $x_{i}$
+\end_inset
+
+ is a variable for a rational number, and 
+\begin_inset Formula $b$
+\end_inset
+
+ is a rational number.
+\end_layout
+
+\begin_layout Standard
+A set of constraints of form
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:constraint"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ can be represented using a tableau consisting of equations of form
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+y & =\Sigma_{0\leq j<n}a_{ij}x_{j}\label{eq:tableaux}
+\end{align}
+
+\end_inset
+
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\strikeout off
+\xout off
+\uuline off
+\uwave off
+\noun off
+\color none
+for 
+\begin_inset Formula $0\leq i<m$
+\end_inset
+
+ where 
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\strikeout default
+\xout default
+\uuline default
+\uwave default
+\noun default
+\color inherit
+variables 
+\begin_inset Formula $y_{i}$
+\end_inset
+
+ are basic and 
+\begin_inset Formula $x_{j}$
+\end_inset
+
+ are non-basic.
+ Each row in the tableau captures the left hand side of a constraint of
+ form
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:constraint"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Not every solution to a tableau corresponds to a solution of the constrains.
+ Depending on the relation 
+\begin_inset Formula ${\prec}\in\left\{ \leq,\geq,=\right\} $
+\end_inset
+
+, we require solutions for which basic variables are less equal, greater
+ equal, or equal to 
+\begin_inset Formula $b$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+We can construct a solution for a tableau from a sequence of pivot operations.
+ The pivot operation swaps a basic variable 
+\begin_inset Formula $y_{i}$
+\end_inset
+
+ and a non-basic variable 
+\begin_inset Formula $x_{j}$
+\end_inset
+
+.
+ It is applicable whenever 
+\begin_inset Formula $a_{ij}\neq0$
+\end_inset
+
+.
+ We consider one further addition, assuming that the 
+\begin_inset Formula $y_{i}$
+\end_inset
+
+ have additional integer factors 
+\begin_inset Formula $d_{i}.$
+\end_inset
+
+ The idea here is that we can avoid rational numbers by multiplying equations
+ with a suitable denominator.
+ 
+\emph on
+Rearranging
+\emph default
+ the 
+\begin_inset Formula $i$
+\end_inset
+
+-th equation, we obtain
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+a_{ij}x_{j} & =d_{i}y_{i}-\Sigma_{0\leq l<n,l\neq j}a_{il}\cdot x_{l}.
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The equation can then be used to 
+\emph on
+eliminate
+\emph default
+ 
+\begin_inset Formula $x_{j}$
+\end_inset
+
+ from the other equations.
+ For 
+\begin_inset Formula $k\neq i$
+\end_inset
+
+, we obtain
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+d_{k}y_{k} & =\left(\Sigma_{0\leq l<n,l\neq j}a_{kl}x_{l}\right)+\frac{a_{kj}}{a_{ij}}\left(d_{i}y_{i}-\Sigma_{0\leq l<n,l\neq j}a_{il}x_{l}\right)\\
+a_{ij}d_{k}y_{k} & =a_{kj}d_{i}y_{i}+a_{ij}\left(\Sigma_{0\leq l<n,l\neq j}a_{kl}x_{l}\right)-\left(\Sigma_{0\leq l<n,l\neq j}a_{kj}a_{il}x_{l}\right)\\
+ & =a_{kj}d_{i}y_{i}+\Sigma_{0\leq l<n,l\neq j}\left(a_{ij}a_{kl}-a_{kj}a_{il}\right)x_{l}.
+\end{align*}
+
+\end_inset
+
+Swapping variables 
+\begin_inset Formula $y_{i}$
+\end_inset
+
+ and 
+\begin_inset Formula $x_{j}$
+\end_inset
+
+ brings the set of equations back into form
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:tableaux"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Furthemore, note that we can devide the equations for 
+\begin_inset Formula $y_{k}$
+\end_inset
+
+ by the greatest common divisior of 
+\begin_inset Formula $a_{ij}$
+\end_inset
+
+ and 
+\begin_inset Formula $a_{kj}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section
+Refinement
+\end_layout
+
+\begin_layout Standard
+The current algorithm in 
+\emph on
+clingo-lpx
+\emph default
+ maintains a tableau containing all constraints in a problem.
+ Each pivot operation eliminates basic variables from all rows that have
+ corresponding non-zero coefficients.
+ This makes the elimination procedure very expensive because a lot of constraint
+s have to be processed.
+ It should be possible to delay the elimination for constraints whose basic
+ variables have no bound assigned yet.
+\end_layout
+
+\begin_layout Standard
+This should pay of for problems like the task scheduling problem in the
+ example folder where a lot of constraints are inactive in a solution.
+\end_layout
+
+\end_body
+\end_document

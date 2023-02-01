@@ -11,42 +11,42 @@
 using index_t = uint32_t;
 
 
-//! A sparse matrix with efficient access to both rows and columns.
+//! A sparse tableau with efficient access to both rows and columns.
 //!
-//! Insertion into the matrix is linear in the number of rows/columns and
+//! Insertion into the tableau is linear in the number of rows/columns and
 //! should be avoided. Runtime complexities are sometimes amortized without
-//! further comments. Algorithms are generally faster the sparser the matrix.
+//! further comments. Algorithms are generally faster the sparser the tableau.
 //!
 //! It would also be possible to additionally keep track of non-zero elements
 //! using a hash table. Like this, logarithm factors could be removed at the
 //! expense of additional storage requirements.
 //!
-//! In the documentation below, we use A to refer to a matrix with m rows and n
+//! In the documentation below, we use A to refer to a tableau with m rows and n
 //! columns. Furthemore, we use the following common ways to work with the
-//! matrix:
+//! tableau:
 //! - A_i is the i-th row,
 //! - A_ij is the element at row i and column j, and
-//! - A^T is the transposed matrix.
-class Matrix {
+//! - A^T is the transposed tableau.
+class Tableau {
 public:
     //! Return a const reference to A_ij.
     //!
     //! Runs in O(log(n)).
-    [[nodiscard]] Number const &get(index_t i, index_t j) const;
+    [[nodiscard]] Rational get(index_t i, index_t j) const;
 
     //! Return a mutable reference to A_ij assuming that A_ij != 0.
     //!
     //! Only non-zero values may be accessed and they must not be set to zero.
     //!
     //! Runs in O(log(n)).
-    [[nodiscard]] Number &unsafe_get(index_t i, index_t j);
+    void unsafe_get(index_t i, index_t j, Integer *&num, Integer *&den);
 
     //! Set A_ij to value a.
     //!
-    //! Setting an element to zero removes it from the matrix.
+    //! Setting an element to zero removes it from the tableau.
     //!
     //! Runs in O(m + n).
-    void set(index_t i, index_t j, Number const &a);
+    void set(index_t i, index_t j, Rational const &a);
 
     //! Call f(j, a_ij) for each element a_ij != 0 in row A_i.
     //!
@@ -58,8 +58,9 @@ public:
     template <typename F>
     void update_row(index_t i, F &&f) {
         if (i < rows_.size()) {
-            for (auto &[col, val] : rows_[i]) {
-                f(static_cast<index_t>(col), val);
+            auto &row = rows_[i];
+            for (auto &[col, val] : row.cells) {
+                f(static_cast<index_t>(col), val, row.den);
             }
         }
     }
@@ -78,9 +79,9 @@ public:
             for (auto jt = it; jt != ie; ++jt) {
                 auto i = *jt;
                 auto &row = rows_[i];
-                auto kt = std::lower_bound(row.begin(), row.end(), j);
-                if (kt != row.end() && kt->col == j) {
-                    f(i, kt->val);
+                auto kt = std::lower_bound(row.cells.begin(), row.cells.end(), j);
+                if (kt != row.cells.end() && kt->col == j) {
+                    f(i, kt->val, row.den);
                     if (it != jt) {
                         std::iter_swap(it, jt);
                     }
@@ -91,42 +92,42 @@ public:
         }
     }
 
-    //! This function eliminates elements a_kj for i != k and pivots i and j.
+    //! This functions pivots row i and column j.
     //!
-    //! This is the only function specific to the simplex algorithm. It is
-    //! implemented here to offer better performance. It performs the following
-    //! steps:
-    //!
-    //! 1. ignoring column j
-    //!    1. replace row i by A_i/-A_ij
-    //!    2. replace rows k != i by A_i*A_kj - A_k.
-    //! 2. changing column j
-    //!    1. devide rows k != i by -a_ij
-    //!    2. replace row i by 1/a_ij
-    //!
-    //! Observe that if step 1. would not ignore column j, the column would be
-    //! a unit vector.
-    //!
-    //! TODO: There is no need to store rational numbers in the matrix, we
-    //! could also devide by a_ij when setting values for integer variables.
+    //! The two integers passed in are a reference to the cell a_ij and
+    //! denominator d_j. See the description of the class for a more detailed
+    //! description.
     //!
     //! Runs in O(m*m).
-    void eliminate_and_pivot(index_t i, index_t j, Number &a_ij);
+    void pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i);
 
-    //! Get the number of non-zero elements in the matrix.
+    //! Get the number of non-zero elements in the tableau.
     //!
-    //! The runtime of this function is linear in the size of the matrix.
+    //! Runs in O(m).
     [[nodiscard]] size_t size() const;
 
     //! Equivalent to `size() == 0`.
+    //!
+    //! Runs in O(m).
     [[nodiscard]] bool empty() const;
 
     //! Set all elements to zero.
+    //!
+    //! Runs in O(1).
     void clear();
+
+    //! Print tableau for debugging purposes.
+    void print(std::ostream &out, char const *indent) const;
+
+    //! Operator to output tableau for debugging purposes.
+    std::ostream &operator<<(std::ostream &out) const {
+        print(out, "");
+        return out;
+    }
 
 private:
     struct Cell {
-        Cell(index_t col, Number val)
+        Cell(index_t col, Integer val)
         : col{col}
         , val{std::move(val)} { }
 
@@ -144,14 +145,18 @@ private:
         }
 
         index_t col;
-        Number val;
+        Integer val;
+    };
+    struct Row {
+        Integer den = 1;
+        std::vector<Cell> cells;
     };
 
-    std::vector<Cell> &reserve_row_(index_t i);
+    Row &reserve_row_(index_t i);
     std::vector<index_t> &reserve_col_(index_t j);
-    static Number const &zero_();
+    static Rational const &zero_();
 
-    std::vector<std::vector<Cell>> rows_;
+    std::vector<Row> rows_;
     std::vector<std::vector<index_t>> cols_;
 };
 

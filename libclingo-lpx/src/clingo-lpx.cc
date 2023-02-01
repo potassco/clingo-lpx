@@ -281,10 +281,10 @@ extern "C" bool clingolpx_create(clingolpx_theory_t **theory) {
 extern "C" bool clingolpx_register(clingolpx_theory_t *theory, clingo_control_t* control) {
     CLINGOLPX_TRY {
         if (!theory->strict) {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, Number>>(control, THEORY, theory->select, theory->propagate_conflicts);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, Rational>>(control, THEORY, theory->select, theory->propagate_conflicts);
         }
         else {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Number, NumberQ>>(control, THEORY_Q, theory->select, theory->propagate_conflicts);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, RationalQ>>(control, THEORY_Q, theory->select, theory->propagate_conflicts);
         }
     }
     CLINGOLPX_CATCH;
