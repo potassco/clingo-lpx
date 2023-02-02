@@ -3,9 +3,27 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <clingo.hh>
 #include <iterator>
+#include <optional>
 
 namespace {
+
+class SHM : public Clingo::SolveEventHandler {
+public:
+    SHM(Propagator<Rational, Rational> &prp)
+    : prp_{prp} { }
+    bool on_model(Clingo::Model &model) override {
+        val_ = prp_.get_objective(model.thread_id());
+        return true;
+    }
+    std::optional<Rational> const &get_objective() const {
+        return val_;
+    }
+private:
+    std::optional<Rational> val_;
+    Propagator<Rational, Rational> &prp_;
+};
 
 bool run(char const *s) {
     Propagator<Rational, Rational> prp{SelectionHeuristic::Match, true};
@@ -16,6 +34,21 @@ bool run(char const *s) {
     ctl.ground({{"base", {}}});
 
     return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
+}
+
+std::optional<Rational> run_m(char const *s) {
+    Propagator<Rational, Rational> prp{SelectionHeuristic::Match, true};
+    SHM shm{prp};
+    Clingo::Control ctl;
+    prp.register_control(ctl);
+
+    ctl.add("base", {}, s);
+    ctl.ground({{"base", {}}});
+
+    if (!ctl.solve(Clingo::LiteralSpan{}, &shm, false, false).get().is_satisfiable()) {
+        return std::nullopt;
+    }
+    return shm.get_objective();
 }
 
 bool run_q(char const *s) {
@@ -111,8 +144,8 @@ TEST_CASE("solving") {
                         ":- b."}) == 3);
     }
     SECTION("optimize") {
-        REQUIRE( run("&sum { 2*x_1;  -x_2 } <= 2.\n"
-                     "&sum { x_1;  -5*x_2 } <= -4.\n"
-                     "&maximize { 2*x_1; -x_2 }.\n"));
+        REQUIRE( run_m("&sum { 2*x_1;  -x_2 } <= 2.\n"
+                       "&sum { x_1;  -5*x_2 } <= -4.\n"
+                       "&maximize { 2*x_1; -x_2 }.\n") == Rational{2});
     }
 }
