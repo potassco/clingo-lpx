@@ -8,6 +8,7 @@
 #include <map>
 #include <regex>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace {
 
