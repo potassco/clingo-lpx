@@ -184,8 +184,8 @@ public:
         auto objective = prop_.get_objective(thread_id);
         if (objective.has_value()) {
             ss_.str("");
-            ss_ << *objective;
-            symbols.emplace_back(Clingo::Function("__lpx_objective", {Clingo::String(ss_.str().c_str())}));
+            ss_ << objective->first;
+            symbols.emplace_back(Clingo::Function("__lpx_objective", {Clingo::String(ss_.str().c_str()), Clingo::Number(objective->second ? 1 : 0)}));
         }
         model.extend(symbols);
     }

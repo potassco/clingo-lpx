@@ -17,11 +17,11 @@ public:
         val_ = prp_.get_objective(model.thread_id());
         return true;
     }
-    std::optional<Rational> const &get_objective() const {
+    std::optional<std::pair<Rational, bool>> const &get_objective() const {
         return val_;
     }
 private:
-    std::optional<Rational> val_;
+    std::optional<std::pair<Rational, bool>> val_;
     Propagator<Rational, Rational> &prp_;
 };
 
@@ -36,7 +36,7 @@ bool run(char const *s) {
     return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
 
-std::optional<Rational> run_m(char const *s) {
+std::optional<std::pair<Rational, bool>> run_m(char const *s) {
     Propagator<Rational, Rational> prp{SelectionHeuristic::Match, true};
     SHM shm{prp};
     Clingo::Control ctl;
@@ -150,13 +150,16 @@ TEST_CASE("solving") {
                        "&sum { x_1 } >= 0.\n"
                        "&sum { x_2 } >= 0.\n"
                        "&sum { x_3 } >= 0.\n"
-                       "&maximize { 3*x_1; x_2; 2*x_3 }.\n") == Rational{28});
+                       "&maximize { 3*x_1; x_2; 2*x_3 }.\n") == std::make_pair(Rational{28}, true));
         REQUIRE( run_m("&sum {   x_1; 2*x_2; 3*x_3 } <= 30.\n"
                        "&sum { 2*x_1; 2*x_2; 5*x_3 } <= 24.\n"
                        "&sum { 4*x_1;   x_2; 2*x_3 } <= 36.\n"
-                       "&maximize { 3*x_1; x_2; 2*x_3 }.\n") == Rational{378, 13});
+                       "&maximize { 3*x_1; x_2; 2*x_3 }.\n") == std::make_pair(Rational{378, 13}, true));
         REQUIRE( run_m("&sum { 2*x_1;  -x_2 } <= 2.\n"
                        "&sum { x_1;  -5*x_2 } <= -4.\n"
-                       "&maximize { 2*x_1; -x_2 }.\n") == Rational{2});
+                       "&maximize { 2*x_1; -x_2 }.\n") == std::make_pair(Rational{2}, true));
+        REQUIRE(!run_m("&sum { x; y } >= 7.\n"
+                       "&sum { y } >= 3.\n"
+                       "&maximize { 8*x; -5*y }.\n")->second);
     }
 }

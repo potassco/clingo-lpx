@@ -94,9 +94,9 @@ public:
             symbols = model.symbols(Clingo::ShowType::Theory);
             std::sort(symbols.begin(), symbols.end());
             comma = false;
-            std::optional<Clingo::Symbol> objective;
+            std::optional<std::pair<Clingo::Symbol, bool>> objective;
             for (auto const &sym : symbols) {
-                if (std::strcmp("__lpx", sym.name()) == 0) {
+                if (sym.match("__lpx", 2) && sym.arguments().back().type() == Clingo::SymbolType::String) {
                     if (comma) {
                         std::cout << " ";
                     }
@@ -104,13 +104,14 @@ public:
                     std::cout << args.front() << "=" << args.back().string();
                     comma = true;
                 }
-                else if (std::strcmp("__lpx_objective", sym.name()) == 0) {
+                else if (sym.match("__lpx_objective", 2) && sym.arguments().front().type() == Clingo::SymbolType::String && sym.arguments().back().type() == Clingo::SymbolType::Number) {
                     auto args = sym.arguments();
-                    objective = args.front();
+                    objective = std::make_pair(args.front(), args.back() == Clingo::Number(1));
+
                 }
             }
             if (objective.has_value()) {
-                std::cout << "\nOptimization: " << objective->string() << "\n";
+                std::cout << "\nOptimization: " << objective->first.string() << " [" << (objective->second ? "bounded" : "unbounded") << "]"<< "\n";
             }
             std::cout << std::endl;
         }

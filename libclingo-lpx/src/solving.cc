@@ -233,9 +233,9 @@ Value Solver<Factor, Value>::get_value(index_t i) const {
 }
 
 template<typename Factor, typename Value>
-std::optional<Value> Solver<Factor, Value>::get_objective() const {
+std::optional<std::pair<Value, bool>> Solver<Factor, Value>::get_objective() const {
     if (!objective_.empty()) {
-        return variables_[idx_objective_].value;
+        return std::make_pair(variables_[idx_objective_].value, bounded_);
     }
     return std::nullopt;
 }
@@ -481,65 +481,57 @@ void Solver<Factor, Value>::optimize() {
             }
         });
 
-        debug();
-
+        // the solution is optimal if there is no exiting variable
         if (ee == variables_.size()) {
-            std::cerr << "the solution is optimal" << std::endl;
+            bounded_ = true;
             return;
         }
 
         // select leaving variable
         auto &x_e = variables_[ee];
-        Value d_e;
+        Value v_e;
         auto e = x_e.reverse_index;
         auto ll = variables_.size();
         Value const *bound_l = nullptr;
-        bool unbounded = true;
 
-        std::cerr << "we chose variable x_" << e << " having a " << (pos_a_ze ? "positive" : "negative") << " coefficient as entering  variable" << std::endl;
         tableau_.update_col(e, [&, this](index_t i, Integer const &a_ie, Integer const &d_i) {
             auto &y_i = basic_(i);
             auto ii = y_i.reverse_index;
             if (pos_a_ze) {
-                //   Case a_le > 0.
-                //      Here we try to increase x_l to increase x_e.
-                //      Case x_l has no upper bound or setting x_l to its upper bound would
-                //      violate x_e's upper bound (or make it tight).
-                //        The row is unbounded.
-                //      Case x_l can be set to its upper bound.
-                //        We obtain an increase of x_e smaller than its upper bound.
+                // case where increasing y_i increases x_e
                 if ((a_ie > 0) == (d_i > 0)) {
+                    // y_i and in turn also x_e can be increased arbitrarily
                     if (!y_i.has_upper()) {
                         return;
                     }
-                    auto const &v_l = y_i.upper();
+                    auto const &v_i = y_i.upper();
                     // we compute the updated value of x_e (see Solver::pivot_)
-                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
-                    if (x_e.has_upper() && v_e >= x_e.upper()) {
+                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
+                    // setting y_i to its upper bound either violates the upper bound of x_e or makes it tight
+                    if (x_e.has_upper() && v >= x_e.upper()) {
                         return;
                     }
-                    if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
-                        unbounded = false;
-                        bound_l = &v_l;
+                    // y_i can be set to its upper bound and x_e is still within it's bounds
+                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
+                        bound_l = &v_i;
                         ll = ii;
-                        d_e = v_e;
+                        v_e = v;
                     }
                 }
+                // symmetric
                 else {
-                    // symmetric
                     if (!y_i.has_lower()) {
                         return;
                     }
-                    auto const &v_l = y_i.lower();
-                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
-                    if (x_e.has_lower() && v_e <= x_e.lower()) {
+                    auto const &v_i = y_i.lower();
+                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
+                    if (x_e.has_lower() && v <= x_e.lower()) {
                         return;
                     }
-                    if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
-                        unbounded = false;
-                        bound_l = &v_l;
+                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
+                        bound_l = &v_i;
                         ll = ii;
-                        d_e = v_e;
+                        v_e = v;
                     }
                 }
             }
@@ -549,67 +541,65 @@ void Solver<Factor, Value>::optimize() {
                     if (!y_i.has_lower()) {
                         return;
                     }
-                    auto const &v_l = y_i.lower();
-                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
-                    if (x_e.has_lower() && v_e >= x_e.lower()) {
+                    auto const &v_i = y_i.lower();
+                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
+                    if (x_e.has_lower() && v >= x_e.lower()) {
                         return;
                     }
-                    if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
-                        unbounded = false;
-                        bound_l = &v_l;
+                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
+                        bound_l = &v_i;
                         ll = ii;
-                        d_e = v_e;
+                        v_e = v;
                     }
                 }
                 else {
                     if (!y_i.has_upper()) {
                         return;
                     }
-                    auto const &v_l = y_i.upper();
-                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
-                    if (x_e.has_upper() && v_e <= x_e.upper()) {
+                    auto const &v_i = y_i.upper();
+                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
+                    if (x_e.has_upper() && v <= x_e.upper()) {
                         return;
                     }
-                    if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
-                        unbounded = false;
-                        bound_l = &v_l;
+                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
+                        bound_l = &v_i;
                         ll = ii;
-                        d_e = v_e;
+                        v_e = v;
                     }
                 }
             }
         });
 
-        if (unbounded) {
-            if (pos_a_ze) {
-                if (!x_e.has_upper()) {
-                    throw std::runtime_error("the problem is unbounded");
-                }
-                throw std::runtime_error("we can set x_e to its upper bound");
-            }
-            else {
-                if (!x_e.has_lower()) {
-                    throw std::runtime_error("the problem is unbounded");
-                }
-                throw std::runtime_error("we can set x_e to its lower bound");
-            }
-        }
-
-        auto l = variables_[ll].reverse_index - n_non_basic_;
-        std::cerr << "we chose variable y_" << l << " as leaving variable" << std::endl;
-        std::cerr << "we are going to set y_" << l << " to " << *bound_l << std::endl;
-        Value v_e = x_e.value + (*bound_l - variables_[ll].value) / tableau_.get(l, e);
-        std::cerr << "we are going to set x_" << e << " to " << v_e << std::endl;
-        // add something to backtrack to
+        // ensure that there is a decision level to assign values to
         if (trail_offset_.empty()) {
             trail_offset_.emplace_back(TrailOffset{
                 0,
                 static_cast<index_t>(bound_trail_.size()),
                 static_cast<index_t>(assignment_trail_.size())});
         }
-        pivot_(trail_offset_.back().level, l, e, *bound_l);
-        debug();
-        std::cerr << "we are a step closer to the optimum: the above process should be continued until the solution is optimal" << std::endl;
+        auto level = trail_offset_.back().level;
+
+        if (bound_l != nullptr) {
+            auto l = variables_[ll].reverse_index - n_non_basic_;
+            Value v = x_e.value + (*bound_l - variables_[ll].value) / tableau_.get(l, e);
+            pivot_(level, l, e, *bound_l);
+        }
+        else {
+            if (pos_a_ze) {
+                if (!x_e.has_upper()) {
+                    bounded_ = false;
+                    return;
+                }
+                update_(level, e, x_e.upper());
+            }
+            else {
+                if (!x_e.has_lower()) {
+                    bounded_ = false;
+                    return;
+                }
+                update_(level, e, x_e.lower());
+            }
+        }
     }
 }
 
@@ -1076,7 +1066,7 @@ Value Propagator<Factor, Value>::get_value(index_t thread_id, index_t i) const {
 }
 
 template<typename Factor, typename Value>
-std::optional<Value> Propagator<Factor, Value>::get_objective(index_t thread_id) const {
+std::optional<std::pair<Value, bool>> Propagator<Factor, Value>::get_objective(index_t thread_id) const {
     return slvs_[thread_id].second.get_objective();
 }
 
