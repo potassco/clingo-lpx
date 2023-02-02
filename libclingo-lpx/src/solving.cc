@@ -523,6 +523,7 @@ void Solver<Factor, Value>::optimize() {
                 }
             }
             else {
+                // symmetric
                 if (!y_i.has_lower()) {
                     return;
                 }
@@ -539,7 +540,37 @@ void Solver<Factor, Value>::optimize() {
             }
         }
         else {
-            throw std::runtime_error("implement me the symmetric case");
+            // symmetric
+            if ((a_ie > 0) == (d_i > 0)) {
+                if (!y_i.has_lower()) {
+                    return;
+                }
+                bound_l = &y_i.lower();
+                Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                if (x_e.has_lower() && v_e >= x_e.lower()) {
+                    return;
+                }
+                if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
+                    unbounded = false;
+                    ll = ii;
+                    d_e = v_e;
+                }
+            }
+            else {
+                if (!y_i.has_upper()) {
+                    return;
+                }
+                bound_l = &y_i.upper();
+                Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                if (x_e.has_upper() && v_e <= x_e.upper()) {
+                    return;
+                }
+                if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
+                    unbounded = false;
+                    ll = ii;
+                    d_e = v_e;
+                }
+            }
         }
     });
 
