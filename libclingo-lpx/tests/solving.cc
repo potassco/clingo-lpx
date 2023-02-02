@@ -144,6 +144,10 @@ TEST_CASE("solving") {
                         ":- b."}) == 3);
     }
     SECTION("optimize") {
+        REQUIRE( run_m("&sum {   x_1; 2*x_2; 3*x_3 } <= 30.\n"
+                       "&sum { 2*x_1; 2*x_2; 5*x_3 } <= 24.\n"
+                       "&sum { 4*x_1;   x_2; 2*x_3 } <= 36.\n"
+                       "&maximize { 3*x_1; x_2; 2*x_3 }.\n") == Rational{28});
         REQUIRE( run_m("&sum { 2*x_1;  -x_2 } <= 2.\n"
                        "&sum { x_1;  -5*x_2 } <= -4.\n"
                        "&maximize { 2*x_1; -x_2 }.\n") == Rational{2});

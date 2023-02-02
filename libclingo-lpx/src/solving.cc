@@ -512,14 +512,15 @@ void Solver<Factor, Value>::optimize() {
                     if (!y_i.has_upper()) {
                         return;
                     }
-                    bound_l = &y_i.upper();
+                    auto const &v_l = y_i.upper();
                     // we compute the updated value of x_e (see Solver::pivot_)
-                    Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
                     if (x_e.has_upper() && v_e >= x_e.upper()) {
                         return;
                     }
                     if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
                         unbounded = false;
+                        bound_l = &v_l;
                         ll = ii;
                         d_e = v_e;
                     }
@@ -529,13 +530,14 @@ void Solver<Factor, Value>::optimize() {
                     if (!y_i.has_lower()) {
                         return;
                     }
-                    bound_l = &y_i.lower();
-                    Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                    auto const &v_l = y_i.lower();
+                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
                     if (x_e.has_lower() && v_e <= x_e.lower()) {
                         return;
                     }
                     if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
                         unbounded = false;
+                        bound_l = &v_l;
                         ll = ii;
                         d_e = v_e;
                     }
@@ -547,13 +549,14 @@ void Solver<Factor, Value>::optimize() {
                     if (!y_i.has_lower()) {
                         return;
                     }
-                    bound_l = &y_i.lower();
-                    Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                    auto const &v_l = y_i.lower();
+                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
                     if (x_e.has_lower() && v_e >= x_e.lower()) {
                         return;
                     }
                     if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
                         unbounded = false;
+                        bound_l = &v_l;
                         ll = ii;
                         d_e = v_e;
                     }
@@ -562,13 +565,14 @@ void Solver<Factor, Value>::optimize() {
                     if (!y_i.has_upper()) {
                         return;
                     }
-                    bound_l = &y_i.upper();
-                    Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                    auto const &v_l = y_i.upper();
+                    Value v_e = x_e.value + (v_l - y_i.value) / a_ie * d_i;
                     if (x_e.has_upper() && v_e <= x_e.upper()) {
                         return;
                     }
                     if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
                         unbounded = false;
+                        bound_l = &v_l;
                         ll = ii;
                         d_e = v_e;
                     }
@@ -593,7 +597,9 @@ void Solver<Factor, Value>::optimize() {
 
         auto l = variables_[ll].reverse_index - n_non_basic_;
         std::cerr << "we chose variable y_" << l << " as leaving variable" << std::endl;
-        std::cerr << "the assignment trail has size: " << assignment_trail_.size() << std::endl;
+        std::cerr << "we are going to set y_" << l << " to " << *bound_l << std::endl;
+        Value v_e = x_e.value + (*bound_l - variables_[ll].value) / tableau_.get(l, e);
+        std::cerr << "we are going to set x_" << e << " to " << v_e << std::endl;
         // add something to backtrack to
         if (trail_offset_.empty()) {
             trail_offset_.emplace_back(TrailOffset{
