@@ -39,7 +39,6 @@ namespace ClingoLPX {
 
 namespace {
 
-
 class Profiler {
 public:
     Profiler(char const *path) {
@@ -111,7 +110,7 @@ public:
                 }
             }
             if (objective.has_value()) {
-                std::cout << "\nOptimization: " << objective->first.string() << " [" << (objective->second ? "bounded" : "unbounded") << "]"<< "\n";
+                std::cout << "\nOptimization: " << objective->first.string() << " [" << (objective->second ? "bounded" : "unbounded") << "]";
             }
             std::cout << std::endl;
         }
