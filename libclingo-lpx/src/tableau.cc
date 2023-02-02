@@ -164,24 +164,17 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
 void Tableau::print(std::ostream &out, char const *indent) const {
     size_t m = rows_.size();
     size_t n = cols_.size();
-    out << indent << "{";
     for (size_t i = 0; i < m; ++i) {
-        if (i > 0) {
-            out << indent << " ";
-        }
-        out << "{";
+        out << indent;
+        out << "y_" << i << " = ";
         for (size_t j = 0; j < n; ++j) {
             if (j > 0) {
-                out << ", ";
+                out << " + ";
             }
-            out << get(i, j);
+            out << get(i, j) << "*x_" << j;
         }
-        out << "}";
-        if (i < m - 1) {
-            out << ",\n";
-        }
+        out << "\n";
     }
-    out << "}";
 }
 
 size_t Tableau::size() const {

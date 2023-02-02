@@ -148,6 +148,8 @@ private:
     [[nodiscard]] bool check_non_basic_();
     //! Check if the current assignment is a solution.
     [[nodiscard]] bool check_solution_();
+    //! Print a readable representation of the internal problem to stderr.
+    void debug();
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);

@@ -348,10 +348,71 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
 }
 
 template<typename Factor, typename Value>
+void Solver<Factor, Value>::debug() {
+    std::cerr << "tableau:" << std::endl;
+    tableau_.print(std::cerr, "  ");
+    if (!objective_.empty()) {
+        auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
+        std::cerr << "objective variable:\n  y_" << z << std::endl;
+    }
+
+    std::cerr << "basic assignment:" << std::endl;
+    for (index_t i = 0; i < n_basic_; ++i) {
+        auto &x_i = basic_(i);
+        std::cerr << "  y_" << i << " = " << x_i.value << " for ";
+        if (x_i.has_lower()) {
+            std::cerr << x_i.lower();
+        }
+        else {
+            std::cerr << "#inf";
+        }
+        std::cerr << " <= y_" << i << " <= ";
+        if (x_i.has_upper()) {
+            std::cerr << x_i.upper();
+        }
+        else {
+            std::cerr << "#sup";
+        }
+        std::cerr << std::endl;
+    }
+    std::cerr << "non-basic assignment:" << std::endl;
+    for (index_t i = 0; i < n_non_basic_; ++i) {
+        auto &x_i = non_basic_(i);
+        std::cerr << "  x_" << i << " = " << x_i.value << " for ";
+        if (x_i.has_lower()) {
+            std::cerr << x_i.lower();
+        }
+        else {
+            std::cerr << "#inf";
+        }
+        std::cerr << " <= x_" << i << " <= ";
+        if (x_i.has_upper()) {
+            std::cerr << x_i.upper();
+        }
+        else {
+            std::cerr << "#sup";
+        }
+        std::cerr << std::endl;
+    }
+
+}
+
+template<typename Factor, typename Value>
 void Solver<Factor, Value>::optimize() {
     assert(!objective_.empty());
     assert(variables_[idx_objective_].reverse_index >= n_non_basic_);
-    // Here we select a leaving variable x_l among the basic variables. This
+    // First, we select an entering variable among the non-basic variables
+    // corresponding to a non-zero coefficient a_ze in the objective function.
+    //
+    // Case a_ze > 0.
+    //   We can select x_e as an entering variable if it is less than its upper
+    //   bound (or has no upper bound).
+    //
+    // Case a_ze < 0.
+    //   We can select x_e as an entering variable if it is greater than its
+    //   lower bound (or has no lower bound).
+    //
+    // Second, we select a leaving variable x_l among the basic variables. This
     // has to be a variable that can be adjusted so that the value a_ze*x_e
     // increases.
     //
@@ -393,47 +454,124 @@ void Solver<Factor, Value>::optimize() {
     // Case a_ze > 0:
     //   symmetric
 
+    // the objective assigned to variable y_z
     auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
 
-    std::cerr << "z = ";
-    bool comma = false;
-    tableau_.update_row(z, [&comma](int j, Integer const &x_zj, Integer const &d_z) {
-        if (comma) {
-            std::cerr << " + ";
-        }
-        std::cerr << Rational{x_zj, d_z} << "*" << "x_" << j;
-        comma = true;
-    });
-    std::cerr << std::endl;
-
-    std::cerr << variables_[idx_objective_].value << " = ";
-    comma = false;
-    tableau_.update_row(z, [&comma, this](int j, Integer const &x_zj, Integer const &d_z) {
-        if (comma) {
-            std::cerr << " + ";
-        }
-        std::cerr << Rational{x_zj, d_z} << "*" << non_basic_(j).value;
-        comma = true;
-    });
-    std::cerr << std::endl;
-
-    // Here we select an entering variable among the non-basic variables
-    // corresponding to a non-zero coefficient a_ze in the objective function.
-    // We consider the sign of the coefficient.
-    //
-    // Case a_ze > 0. We can select x_e as an entering variable if it is less
-    // than its upper bound (or has no upper bound).
-    //
-    // Case a_ze < 0. We can select x_e as an entering variable if it is
-    // greater than its lower bound (or has no lower bound).
-    tableau_.update_row(z, [this](int j, Integer const &a_zj, Integer const &d_z) {
-        auto &x_j = non_basic_(j);
-        if (x_j.has_lower() && (a_zj > 0) == (d_z > 0)) {
-
+    // select entering variable y_e
+    index_t ee = variables_.size();
+    bool pos_a_ze = false;
+    tableau_.update_row(z, [&, this](int j, Integer const &a_zj, Integer const &d_z) {
+        auto jj = variables_[j].index;
+        if (jj < ee) {
+            auto &x_j = variables_[jj];
+            if ((a_zj > 0) == (d_z > 0)) {
+                if (!x_j.has_upper() || x_j.value < x_j.upper()) {
+                    ee = jj;
+                    pos_a_ze = true;
+                }
+            }
+            else {
+                if (!x_j.has_lower() || x_j.value > x_j.lower()) {
+                    ee = jj;
+                    pos_a_ze = false;
+                }
+            }
         }
     });
 
-    throw std::runtime_error("TODO: pivot according to objective function");
+    debug();
+
+    if (ee == variables_.size()) {
+        std::cerr << "the solution is optimal" << std::endl;
+        return;
+    }
+
+    // select leaving variable
+    auto &x_e = variables_[ee];
+    Value d_e;
+    auto e = x_e.reverse_index;
+    auto ll = variables_.size();
+    Value const *bound_l = nullptr;
+    bool unbounded = true;
+
+    std::cerr << "we chose variable x_" << e << " having a " << (pos_a_ze ? "positive" : "negative") << " coefficient as entering  variable" << std::endl;
+    tableau_.update_col(e, [&, this](index_t i, Integer const &a_ie, Integer const &d_i) {
+        auto &y_i = basic_(i);
+        auto ii = y_i.reverse_index;
+        if (pos_a_ze) {
+            //   Case a_le > 0.
+            //      Here we try to increase x_l to increase x_e.
+            //      Case x_l has no upper bound or setting x_l to its upper bound would
+            //      violate x_e's upper bound (or make it tight).
+            //        The row is unbounded.
+            //      Case x_l can be set to its upper bound.
+            //        We obtain an increase of x_e smaller than its upper bound.
+            if ((a_ie > 0) == (d_i > 0)) {
+                if (!y_i.has_upper()) {
+                    return;
+                }
+                bound_l = &y_i.upper();
+                // we compute the updated value of x_e (see Solver::pivot_)
+                Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                if (x_e.has_upper() && v_e >= x_e.upper()) {
+                    return;
+                }
+                if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
+                    unbounded = false;
+                    ll = ii;
+                    d_e = v_e;
+                }
+            }
+            else {
+                if (!y_i.has_lower()) {
+                    return;
+                }
+                bound_l = &y_i.lower();
+                Value v_e = x_e.value + (*bound_l - y_i.value) / a_ie * d_i;
+                if (x_e.has_lower() && v_e <= x_e.lower()) {
+                    return;
+                }
+                if (ll == variables_.size() || v_e < d_e || (ii < ll && v_e == d_e)) {
+                    unbounded = false;
+                    ll = ii;
+                    d_e = v_e;
+                }
+            }
+        }
+        else {
+            throw std::runtime_error("implement me the symmetric case");
+        }
+    });
+
+    if (unbounded) {
+        if (pos_a_ze) {
+            if (!x_e.has_upper()) {
+                throw std::runtime_error("the problem is unbounded");
+            }
+            throw std::runtime_error("we can set x_e to its upper bound");
+        }
+        else {
+            if (!x_e.has_lower()) {
+                throw std::runtime_error("the problem is unbounded");
+            }
+            throw std::runtime_error("we can set x_e to its lower bound");
+        }
+    }
+
+    auto l = variables_[ll].reverse_index - n_non_basic_;
+    std::cerr << "we chose variable y_" << l << " as leaving variable" << std::endl;
+    std::cerr << "the assignment trail has size: " << assignment_trail_.size() << std::endl;
+    // add something to backtrack to
+    if (trail_offset_.empty()) {
+        trail_offset_.emplace_back(TrailOffset{
+            0,
+            static_cast<index_t>(bound_trail_.size()),
+            static_cast<index_t>(assignment_trail_.size())});
+    }
+    pivot_(trail_offset_.back().level, l, e, *bound_l);
+    debug();
+    std::cerr << "we are a step closer to the optimum: the above process should be continued until the solution is optimal" << std::endl;
+    throw std::runtime_error("TODO: finalize!!!");
 }
 
 template<typename Factor, typename Value>
