@@ -351,6 +351,47 @@ template<typename Factor, typename Value>
 void Solver<Factor, Value>::optimize() {
     assert(!objective_.empty());
     assert(variables_[idx_objective_].reverse_index >= n_non_basic_);
+    // Here we select a leaving variable x_l among the basic variables. This
+    // has to be a variable that can be adjusted so that the value a_ze*x_e
+    // increases.
+    //
+    // We pick a row l such that a_le is non-zero. It has the form
+    //   x_l = C + a_le*x_e.
+    // This can be rearranged as
+    //   x_e = x_l/a_le - C/a_le.
+    //
+    // We consider the signs of the coefficients.
+    // Case a_ze > 0:
+    //   Here we try to increase x_e to increase a_ze*x_e.
+    //   Case a_le > 0.
+    //      Here we try to increase x_l to increase x_e.
+    //      Case x_l has no upper bound or setting x_l to its upper bound would
+    //      violate x_e's upper bound (or make it tight).
+    //        The row is unbounded.
+    //      Case x_l can be set to its upper bound.
+    //        We obtain an increase of x_e smaller than its upper bound.
+    //   Case a_le < 0.
+    //      Here we try to decrease x_l to increase x_e.
+    //      Case x_l has no lower bound or setting x_l to its lower bound would
+    //      violate x_e's lower bound (or make it tight).
+    //        The row is unbounded.
+    //      Case x_l can be set to its lower bound.
+    //        We obtain an increase of x_e smaller than its upper bound.
+    //
+    //   We now consider which leaving variable to choose.
+    //   Case all rows for leaving variables are unbounded.
+    //     We can set x_e to its upper bound and adjust the corresponding
+    //     values of the x_l without causing conflicts. At this point x_e is no
+    //     entering variable anymore.
+    //   Case there is an x_l that can be set to its lower bound to make a
+    //   constraint tight.
+    //     We select the leaving variable that causes the least change to x_e
+    //     to guarantee that no bounds are violated. This is the standard
+    //     pivoting case. Unlike in algorithm to find a basic feasible
+    //     solution, this pivot cannot cause a conflict and can be
+    //     degenerative.
+    // Case a_ze > 0:
+    //   symmetric
 
     auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
 
@@ -392,42 +433,6 @@ void Solver<Factor, Value>::optimize() {
         }
     });
 
-    // Here we select a leaving variable x_l among the basic variables. This
-    // has to be a variable that can be adjusted so that the value a_ze*x_e
-    // increases.
-    //
-    // We pick a row l such that a_le is non-zero. It has the form
-    //   x_l = C + a_le*x_e.
-    // This can be rearranged as
-    //   x_e = x_l/a_le - C/a_le.
-    //
-    // We consider the signs of the coefficients.
-    //
-    // Case a_ze > 0 and a_le > 0. We can increase x_l to increase a_ze*x_e. If x_l has no upper bound, then this row is unbounded.
-    //
-    // Case a_ze > 0 and a_le < 0. We can decrease x_l to increase a_ze*x_e. If x_l has no lower bound, then this row is unbounded.
-    //
-    // Case a_ze < 0 and a_le > 0. ...
-    //
-    // Case a_ze < 0 and a_le < 0. ...
-    //
-    // Unboundedness:
-    // Case a_ze > 0 and x_e has no upper bound and all rows are unbounded,
-    // then the problem is unbounded.
-    // Case a_ze < 0 and x_e has no lower bound and all rows are unbounded,
-    // then the problem is unbounded.
-    //
-    // Otherwise, we change the value of x_e such that neither its own nor the
-    // bounds of the x_l are violated. This means that either x_e or one of the
-    // x_l will be bounded.
-    //
-    // In case x_e is bounded, there is no need to pivot. Variable x_e is no
-    // entering variable anymore and we can proceed to select another one.
-    // Otherwise, there will be a pivot and proceed to select another entering
-    // variable.
-    //
-    // I still have to further refine the cases, above. The general idea should
-    // be clear, though.
     throw std::runtime_error("TODO: pivot according to objective function");
 }
 
