@@ -401,8 +401,9 @@ template<typename Factor, typename Value>
 void Solver<Factor, Value>::optimize() {
     assert(!objective_.empty());
     assert(variables_[idx_objective_].reverse_index >= n_non_basic_);
-    // First, we select an entering variable among the non-basic variables
-    // corresponding to a non-zero coefficient a_ze in the objective function.
+    // First, we select an entering variable x_e among the non-basic variables
+    // corresponding to a non-zero coefficient a_ze in the objective function
+    // (assuming that the objective value corresponds to basic variable x_z).
     //
     // Case a_ze > 0.
     //   We can select x_e as an entering variable if it is less than its upper
@@ -420,8 +421,9 @@ void Solver<Factor, Value>::optimize() {
     //   x_l = C + a_le*x_e.
     // This can be rearranged as
     //   x_e = x_l/a_le - C/a_le.
+    // We see that the sign of a_le determines how x_l and x_e correlate.
     //
-    // We consider the signs of the coefficients.
+    // We consider the signs of the coefficients a_ze and a_le.
     // Case a_ze > 0:
     //   Here we try to increase x_e to increase a_ze*x_e.
     //   Case a_le > 0.
@@ -439,8 +441,8 @@ void Solver<Factor, Value>::optimize() {
     //      Case x_l can be set to its lower bound.
     //        We obtain an increase of x_e smaller than its upper bound.
     //
-    //   We now consider which leaving variable to choose.
-    //   Case all rows for leaving variables are unbounded.
+    //   We now consider which candidate to chose as a leaving variable.
+    //   Case all rows for leaving variables candidates are unbounded.
     //     We can set x_e to its upper bound and adjust the corresponding
     //     values of the x_l without causing conflicts. At this point x_e is no
     //     entering variable anymore.
@@ -449,8 +451,7 @@ void Solver<Factor, Value>::optimize() {
     //     We select the leaving variable that causes the least change to x_e
     //     to guarantee that no bounds are violated. This is the standard
     //     pivoting case. Unlike in algorithm to find a basic feasible
-    //     solution, this pivot cannot cause a conflict and can be
-    //     degenerative.
+    //     solution, this pivot cannot cause a conflict.
     // Case a_ze > 0:
     //   symmetric
 
