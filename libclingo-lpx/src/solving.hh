@@ -160,8 +160,6 @@ private:
     //! Pivots basic variable `x_i` and non-basic variable `x_j`.
     void pivot_(index_t level, index_t i, index_t j, Value const &v);
 
-    //! Helper function to select pivot point.
-    [[nodiscard]] bool select_(bool upper, Variable &x);
     //! Select pivot point using Bland's rule.
     State select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v);
 

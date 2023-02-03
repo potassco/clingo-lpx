@@ -784,23 +784,6 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
 }
 
 template<typename Factor, typename Value>
-bool Solver<Factor, Value>::select_(bool upper, Variable &x) {
-    if (upper) {
-        if (!x.has_upper() || x.value < x.upper()) {
-            return true;
-        }
-        conflict_clause_.emplace_back(-x.upper_bound->lit);
-    }
-    else {
-        if (!x.has_lower() || x.value > x.lower()) {
-            return true;
-        }
-        conflict_clause_.emplace_back(-x.lower_bound->lit);
-    }
-    return false;
-}
-
-template<typename Factor, typename Value>
 typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) {
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
@@ -817,38 +800,35 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
         }
         i -= n_non_basic_;
 
-        if (xi.has_lower() && xi.value < xi.lower()) {
+        bool lower = xi.has_lower() && xi.value < xi.lower();
+        if (lower || (xi.has_upper() && xi.value > xi.upper())) {
             conflict_clause_.clear();
-            conflict_clause_.emplace_back(-xi.lower_bound->lit);
+            conflict_clause_.emplace_back(lower ? -xi.lower_bound->lit : -xi.upper_bound->lit);
             index_t kk = variables_.size();
             tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
                 auto jj = variables_[j].index;
-                if (jj < kk && select_((a_ij > 0) == (d_i > 0), variables_[jj])) {
+                // skip over the variable if we already have a better one
+                // according to blands rule
+                if (jj > kk) {
+                    return;
+                }
+                auto &x_j = variables_[jj];
+                bool upper = lower == ((a_ij > 0) == (d_i > 0));
+                // preemptively add bound to conflict clause if it can be increased no further
+                if (upper ? x_j.has_upper() && x_j.value >= x_j.upper()
+                          : x_j.has_lower() && x_j.value <= x_j.lower()) {
+                    conflict_clause_.emplace_back(upper ? -x_j.upper_bound->lit
+                                                        : -x_j.lower_bound->lit);
+                }
+                // we can set x_i to one of its bounds to get rid of the conflict
+                else {
                     kk = jj;
                     ret_i = i;
                     ret_j = j;
-                    ret_v = &xi.lower();
+                    ret_v = lower ? &xi.lower() : &xi.upper();
                 }
             });
-            if (kk == variables_.size()) {
-                return State::Unsatisfiable;
-            }
-            return State::Unknown;
-        }
-
-        if (xi.has_upper() && xi.value > xi.upper()) {
-            conflict_clause_.clear();
-            conflict_clause_.emplace_back(-xi.upper_bound->lit);
-            index_t kk = variables_.size();
-            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
-                auto jj = variables_[j].index;
-                if (jj < kk && select_((a_ij < 0) != (d_i < 0), variables_[jj])) {
-                    kk = jj;
-                    ret_i = i;
-                    ret_j = j;
-                    ret_v = &xi.upper();
-                }
-            });
+            // the constraint determining x_i is tight - the conflict clause captures the reason
             if (kk == variables_.size()) {
                 return State::Unsatisfiable;
             }
