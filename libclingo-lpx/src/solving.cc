@@ -454,6 +454,7 @@ void Solver<Factor, Value>::optimize() {
     // Case a_ze > 0:
     //   symmetric
 
+    assert_extra(check_solution_());
     while (true) {
         // the objective assigned to variable y_z
         auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
@@ -476,6 +477,7 @@ void Solver<Factor, Value>::optimize() {
 
         // the solution is optimal if there is no exiting variable
         if (ee == variables_.size()) {
+            assert_extra(check_solution_());
             bounded_ = true;
             return;
         }
@@ -502,10 +504,10 @@ void Solver<Factor, Value>::optimize() {
             // we compute the updated value of x_e (see Solver::pivot_)
             Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
             if (pos_a_ze ? x_e.has_upper() && v >= x_e.upper()
-                         : x_e.has_lower() && v >= x_e.lower()) {
+                         : x_e.has_lower() && v <= x_e.lower()) {
                 return;
             }
-            if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
+            if (bound_l == nullptr || (pos_a_ze ? v < v_e : v > v_e) || (ii < ll && v == v_e)) {
                 bound_l = &v_i;
                 ll = ii;
                 v_e = std::move(v);
@@ -528,6 +530,7 @@ void Solver<Factor, Value>::optimize() {
         else {
             if (pos_a_ze ? !x_e.has_upper()
                          : !x_e.has_lower()) {
+                assert_extra(check_solution_());
                 bounded_ = false;
                 return;
             }
