@@ -484,7 +484,8 @@ void Solver<Factor, Value>::optimize() {
         auto &x_e = variables_[ee];
         Value v_e;
         auto e = x_e.reverse_index;
-        auto ll = variables_.size();
+        assert(ee == variables_[e].index);
+        index_t ll = variables_.size();
         Value const *bound_l = nullptr;
 
         tableau_.update_col(e, [&, this](index_t i, Integer const &a_ie, Integer const &d_i) {
@@ -495,7 +496,8 @@ void Solver<Factor, Value>::optimize() {
                          : !y_i.has_lower()) {
                 return;
             }
-            auto ii = y_i.reverse_index;
+            auto ii = variables_[i + n_non_basic_].index;
+            assert(i == y_i.reverse_index - n_non_basic_);
             Value const &v_i = increase ? y_i.upper() : y_i.lower();
             // we compute the updated value of x_e (see Solver::pivot_)
             Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
@@ -521,7 +523,6 @@ void Solver<Factor, Value>::optimize() {
 
         if (bound_l != nullptr) {
             auto l = variables_[ll].reverse_index - n_non_basic_;
-            Value v = x_e.value + (*bound_l - variables_[ll].value) / tableau_.get(l, e);
             pivot_(level, l, e, *bound_l);
         }
         else {
