@@ -455,7 +455,6 @@ void Solver<Factor, Value>::optimize() {
     //   symmetric
 
     while (true) {
-
         // the objective assigned to variable y_z
         auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
 
@@ -466,17 +465,11 @@ void Solver<Factor, Value>::optimize() {
             auto jj = variables_[j].index;
             if (jj < ee) {
                 auto &x_j = variables_[jj];
-                if ((a_zj > 0) == (d_z > 0)) {
-                    if (!x_j.has_upper() || x_j.value < x_j.upper()) {
-                        ee = jj;
-                        pos_a_ze = true;
-                    }
-                }
-                else {
-                    if (!x_j.has_lower() || x_j.value > x_j.lower()) {
-                        ee = jj;
-                        pos_a_ze = false;
-                    }
+                bool pos_a_zj = (a_zj > 0) == (d_z > 0);
+                if (pos_a_zj ? !x_j.has_upper() || x_j.value < x_j.upper()
+                             : !x_j.has_lower() || x_j.value > x_j.lower()) {
+                    ee = jj;
+                    pos_a_ze = pos_a_zj;
                 }
             }
         });
@@ -496,77 +489,24 @@ void Solver<Factor, Value>::optimize() {
 
         tableau_.update_col(e, [&, this](index_t i, Integer const &a_ie, Integer const &d_i) {
             auto &y_i = basic_(i);
-            auto ii = y_i.reverse_index;
-            if (pos_a_ze) {
-                // case where increasing y_i increases x_e
-                if ((a_ie > 0) == (d_i > 0)) {
-                    // y_i and in turn also x_e can be increased arbitrarily
-                    if (!y_i.has_upper()) {
-                        return;
-                    }
-                    auto const &v_i = y_i.upper();
-                    // we compute the updated value of x_e (see Solver::pivot_)
-                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
-                    // setting y_i to its upper bound either violates the upper bound of x_e or makes it tight
-                    if (x_e.has_upper() && v >= x_e.upper()) {
-                        return;
-                    }
-                    // y_i can be set to its upper bound and x_e is still within it's bounds
-                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
-                        bound_l = &v_i;
-                        ll = ii;
-                        v_e = v;
-                    }
-                }
-                // symmetric
-                else {
-                    if (!y_i.has_lower()) {
-                        return;
-                    }
-                    auto const &v_i = y_i.lower();
-                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
-                    if (x_e.has_lower() && v <= x_e.lower()) {
-                        return;
-                    }
-                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
-                        bound_l = &v_i;
-                        ll = ii;
-                        v_e = v;
-                    }
-                }
+            bool pos_a_ie = ((a_ie > 0) == (d_i > 0));
+            bool increase = pos_a_ie == pos_a_ze;
+            if (increase ? !y_i.has_upper()
+                         : !y_i.has_lower()) {
+                return;
             }
-            else {
-                // symmetric
-                if ((a_ie > 0) == (d_i > 0)) {
-                    if (!y_i.has_lower()) {
-                        return;
-                    }
-                    auto const &v_i = y_i.lower();
-                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
-                    if (x_e.has_lower() && v >= x_e.lower()) {
-                        return;
-                    }
-                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
-                        bound_l = &v_i;
-                        ll = ii;
-                        v_e = v;
-                    }
-                }
-                else {
-                    if (!y_i.has_upper()) {
-                        return;
-                    }
-                    auto const &v_i = y_i.upper();
-                    Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
-                    if (x_e.has_upper() && v <= x_e.upper()) {
-                        return;
-                    }
-                    if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
-                        bound_l = &v_i;
-                        ll = ii;
-                        v_e = v;
-                    }
-                }
+            auto ii = y_i.reverse_index;
+            Value const &v_i = increase ? y_i.upper() : y_i.lower();
+            // we compute the updated value of x_e (see Solver::pivot_)
+            Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
+            if (pos_a_ze ? x_e.has_upper() && v >= x_e.upper()
+                         : x_e.has_lower() && v >= x_e.lower()) {
+                return;
+            }
+            if (bound_l == nullptr || v < v_e || (ii < ll && v == v_e)) {
+                bound_l = &v_i;
+                ll = ii;
+                v_e = std::move(v);
             }
         });
 
@@ -585,20 +525,13 @@ void Solver<Factor, Value>::optimize() {
             pivot_(level, l, e, *bound_l);
         }
         else {
-            if (pos_a_ze) {
-                if (!x_e.has_upper()) {
-                    bounded_ = false;
-                    return;
-                }
-                update_(level, e, x_e.upper());
+            if (pos_a_ze ? !x_e.has_upper()
+                         : !x_e.has_lower()) {
+                bounded_ = false;
+                return;
             }
-            else {
-                if (!x_e.has_lower()) {
-                    bounded_ = false;
-                    return;
-                }
-                update_(level, e, x_e.lower());
-            }
+            update_(level, e, pos_a_ze ? x_e.upper()
+                                       : x_e.lower());
         }
     }
 }
@@ -822,14 +755,13 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     auto &xj = non_basic_(j);
 
     // adjust assignment
-    Value delta_j = (v - xi.value) / *a_ij * *d_i;
-    assert(delta_j != 0);
+    Value v_j = (v - xi.value) / *a_ij * *d_i;
 
     xi.set_value(*this, level, v, false);
-    xj.set_value(*this, level, delta_j, true);
+    xj.set_value(*this, level, v_j, true);
     tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) {
         if (k != i) {
-            basic_(k).set_value(*this, level, delta_j * a_kj / d_k, true);
+            basic_(k).set_value(*this, level, v_j * a_kj / d_k, true);
             enqueue_(k);
         }
     });
