@@ -120,6 +120,9 @@ public:
     void debug(char const *indent) const;
 
 private:
+    //! Simplify the given row.
+    void simplify_(index_t i);
+
     struct Cell {
         Cell(index_t col, Integer val)
         : col{col}
