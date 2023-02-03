@@ -116,14 +116,8 @@ public:
     //! Runs in O(1).
     void clear();
 
-    //! Print tableau for debugging purposes.
-    void print(std::ostream &out, char const *indent) const;
-
-    //! Operator to output tableau for debugging purposes.
-    std::ostream &operator<<(std::ostream &out) const {
-        print(out, "");
-        return out;
-    }
+    //! Print tableau to stderr for debugging purposes.
+    void debug(char const *indent) const;
 
 private:
     struct Cell {

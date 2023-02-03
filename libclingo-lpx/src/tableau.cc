@@ -2,6 +2,7 @@
 
 #include <numeric>
 #include <cassert>
+#include <iostream>
 
 Rational Tableau::get(index_t i, index_t j) const {
     if (i < rows_.size()) {
@@ -161,19 +162,19 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     }
 }
 
-void Tableau::print(std::ostream &out, char const *indent) const {
+void Tableau::debug(char const *indent) const {
     size_t m = rows_.size();
     size_t n = cols_.size();
     for (size_t i = 0; i < m; ++i) {
-        out << indent;
-        out << "y_" << i << " = ";
+        std::cerr << indent;
+        std::cerr << "y_" << i << " = ";
         for (size_t j = 0; j < n; ++j) {
             if (j > 0) {
-                out << " + ";
+                std::cerr << " + ";
             }
-            out << get(i, j) << "*x_" << j;
+            std::cerr << get(i, j) << "*x_" << j;
         }
-        out << "\n";
+        std::cerr << "\n";
     }
 }
 

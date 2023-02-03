@@ -350,7 +350,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
 template<typename Factor, typename Value>
 void Solver<Factor, Value>::debug() {
     std::cerr << "tableau:" << std::endl;
-    tableau_.print(std::cerr, "  ");
+    tableau_.debug("  ");
     if (!objective_.empty()) {
         auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
         std::cerr << "objective variable:\n  y_" << z << std::endl;
@@ -394,7 +394,6 @@ void Solver<Factor, Value>::debug() {
         }
         std::cerr << std::endl;
     }
-
 }
 
 template<typename Factor, typename Value>
@@ -459,7 +458,7 @@ void Solver<Factor, Value>::optimize() {
         // the objective assigned to variable y_z
         auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
 
-        // select entering variable y_e
+        // select entering variable x_e
         index_t ee = variables_.size();
         bool pos_a_ze = false;
         tableau_.update_row(z, [&, this](int j, Integer const &a_zj, Integer const &d_z) {
@@ -481,7 +480,7 @@ void Solver<Factor, Value>::optimize() {
             return;
         }
 
-        // select leaving variable
+        // select leaving variable y_l
         auto &x_e = variables_[ee];
         Value v_e;
         auto e = x_e.reverse_index;
