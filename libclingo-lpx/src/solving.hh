@@ -14,10 +14,22 @@
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
 
+enum class StoreSATAssignments : int {
+    No = 0,
+    Partial = 1,
+    Total = 2,
+};
+
 enum class SelectionHeuristic : int {
     None = 0,
     Match = 1,
     Conflict = 2,
+};
+
+struct Options {
+    SelectionHeuristic select = SelectionHeuristic::None;
+    StoreSATAssignments store_sat_assignment = StoreSATAssignments::No;
+    bool propagate_conflicts = false;
 };
 
 struct Statistics {
@@ -112,13 +124,13 @@ private:
 
 public:
     //! Construct a new solver object.
-    Solver(std::vector<Inequality> const &inequalities, std::vector<Term> const &objective);
+    Solver(Options const &options, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective);
 
     //! Prepare inequalities for solving.
     [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols);
 
     //! Solve the (previously prepared) problem.
-    [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits, bool propagate_conflicts);
+    [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
 
     //! Undo assignments on the current level.
     void undo();
@@ -132,12 +144,15 @@ public:
     //! Compute the optimal value for the objective function.
     void optimize();
 
+    //! Ensure that the current (SAT) assignment will not be backtracked.
+    void store_sat_assignment();
+
     //! Return the solve statistics.
     [[nodiscard]] Statistics const &statistics() const;
 
     //! Adjust the sign of the given literal so that it does not conflict with
     //! the current tableau.
-    [[nodiscard]] Clingo::literal_t adjust(SelectionHeuristic heuristic, Clingo::Assignment const &assign, Clingo::literal_t lit) const;
+    [[nodiscard]] Clingo::literal_t adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const;
 
 private:
     //! Check if the tableau.
@@ -149,7 +164,7 @@ private:
     //! Check if the current assignment is a solution.
     [[nodiscard]] bool check_solution_();
     //! Print a readable representation of the internal problem to stderr.
-    void debug();
+    void debug_();
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);
@@ -168,6 +183,8 @@ private:
     //! Get non-basic variable associated with column `j`.
     Variable &non_basic_(index_t j);
 
+    //! Options configuring the algorithms.
+    Options const &options_;
     //! The set of inequalities.
     std::vector<Inequality> const &inequalities_;
     //! The objective function.
@@ -203,9 +220,8 @@ private:
 template <typename Factor, typename Value>
 class Propagator : public Clingo::Heuristic {
 public:
-    Propagator(SelectionHeuristic heuristic, bool propagate_conflicts)
-    : heuristic_{heuristic}
-    , propagate_conflicts_{propagate_conflicts} { }
+    Propagator(Options const &options)
+    : options_{options} { }
     Propagator(Propagator const &) = default;
     Propagator(Propagator &&) noexcept = default;
     Propagator &operator=(Propagator const &) = default;
@@ -237,6 +253,5 @@ private:
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;
     std::vector<std::pair<size_t, Solver<Factor, Value>>> slvs_;
-    SelectionHeuristic heuristic_;
-    bool propagate_conflicts_;
+    Options options_;
 };

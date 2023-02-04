@@ -200,8 +200,9 @@ void Statistics::reset() {
 }
 
 template<typename Factor, typename Value>
-Solver<Factor, Value>::Solver(std::vector<Inequality> const &inequalities, std::vector<Term> const &objective)
-: inequalities_{inequalities}
+Solver<Factor, Value>::Solver(Options const &options, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective)
+: options_{options}
+, inequalities_{inequalities}
 , objective_{objective} { }
 
 template<typename Factor, typename Value>
@@ -348,7 +349,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
 }
 
 template<typename Factor, typename Value>
-void Solver<Factor, Value>::debug() {
+void Solver<Factor, Value>::debug_() {
     std::cerr << "tableau:" << std::endl;
     tableau_.debug("  ");
     if (!objective_.empty()) {
@@ -515,21 +516,22 @@ void Solver<Factor, Value>::optimize() {
         });
 
         // assign values on the last decision level
-        // Note that at this point something like done with
-        // CLINGOLPX_KEEP_SAT_ASSIGNMENT is possible.
         auto level = trail_offset_.empty() ? 0 : trail_offset_.back().level;
 
+        // increase objective value by pivoting
         if (bound_l != nullptr) {
             auto l = variables_[ll].reverse_index - n_non_basic_;
             pivot_(level, l, e, *bound_l);
         }
         else {
+            // variable x_e is unbounded
             if (pos_a_ze ? !x_e.has_upper()
                          : !x_e.has_lower()) {
                 assert_extra(check_solution_());
                 bounded_ = false;
                 return;
             }
+            // increase/decrease x_e
             update_(level, e, pos_a_ze ? x_e.upper()
                                        : x_e.lower());
         }
@@ -537,7 +539,23 @@ void Solver<Factor, Value>::optimize() {
 }
 
 template<typename Factor, typename Value>
-bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits, bool propagate_conflicts) {
+void Solver<Factor, Value>::store_sat_assignment() {
+    for (auto &[level, index, number] : assignment_trail_) {
+        variables_[index].level = 0;
+    }
+    for (auto it = trail_offset_.rbegin(), ie = trail_offset_.rend(); it != ie; ++it) {
+        if (it->assignment > 0) {
+            it->assignment = 0;
+        }
+        else {
+            break;
+        }
+    }
+    assignment_trail_.clear();
+}
+
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     index_t i{0};
     index_t j{0};
     Value const *v{nullptr};
@@ -556,7 +574,7 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
         for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
             auto const &[lit_a, bound_a] = *it;
             assert(lit == lit_a);
-            if (propagate_conflicts) {
+            if (options_.propagate_conflicts) {
                 for (auto const *bound_b : variables_[it->second.variable].bounds) {
                     if (lit_a != -bound_b->lit && !ass.is_false(bound_b->lit) && bound_a.conflicts(*bound_b)) {
                         conflict_clause_.clear();
@@ -597,20 +615,9 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
     while (true) {
         switch (select_(i, j, v)) {
             case State::Satisfiable: {
-#ifdef CLINGOLP_KEEP_SAT_ASSIGNMENT
-                for (auto &[level, index, number] : assignment_trail_) {
-                    variables_[index].level = 0;
+                if (options_.store_sat_assignment == StoreSATAssignments::Partial) {
+                    store_sat_assignment();
                 }
-                for (auto it = trail_offset_.rbegin(), ie = trail_offset_.rend(); it != ie; ++it) {
-                    if (it->assignment > 0) {
-                        it->assignment = 0;
-                    }
-                    else {
-                        break;
-                    }
-                }
-                assignment_trail_.clear();
-#endif
                 return true;
             }
             case State::Unsatisfiable: {
@@ -840,22 +847,22 @@ typename Solver<Factor, Value>::State Solver<Factor, Value>::select_(index_t &re
 }
 
 template<typename Factor, typename Value>
-Clingo::literal_t Solver<Factor, Value>::adjust(SelectionHeuristic heuristic, Clingo::Assignment const &assign, Clingo::literal_t lit) const {
+Clingo::literal_t Solver<Factor, Value>::adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const {
     static_cast<void>(assign);
-    if (heuristic == SelectionHeuristic::None) {
+    if (options_.select == SelectionHeuristic::None) {
         return lit;
     }
     for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
         Bound const &bound = it->second;
         Value const &value = variables_[bound.variable].value;
-        if (bound.compare(value) == (heuristic == SelectionHeuristic::Conflict)) {
+        if (bound.compare(value) == (options_.select == SelectionHeuristic::Conflict)) {
             return -lit;
         }
     }
     for (auto it = bounds_.find(-lit), ie = bounds_.end(); it != ie && it->first == -lit; ++it) {
         Bound const &bound = it->second;
         Value const &value = variables_[bound.variable].value;
-        if (bound.compare(value) == (heuristic == SelectionHeuristic::Match)) {
+        if (bound.compare(value) == (options_.select == SelectionHeuristic::Match)) {
             return -lit;
         }
     }
@@ -889,7 +896,7 @@ void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
         slvs_.emplace_back(std::piecewise_construct,
                            std::forward_as_tuple(0),
-                           std::forward_as_tuple(iqs_, objective_));
+                           std::forward_as_tuple(options_, iqs_, objective_));
         if (!slvs_.back().second.prepare(init, var_map_)) {
             return;
         }
@@ -921,7 +928,7 @@ void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Cling
 
 template<typename Factor, typename Value>
 Clingo::literal_t Propagator<Factor, Value>::decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) {
-    return slvs_[thread_id].second.adjust(heuristic_, assign, fallback);
+    return slvs_[thread_id].second.adjust(assign, fallback);
 }
 
 template<typename Factor, typename Value>
@@ -929,11 +936,18 @@ void Propagator<Factor, Value>::check(Clingo::PropagateControl &ctl) {
     auto ass = ctl.assignment();
     auto &[offset, slv] = slvs_[ctl.thread_id()];
     if (ass.decision_level() == 0 && offset < facts_offset_) {
-        static_cast<void>(slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_}, propagate_conflicts_)); // NOLINT
+        static_cast<void>(slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_})); // NOLINT
         offset = facts_offset_;
     }
-    if (ass.is_total() && !objective_.empty()) {
-        slv.optimize();
+    if (ass.is_total()) {
+        if (!objective_.empty()) {
+            slv.optimize();
+        }
+        // store the current assignment in the hope that the next model can be
+        // obtained from it with a small number of pivots
+        if (options_.store_sat_assignment >= StoreSATAssignments::Partial) {
+            slv.store_sat_assignment();
+        }
     }
 }
 
@@ -944,7 +958,7 @@ void Propagator<Factor, Value>::propagate(Clingo::PropagateControl &ctl, Clingo:
         facts_.insert(facts_.end(), changes.begin(), changes.end());
     }
     auto &[offset, slv] = slvs_[ctl.thread_id()];
-    static_cast<void>(slv.solve(ctl, changes, propagate_conflicts_));
+    static_cast<void>(slv.solve(ctl, changes));
 }
 
 template<typename Factor, typename Value>

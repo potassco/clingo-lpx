@@ -119,8 +119,8 @@ public:
 template <typename Factor, typename Value>
 class LPXPropagatorFacade : public PropagatorFacade {
 public:
-    LPXPropagatorFacade(clingo_control_t *control, char const *theory, SelectionHeuristic heuristic, bool propagate_conflicts)
-    : prop_{heuristic, propagate_conflicts} {
+    LPXPropagatorFacade(clingo_control_t *control, char const *theory, Options const &options)
+    : prop_{options} {
         handle_error(clingo_control_add(control, "base", nullptr, 0, theory));
         static clingo_propagator_t prp = {
             init<Factor, Value>,
@@ -136,7 +136,7 @@ public:
             check<Factor, Value>,
             nullptr,
         };
-        handle_error(clingo_control_register_propagator(control, heuristic != SelectionHeuristic::None ? &prp : &heu, &prop_, false));
+        handle_error(clingo_control_register_propagator(control, options.select != SelectionHeuristic::None ? &prp : &heu, &prop_, false));
     }
 
     bool lookup_symbol(clingo_symbol_t name, size_t *index) override {
@@ -229,18 +229,37 @@ bool parse_bool(const char *value, void *data) {
     return false;
 }
 
+//! Parse value for phase selection heuristic.
 bool parse_select(const char *value, void *data) {
-    auto &result = *static_cast<SelectionHeuristic*>(data);
+    auto &options = *static_cast<Options*>(data);
     if (iequals(value, "none")) {
-        result = SelectionHeuristic::None;
+        options.select = SelectionHeuristic::None;
         return true;
     }
     if (iequals(value, "match")) {
-        result = SelectionHeuristic::Match;
+        options.select = SelectionHeuristic::Match;
         return true;
     }
     if (iequals(value, "conflict")) {
-        result = SelectionHeuristic::Conflict;
+        options.select = SelectionHeuristic::Conflict;
+        return true;
+    }
+    return false;
+}
+
+//! Parse value for store SAT assignment configuration.
+bool parse_store(const char *value, void *data) {
+    auto &options = *static_cast<Options*>(data);
+    if (iequals(value, "no")) {
+        options.store_sat_assignment = StoreSATAssignments::No;
+        return true;
+    }
+    if (iequals(value, "partial")) {
+        options.store_sat_assignment = StoreSATAssignments::Partial;
+        return true;
+    }
+    if (iequals(value, "total")) {
+        options.store_sat_assignment = StoreSATAssignments::Total;
         return true;
     }
     return false;
@@ -262,8 +281,7 @@ bool check_parse(char const *key, bool ret) {
 
 struct clingolpx_theory {
     std::unique_ptr<PropagatorFacade> clingolpx{nullptr};
-    SelectionHeuristic select{SelectionHeuristic::None};
-    bool propagate_conflicts{false};
+    Options options;
     bool strict{false};
 };
 
@@ -287,10 +305,10 @@ extern "C" bool clingolpx_create(clingolpx_theory_t **theory) {
 extern "C" bool clingolpx_register(clingolpx_theory_t *theory, clingo_control_t* control) {
     CLINGOLPX_TRY {
         if (!theory->strict) {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, Rational>>(control, THEORY, theory->select, theory->propagate_conflicts);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, Rational>>(control, THEORY, theory->options);
         }
         else {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, RationalQ>>(control, THEORY_Q, theory->select, theory->propagate_conflicts);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, RationalQ>>(control, THEORY_Q, theory->options);
         }
     }
     CLINGOLPX_CATCH;
@@ -318,10 +336,13 @@ extern "C" bool clingolpx_configure(clingolpx_theory_t *theory, char const *key,
             return check_parse("strict", parse_bool(value, &theory->strict));
         }
         if (strcmp(key, "propagate-conflicts") == 0) {
-            return check_parse("propagate-conflicts", parse_bool(value, &theory->propagate_conflicts));
+            return check_parse("propagate-conflicts", parse_bool(value, &theory->options.propagate_conflicts));
         }
         if (strcmp(key, "select") == 0) {
-            return check_parse("select", parse_select(value, &theory->select));
+            return check_parse("select", parse_select(value, &theory->options));
+        }
+        if (strcmp(key, "store") == 0) {
+            return check_parse("select", parse_store(value, &theory->options));
         }
         std::ostringstream msg;
         msg << "invalid configuration key '" << key << "'";
@@ -335,8 +356,9 @@ extern "C" bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_op
     CLINGOLPX_TRY {
         char const * group = "Clingo.LPX Options";
         handle_error(clingo_options_add_flag(options, group, "strict", "Enable support for strict constraints", &theory->strict));
-        handle_error(clingo_options_add_flag(options, group, "propagate-conflicts", "Propagate conflicting bounds", &theory->propagate_conflicts));
-        handle_error(clingo_options_add(options, group, "select", "Choose phase selection heuristic", parse_select, &theory->select, false, "{none,match,conflict}"));
+        handle_error(clingo_options_add_flag(options, group, "propagate-conflicts", "Propagate conflicting bounds", &theory->options.propagate_conflicts));
+        handle_error(clingo_options_add(options, group, "select", "Choose phase selection heuristic", parse_select, &theory->options, false, "{none,match,conflict}"));
+        handle_error(clingo_options_add(options, group, "store", "Whether to store SAT assignments", parse_store, &theory->options, false, "{no,partial,total}"));
     }
     CLINGOLPX_CATCH;
 }
