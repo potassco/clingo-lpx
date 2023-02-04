@@ -514,14 +514,10 @@ void Solver<Factor, Value>::optimize() {
             }
         });
 
-        // ensure that there is a decision level to assign values to
-        if (trail_offset_.empty()) {
-            trail_offset_.emplace_back(TrailOffset{
-                0,
-                static_cast<index_t>(bound_trail_.size()),
-                static_cast<index_t>(assignment_trail_.size())});
-        }
-        auto level = trail_offset_.back().level;
+        // assign values on the last decision level
+        // Note that at this point something like done with
+        // CLINGOLPX_KEEP_SAT_ASSIGNMENT is possible.
+        auto level = trail_offset_.empty() ? 0 : trail_offset_.back().level;
 
         if (bound_l != nullptr) {
             auto l = variables_[ll].reverse_index - n_non_basic_;
