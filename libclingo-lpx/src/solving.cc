@@ -243,17 +243,6 @@ std::optional<std::pair<Value, bool>> Solver<Factor, Value>::get_objective() con
 
 template<typename Factor, typename Value>
 bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols) {
-    // TODO: Bounds associated with a variable form a propagation chain. We can
-    // add binary clauses to propagate them. For example
-    //
-    //     `x >= u` implies not `x <= l` for all `l < u`.
-    //
-    // Care has to be taken because we cannot use
-    //
-    //     `x >= u` implies `x >= u'` for all u' >= u
-    //
-    // because I am going for a non-strict defined semantics.
-
     auto ass = init.assignment();
 
     Prepare prep{*this, symbols};
@@ -344,6 +333,28 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
     assert_extra(check_tableau_());
     assert_extra(check_basic_());
     assert_extra(check_non_basic_());
+
+    // Add binary clauses for the following bounds:
+    //
+    //   x >= u implies not x <= l for all l < u.
+    if (options_.propagate_conflicts) {
+        for (auto const &var : variables_) {
+            for (auto it_a = var.bounds.begin(), ie = var.bounds.end(); it_a != ie; ++it_a) {
+                auto const &ba = **it_a;
+                for (auto it_b = it_a + 1; it_b != ie; ++it_b) {
+                    auto const &bb = **it_b;
+                    if (ba.lit != -bb.lit && !ass.is_false(bb.lit) && ba.conflicts(bb)) {
+                        conflict_clause_.clear();
+                        conflict_clause_.emplace_back(-ba.lit);
+                        conflict_clause_.emplace_back(-bb.lit);
+                        if (!init.add_clause(conflict_clause_) || !init.propagate()) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     return true;
 }
@@ -574,18 +585,6 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
         for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
             auto const &[lit_a, bound_a] = *it;
             assert(lit == lit_a);
-            if (options_.propagate_conflicts) {
-                for (auto const *bound_b : variables_[it->second.variable].bounds) {
-                    if (lit_a != -bound_b->lit && !ass.is_false(bound_b->lit) && bound_a.conflicts(*bound_b)) {
-                        conflict_clause_.clear();
-                        conflict_clause_.emplace_back(-lit_a);
-                        conflict_clause_.emplace_back(-bound_b->lit);
-                        if (!ctl.add_clause(conflict_clause_) || !ctl.propagate()) {
-                            return false;
-                        }
-                    }
-                }
-            }
             auto &x = variables_[bound_a.variable];
             if (!x.update(*this, ctl.assignment(), bound_a)) {
                 conflict_clause_.clear();
@@ -767,6 +766,7 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     xi.set_value(*this, level, v, false);
     xj.set_value(*this, level, v_j, true);
     tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) {
+        // TODO[propagate]: we can mark rows for bound propagation here
         if (k != i) {
             basic_(k).set_value(*this, level, v_j * a_kj / d_k, true);
             enqueue_(k);
