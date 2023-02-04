@@ -338,6 +338,9 @@ extern "C" bool clingolpx_configure(clingolpx_theory_t *theory, char const *key,
         if (strcmp(key, "propagate-conflicts") == 0) {
             return check_parse("propagate-conflicts", parse_bool(value, &theory->options.propagate_conflicts));
         }
+        if (strcmp(key, "propagate-bounds") == 0) {
+            return check_parse("propagate-bounds", parse_bool(value, &theory->options.propagate_bounds));
+        }
         if (strcmp(key, "select") == 0) {
             return check_parse("select", parse_select(value, &theory->options));
         }
@@ -357,6 +360,7 @@ extern "C" bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_op
         char const * group = "Clingo.LPX Options";
         handle_error(clingo_options_add_flag(options, group, "strict", "Enable support for strict constraints", &theory->strict));
         handle_error(clingo_options_add_flag(options, group, "propagate-conflicts", "Propagate conflicting bounds", &theory->options.propagate_conflicts));
+        handle_error(clingo_options_add_flag(options, group, "propagate-bounds", "Propagate bounds", &theory->options.propagate_bounds));
         handle_error(clingo_options_add(options, group, "select", "Choose phase selection heuristic", parse_select, &theory->options, false, "{none,match,conflict}"));
         handle_error(clingo_options_add(options, group, "store", "Whether to store SAT assignments", parse_store, &theory->options, false, "{no,partial,total}"));
     }

@@ -2,7 +2,9 @@
 #include "parsing.hh"
 
 #include <climits>
+#include <clingo.hh>
 #include <exception>
+#include <functional>
 #include <optional>
 #include <stdexcept>
 #include <tuple>
@@ -617,7 +619,7 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
                 if (options_.store_sat_assignment == StoreSATAssignments::Partial) {
                     store_sat_assignment();
                 }
-                return true;
+                return propagate_(ctl);
             }
             case State::Unsatisfiable: {
                 ctl.add_clause(conflict_clause_);
@@ -629,6 +631,103 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
             }
         }
     }
+}
+
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::propagate_(Clingo::PropagateControl &ctl) {
+    // This implemenation is a proof of concept. In principle it can also
+    // propgate more (see clingcon). It is very likely that it is too expensive
+    // in this form. I would invest some more time into tuning once we have
+    // examples where it applies.
+    //
+    // One possible heuristic to compute bounds would be to only consider
+    // pivoted rows.
+    if (!options_.propagate_bounds) {
+        return true;
+    }
+    auto ass = ctl.assignment();
+    std::vector<Clingo::literal_t> lower_clause;
+    std::vector<Clingo::literal_t> upper_clause;
+    for (index_t i = 0; i < n_basic_; ++i) {
+        std::optional<Value> lower = Value{0};
+        std::optional<Value> upper = Value{0};
+        // check if a constraint provides a bound
+        tableau_.update_row(i, [&,this](index_t j, Integer const &a_ij, Integer const &d_i) {
+            auto &x_j = non_basic_(j);
+            if ((a_ij > 0) == (d_i > 0)) {
+                if (!x_j.has_lower()) {
+                    lower = std::nullopt;
+                }
+                if (!x_j.has_upper()) {
+                    upper = std::nullopt;
+                }
+            }
+            else {
+                if (!x_j.has_lower()) {
+                    upper = std::nullopt;
+                }
+                if (!x_j.has_upper()) {
+                    lower = std::nullopt;
+                }
+            }
+        });
+        if (!upper.has_value() && !lower.has_value()) {
+            continue;
+        }
+        lower_clause.clear();
+        upper_clause.clear();
+        // compute the bound
+        tableau_.update_row(i, [&,this](index_t j, Integer const &a_ij, Integer const &d_i) {
+            auto &x_j = non_basic_(j);
+            if ((a_ij > 0) == (d_i > 0)) {
+                if (lower.has_value() && x_j.has_lower()) {
+                    *lower+= x_j.lower() * a_ij / d_i;
+                    lower_clause.emplace_back(-x_j.lower_bound->lit);
+                }
+                if (upper.has_value() && x_j.has_upper()) {
+                    *upper+= x_j.upper() * a_ij / d_i;
+                    upper_clause.emplace_back(-x_j.upper_bound->lit);
+                }
+            }
+            else {
+                if (upper.has_value() && x_j.has_lower()) {
+                    *upper+= x_j.lower() * a_ij / d_i;
+                    upper_clause.emplace_back(-x_j.lower_bound->lit);
+                }
+                if (lower.has_value() && x_j.has_upper()) {
+                    *lower+= x_j.upper() * a_ij / d_i;
+                    lower_clause.emplace_back(-x_j.upper_bound->lit);
+                }
+            }
+        });
+        auto &y_i = basic_(i);
+        // propagate the bounds
+        if (upper.has_value()) {
+            // y_i <= upper
+            for (auto &bound : y_i.bounds) {
+                if (bound->rel != BoundRelation::LessEqual && bound->value > *upper && !ass.is_false(bound->lit)) {
+                    upper_clause.emplace_back(-bound->lit);
+                    ++statistics_.propagated_bounds;
+                    if (!ctl.add_clause(upper_clause) || !ctl.propagate()) {
+                        return false;
+                    }
+                }
+            }
+        }
+        if (lower.has_value()) {
+            // y_i >= lower
+            for (auto &bound : y_i.bounds) {
+                if (bound->rel != BoundRelation::GreaterEqual && bound->value < *lower && !ass.is_false(bound->lit)) {
+                    lower_clause.emplace_back(-bound->lit);
+                    ++statistics_.propagated_bounds;
+                    if (!ctl.add_clause(lower_clause) || !ctl.propagate()) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
 }
 
 template<typename Factor, typename Value>
@@ -766,7 +865,6 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     xi.set_value(*this, level, v, false);
     xj.set_value(*this, level, v_j, true);
     tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) {
-        // TODO[propagate]: we can mark rows for bound propagation here
         if (k != i) {
             basic_(k).set_value(*this, level, v_j * a_kj / d_k, true);
             enqueue_(k);
@@ -782,7 +880,7 @@ void Solver<Factor, Value>::pivot_(index_t level, index_t i, index_t j, Value co
     // eliminate x_j from rows k != i
     tableau_.pivot(i, j, *a_ij, *d_i);
 
-    ++statistics_.pivots_;
+    ++statistics_.pivots;
     assert_extra(check_tableau_());
     assert_extra(check_basic_());
     assert_extra(check_non_basic_());
@@ -875,7 +973,7 @@ template<typename Factor, typename Value>
 void Propagator<Factor, Value>::init(Clingo::PropagateInit &init) {
     facts_offset_ = facts_.size();
     if (facts_offset_ > 0) {
-        init.set_check_mode(Clingo::PropagatorCheckMode::Partial);
+        init.set_check_mode(Clingo::PropagatorCheckMode::Both);
     }
 
     evaluate_theory(init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_, objective_);
@@ -920,11 +1018,15 @@ template<typename Factor, typename Value>
 void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
     auto step_simplex = step.add_subkey("Simplex", Clingo::StatisticsType::Map);
     auto step_pivots = step_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
+    auto step_propagated_bounds = step_simplex.add_subkey("Bounds propagated", Clingo::StatisticsType::Value);
     auto accu_simplex = accu.add_subkey("Simplex", Clingo::StatisticsType::Map);
     auto accu_pivots = accu_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
+    auto accu_propagated_bounds = accu_simplex.add_subkey("Bounds propagated", Clingo::StatisticsType::Value);
     for (auto const &[offset, slv] : slvs_) {
-        step_pivots.set_value(slv.statistics().pivots_);
-        accu_pivots.set_value(accu_pivots.value() + slv.statistics().pivots_);
+        step_pivots.set_value(slv.statistics().pivots);
+        accu_pivots.set_value(accu_pivots.value() + slv.statistics().pivots);
+        step_propagated_bounds.set_value(slv.statistics().propagated_bounds);
+        accu_propagated_bounds.set_value(accu_propagated_bounds.value() + slv.statistics().propagated_bounds);
     }
 }
 
@@ -938,8 +1040,12 @@ void Propagator<Factor, Value>::check(Clingo::PropagateControl &ctl) {
     auto ass = ctl.assignment();
     auto &[offset, slv] = slvs_[ctl.thread_id()];
     if (ass.decision_level() == 0 && offset < facts_offset_) {
-        static_cast<void>(slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_})); // NOLINT
+        auto res = slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_}); // NOLINT
         offset = facts_offset_;
+        // can happen in case of a top-level conflict
+        if (!res) {
+            return;
+        }
     }
     if (ass.is_total()) {
         if (!objective_.empty()) {

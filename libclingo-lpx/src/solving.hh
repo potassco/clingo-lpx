@@ -29,13 +29,15 @@ enum class SelectionHeuristic : int {
 struct Options {
     SelectionHeuristic select = SelectionHeuristic::None;
     StoreSATAssignments store_sat_assignment = StoreSATAssignments::No;
+    bool propagate_bounds = false;
     bool propagate_conflicts = false;
 };
 
 struct Statistics {
     void reset();
 
-    size_t pivots_{0};
+    size_t pivots{0};
+    size_t propagated_bounds{0};
 };
 
 //! A solver for finding an assignment satisfying a set of inequalities.
@@ -165,6 +167,9 @@ private:
     [[nodiscard]] bool check_solution_();
     //! Print a readable representation of the internal problem to stderr.
     void debug_();
+    //! Propagate (some) bounds.
+    bool propagate_(Clingo::PropagateControl &ctl);
+
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);
