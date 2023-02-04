@@ -852,6 +852,8 @@ Clingo::literal_t Solver<Factor, Value>::adjust(Clingo::Assignment const &assign
     if (options_.select == SelectionHeuristic::None) {
         return lit;
     }
+    // Note that the tests could be strengthend further, we could check if
+    // setting the value to its bound would cause a conflict or match.
     for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
         Bound const &bound = it->second;
         Value const &value = variables_[bound.variable].value;
