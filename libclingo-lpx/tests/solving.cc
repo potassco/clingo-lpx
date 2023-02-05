@@ -38,7 +38,7 @@ bool run(char const *s) {
     return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
 
-std::optional<std::pair<Rational, bool>> run_m(char const *s) {
+std::optional<std::pair<Rational, bool>> run_o(char const *s) {
     Propagator<Rational, Rational> prp{options};
     SHM shm{prp};
     Clingo::Control ctl;
@@ -146,22 +146,30 @@ TEST_CASE("solving") {
                         ":- b."}) == 3);
     }
     SECTION("optimize") {
-        REQUIRE( run_m("&sum {   x_1; 2*x_2; 3*x_3 } <= 30.\n"
+        REQUIRE( run_o("&sum {   x_1; 2*x_2; 3*x_3 } <= 30.\n"
                        "&sum { 2*x_1; 2*x_2; 5*x_3 } <= 24.\n"
                        "&sum { 4*x_1;   x_2; 2*x_3 } <= 36.\n"
                        "&sum { x_1 } >= 0.\n"
                        "&sum { x_2 } >= 0.\n"
                        "&sum { x_3 } >= 0.\n"
                        "&maximize { 3*x_1; x_2; 2*x_3 }.\n") == std::make_pair(Rational{28}, true));
-        REQUIRE( run_m("&sum {   x_1; 2*x_2; 3*x_3 } <= 30.\n"
+        REQUIRE( run_o("&sum {   x_1; 2*x_2; 3*x_3 } <= 30.\n"
                        "&sum { 2*x_1; 2*x_2; 5*x_3 } <= 24.\n"
                        "&sum { 4*x_1;   x_2; 2*x_3 } <= 36.\n"
                        "&maximize { 3*x_1; x_2; 2*x_3 }.\n") == std::make_pair(Rational{378, 13}, true));
-        REQUIRE( run_m("&sum { 2*x_1;  -x_2 } <= 2.\n"
+        REQUIRE( run_o("&sum { 2*x_1;  -x_2 } <= 2.\n"
                        "&sum { x_1;  -5*x_2 } <= -4.\n"
                        "&maximize { 2*x_1; -x_2 }.\n") == std::make_pair(Rational{2}, true));
-        REQUIRE(!run_m("&sum { x; y } >= 7.\n"
+        REQUIRE(!run_o("&sum { x; y } >= 7.\n"
                        "&sum { y } >= 3.\n"
                        "&maximize { 8*x; -5*y }.\n")->second);
+    }
+    SECTION("optimize-global") {
+        std::cerr << "TODO: adjust this test so that it computes a global optimum" << std::endl;
+        REQUIRE( run("{ a; b }.\n"
+                     "&sum { a; b } <= 5.\n"
+                     "&sum { a } <= 2 :- a.\n"
+                     "&sum { b } <= 2 :- b.\n"
+                     "&maximize { a; b }.\n"));
     }
 }

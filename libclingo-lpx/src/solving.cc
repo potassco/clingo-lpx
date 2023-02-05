@@ -7,10 +7,26 @@
 #include <exception>
 #include <functional>
 #include <optional>
+#include <ostream>
+#include <sstream>
 #include <stdexcept>
 #include <tuple>
 #include <unordered_set>
 #include <utility>
+
+namespace {
+
+RationalQ as_value(RationalQ const &a, RationalQ *b) {
+    static_cast<void>(b);
+    return a;
+}
+
+Rational as_value(RationalQ const &a, Rational *b) {
+    static_cast<void>(b);
+    return a.as_rational();
+}
+
+} // namespace
 
 template<typename Factor, typename Value>
 typename Solver<Factor, Value>::BoundRelation bound_rel(Relation rel) {
@@ -1035,6 +1051,26 @@ void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Cling
         step_propagated_bounds.set_value(slv.statistics().propagated_bounds);
         accu_propagated_bounds.set_value(accu_propagated_bounds.value() + slv.statistics().propagated_bounds);
     }
+}
+
+template<typename Factor, typename Value>
+void Propagator<Factor, Value>::on_model(Clingo::Model const &model) {
+    if (!options_.global_objective.has_value()) {
+        return;
+    }
+    auto &slv = slvs_[model.thread_id()].second;
+    auto objective = slv.get_objective();
+    if (!objective.has_value()) {
+        return;
+    }
+    std::ostringstream oss;
+    if (objective->second) {
+        oss << "TODO: incorporate z >= " << objective->first << "+" << as_value(*options_.global_objective, static_cast<Value*>(nullptr)) << " into problem";
+    }
+    else {
+        oss << "TODO: incorporate z >= infinity into problem";
+    }
+    throw std::logic_error(oss.str());
 }
 
 template<typename Factor, typename Value>

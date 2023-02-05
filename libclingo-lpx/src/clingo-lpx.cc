@@ -22,14 +22,16 @@
 //
 // }}}
 
-#include <clingo-lpx.h>
-#include "solving.hh"
+#include "clingo-lpx.h"
 #include "parsing.hh"
+#include "solving.hh"
 
 #include <clingo.h>
 #include <clingo.hh>
+
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 
 #define CLINGOLPX_TRY try // NOLINT
 #define CLINGOLPX_CATCH catch (...){ Clingo::Detail::handle_cxx_error(); return false; } return true // NOLINT
@@ -189,6 +191,7 @@ public:
             symbols.emplace_back(Clingo::Function("__lpx_objective", {Clingo::String(ss_.str().c_str()), Clingo::Number(objective->second ? 1 : 0)}));
         }
         model.extend(symbols);
+        prop_.on_model(model);
     }
 
     void on_statistics(Clingo::UserStatistics& step, Clingo::UserStatistics &accu) override {
@@ -401,8 +404,12 @@ extern "C" bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_op
 }
 
 extern "C" bool clingolpx_validate_options(clingolpx_theory_t *theory) {
-    static_cast<void>(theory);
-    return true;
+    CLINGOLPX_TRY {
+        if (!theory->strict && theory->options.global_objective.has_value() && !theory->options.global_objective->is_rational()) {
+            throw std::runtime_error("objective step value requires strict mode");
+        }
+    }
+    CLINGOLPX_CATCH;
 }
 
 extern "C" bool clingolpx_on_model(clingolpx_theory_t *theory, clingo_model_t* model) {

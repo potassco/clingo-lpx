@@ -228,8 +228,8 @@ private:
 template <typename Factor, typename Value>
 class Propagator : public Clingo::Heuristic {
 public:
-    Propagator(Options const &options)
-    : options_{options} { }
+    Propagator(Options options)
+    : options_{std::move(options)} { }
     Propagator(Propagator const &) = default;
     Propagator(Propagator &&) noexcept = default;
     Propagator &operator=(Propagator const &) = default;
@@ -237,6 +237,7 @@ public:
     ~Propagator() override = default;
     void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
+    void on_model(Clingo::Model const &model);
 
     [[nodiscard]] std::optional<index_t> lookup_symbol(Clingo::Symbol symbol) const;
     [[nodiscard]] Clingo::Symbol get_symbol(index_t i) const;
