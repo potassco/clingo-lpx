@@ -1,8 +1,9 @@
 #include "solving.hh"
 #include "parsing.hh"
 
-#include <climits>
 #include <clingo.hh>
+
+#include <climits>
 #include <exception>
 #include <functional>
 #include <optional>
@@ -318,11 +319,17 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
     // add objective function to tableau
     if (!objective_.empty()) {
         auto row = prep.add_row(objective_);
-        auto i = prep.add_basic();
-        idx_objective_ = variables_.size() - 1;
-        for (auto const &[j, v] : row) {
-            tableau_.set(i, j, v);
+        auto add_row = [&, this]() {
+            auto i = prep.add_basic();
+            for (auto const &[j, v] : row) {
+                tableau_.set(i, j, v);
+            }
+            return variables_.size() - 1;
+        };
+        if (options_.global_objective.has_value()) {
+            idx_objective_bound_ = add_row();
         }
+        idx_objective_ = add_row();
     }
 
     for (size_t i = 0; i < n_basic_; ++i) {
@@ -1047,6 +1054,12 @@ void Propagator<Factor, Value>::check(Clingo::PropagateControl &ctl) {
             return;
         }
     }
+    // TODO: Here is a good place to assert a global bound. The bound has to be
+    // inserted into the bounds vector. (If this is done in the on_model
+    // callback no lock should be necessary.) We can associate it with the fact
+    // literal. It has to be reinserted on each level because it would be
+    // backtracked, otherwise. The clingcon system also does something similar
+    // to implement its optimization statement.
     if (ass.is_total()) {
         if (!objective_.empty()) {
             slv.optimize();

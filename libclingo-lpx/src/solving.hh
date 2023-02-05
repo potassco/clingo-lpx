@@ -29,6 +29,7 @@ enum class SelectionHeuristic : int {
 struct Options {
     SelectionHeuristic select = SelectionHeuristic::None;
     StoreSATAssignments store_sat_assignment = StoreSATAssignments::No;
+    std::optional<RationalQ> global_objective = std::nullopt;
     bool propagate_bounds = false;
     bool propagate_conflicts = false;
 };
@@ -216,8 +217,10 @@ private:
     index_t n_non_basic_{0};
     //! The number of basic variables.
     index_t n_basic_{0};
-    //! The index of the objective value.
+    //! The index of the objective variable.
     index_t idx_objective_{0};
+    //! The index of the objective variable enforcing a bound.
+    index_t idx_objective_bound_{0};
     //! Whether the problem is bounded.
     bool bounded_{true};
 };

@@ -25,8 +25,9 @@ private:
     Propagator<Rational, Rational> &prp_;
 };
 
+Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, true, true};
+
 bool run(char const *s) {
-    Options options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, true};
     Propagator<Rational, Rational> prp{options};
     Clingo::Control ctl;
     prp.register_control(ctl);
@@ -38,7 +39,6 @@ bool run(char const *s) {
 }
 
 std::optional<std::pair<Rational, bool>> run_m(char const *s) {
-    Options options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, true};
     Propagator<Rational, Rational> prp{options};
     SHM shm{prp};
     Clingo::Control ctl;
@@ -54,7 +54,6 @@ std::optional<std::pair<Rational, bool>> run_m(char const *s) {
 }
 
 bool run_q(char const *s) {
-    Options options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, true};
     Propagator<Rational, RationalQ> prp{options};
     Clingo::Control ctl;
     prp.register_control(ctl);
@@ -66,7 +65,6 @@ bool run_q(char const *s) {
 }
 
 size_t run_m(std::initializer_list<char const *> m) {
-    Options options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, true};
     Propagator<Rational, Rational> prp{options};
     Clingo::Control ctl{{"0"}};
     prp.register_control(ctl);
