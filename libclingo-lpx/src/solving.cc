@@ -434,6 +434,23 @@ void Solver<Factor, Value>::debug_() {
 }
 
 template<typename Factor, typename Value>
+void Solver<Factor, Value>::update_objective(index_t level, Value const &bound) {
+    auto &z = variables_[idx_objective_bound_];
+    if (!z.has_lower() || bound > z.lower()) {
+        if (!z.has_lower()) {
+            throw std::logic_error("add a lower bound to the objective bound");
+        }
+        else { // NOLINT(readability-else-after-return)
+            throw std::logic_error("update the lower bound of the objective bound");
+        }
+        level_objective_ = level;
+    }
+    else if (level < level_objective_) {
+        level_objective_ = level;
+    }
+}
+
+template<typename Factor, typename Value>
 void Solver<Factor, Value>::optimize() {
     assert(!objective_.empty());
     assert(variables_[idx_objective_].reverse_index >= n_non_basic_);

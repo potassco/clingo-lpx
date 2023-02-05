@@ -147,6 +147,9 @@ public:
     //! Compute the optimal value for the objective function.
     void optimize();
 
+    //! Update the objective of this solver.
+    void update_objective(index_t level, Value const &bound);
+
     //! Ensure that the current (SAT) assignment will not be backtracked.
     void store_sat_assignment();
 
@@ -217,10 +220,13 @@ private:
     index_t n_non_basic_{0};
     //! The number of basic variables.
     index_t n_basic_{0};
+
     //! The index of the objective variable.
     index_t idx_objective_{0};
     //! The index of the objective variable enforcing a bound.
     index_t idx_objective_bound_{0};
+    //! The objective might not have been fully propagated below this level.
+    index_t level_objective_{0};
     //! Whether the problem is bounded.
     bool bounded_{true};
 };
