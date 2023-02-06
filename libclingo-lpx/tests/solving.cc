@@ -9,26 +9,29 @@
 
 namespace {
 
+template <typename V>
 class SHM : public Clingo::SolveEventHandler {
 public:
-    SHM(Propagator<Rational> &prp)
+    SHM(Propagator<V> &prp)
     : prp_{prp} { }
     bool on_model(Clingo::Model &model) override {
+        prp_.on_model(model);
         val_ = prp_.get_objective(model.thread_id());
         return true;
     }
-    std::optional<std::pair<Rational, bool>> const &get_objective() const {
+    std::optional<std::pair<V, bool>> const &get_objective() const {
         return val_;
     }
 private:
-    std::optional<std::pair<Rational, bool>> val_;
-    Propagator<Rational> &prp_;
+    std::optional<std::pair<V, bool>> val_;
+    Propagator<V> &prp_;
 };
 
 Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, true, true};
 
+template <typename V = Rational>
 bool run(char const *s) {
-    Propagator<Rational> prp{options};
+    Propagator<V> prp{options};
     Clingo::Control ctl;
     prp.register_control(ctl);
 
@@ -38,13 +41,14 @@ bool run(char const *s) {
     return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
 
-std::optional<std::pair<Rational, bool>> run_o(char const *s, bool global = false) {
+template <typename V = Rational>
+std::optional<std::pair<V, bool>> run_o(char const *s, bool global = false, long c=0, long k=0) {
     Options opts = options;
     if (global) {
-        opts.global_objective = RationalQ{Rational{0}, Rational{0}};
+        opts.global_objective = RationalQ{Rational{c}, Rational{k}};
     }
-    Propagator<Rational> prp{opts};
-    SHM shm{prp};
+    Propagator<V> prp{opts};
+    SHM<V> shm{prp};
     Clingo::Control ctl;
     if (global) {
         ctl.configuration()["solve"]["models"] = "0";
@@ -58,17 +62,6 @@ std::optional<std::pair<Rational, bool>> run_o(char const *s, bool global = fals
         return std::nullopt;
     }
     return shm.get_objective();
-}
-
-bool run_q(char const *s) {
-    Propagator<RationalQ> prp{options};
-    Clingo::Control ctl;
-    prp.register_control(ctl);
-
-    ctl.add("base", {}, s);
-    ctl.ground({{"base", {}}});
-
-    return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
 
 size_t run_m(std::initializer_list<char const *> m) {
@@ -87,6 +80,35 @@ size_t run_m(std::initializer_list<char const *> m) {
     }
     return l;
 }
+
+constexpr char const *knapsack = R"(
+item(1..5).
+
+weight(1,8;
+     2,3;
+     3,3;
+     4,4;
+     5,6).
+
+value(1,160;
+      2,50;
+      3,50;
+      4,70;
+      5,110).
+
+bound(10).
+
+{ pack(I) } :- item(I).
+
+&sum { pack(I) } >= 0 :- weight(I,_).
+&sum { pack(I) } <= 1 :- weight(I,_).
+&sum { pack(I) } >= 1 :- pack(I).
+&sum { pack(I) } <= 0 :- item(I), not pack(I).
+
+&sum { W*pack(I): weight(I,W) } <= B :- bound(B).
+
+&maximize { P*pack(I): value(I,P) }.
+)";
 
 } // namespace
 
@@ -115,30 +137,37 @@ TEST_CASE("solving") {
                      "&sum {  -x; 2*y } >= 1.\n"));
     }
     SECTION("strict") {
-        REQUIRE( run_q("&sum { x1; x2 } < 20.\n"
-                       "&sum { x1; x3 } =  5.\n"
-                       "&sum { x2; x3 } > 10.\n"));
+        REQUIRE( run<RationalQ>(
+            "&sum { x1; x2 } < 20.\n"
+            "&sum { x1; x3 } =  5.\n"
+            "&sum { x2; x3 } > 10.\n"));
 
-        REQUIRE(!run_q("&sum { x } > 2.\n"
-                       "&sum { x } < 0.\n"));
+        REQUIRE(!run<RationalQ>(
+            "&sum { x } > 2.\n"
+            "&sum { x } < 0.\n"));
 
-        REQUIRE(!run_q("&sum { -x } < -2.\n"
-                       "&sum {  x } <  0.\n"));
+        REQUIRE(!run<RationalQ>(
+            "&sum { -x } < -2.\n"
+            "&sum {  x } <  0.\n"));
 
-        REQUIRE(!run_q("&sum { 4*x } < 4.\n"
-                       "&sum {   x } > 2.\n"));
+        REQUIRE(!run<RationalQ>(
+            "&sum { 4*x } < 4.\n"
+            "&sum {   x } > 2.\n"));
 
-        REQUIRE(!run_q("&sum { x; y } > 2.\n"
-                       "&sum { x; y } < 0.\n"
-                       "&sum {    y } = 0.\n"));
+        REQUIRE(!run<RationalQ>(
+            "&sum { x; y } > 2.\n"
+            "&sum { x; y } < 0.\n"
+            "&sum {    y } = 0.\n"));
 
-        REQUIRE( run_q("&sum {   x;   y } > 2.\n"
-                       "&sum { 2*x;  -y } > 0.\n"
-                       "&sum {  -x; 2*y } > 1.\n"));
+        REQUIRE( run<RationalQ>(
+            "&sum {   x;   y } > 2.\n"
+            "&sum { 2*x;  -y } > 0.\n"
+            "&sum {  -x; 2*y } > 1.\n"));
 
-        REQUIRE(!run_q("&sum { x; -y } > 0.\n"
-                       "&sum { y; -z } > 0.\n"
-                       "&sum { z; -x } > 0.\n"));
+        REQUIRE(!run<RationalQ>(
+            "&sum { x; -y } > 0.\n"
+            "&sum { y; -z } > 0.\n"
+            "&sum { z; -x } > 0.\n"));
     }
     SECTION("multi-shot") {
         REQUIRE( run_m({"&sum { x1; x2 } <= 20.\n"
@@ -177,5 +206,7 @@ TEST_CASE("solving") {
                       "&sum { a } <= 2 :- a.\n"
                       "&sum { b } <= 2 :- b.\n"
                       "&maximize { a; b }.\n", true) == std::make_pair(Rational{5}, true));
+        REQUIRE(run_o(knapsack, true) == std::make_pair(Rational{180}, true));
+        REQUIRE(run_o<RationalQ>(knapsack, true, 0, 1) == std::make_pair(RationalQ{Rational{180}, Rational{0}}, true));
     }
 }

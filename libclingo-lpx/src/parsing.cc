@@ -219,13 +219,15 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
             auto &&elem = atom.elements().front();
             check_syntax(elem.tuple().size() == 1 && elem.condition().empty());
             auto &&term = elem.tuple().front();
-            check_syntax(match(term, "..", 2));
+            check_syntax(atom.has_guard(), "&dom constraints need guards");
+            check_syntax(match(term, "..", 2), "interval in &dom constraint expected");
             auto var = evaluate_var(atom.guard().second);
             auto lit = mapper(atom.literal());
             iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().back()), Relation::LessEqual, lit});
             iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().front()), Relation::GreaterEqual, lit});
         }
         else if (match(atom.term(), "sum", 0)) {
+            check_syntax(atom.has_guard(), "&sum constraints need guards");
             auto lhs = evaluate_terms(mapper, var_map, iqs, atom.elements());
             auto lit = mapper(atom.literal());
             simplify(cos, lhs);
