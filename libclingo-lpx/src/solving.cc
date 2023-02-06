@@ -1088,6 +1088,28 @@ void Propagator<Factor, Value>::on_model(Clingo::Model const &model) {
         oss << "TODO: incorporate z >= infinity into problem";
     }
     throw std::logic_error(oss.str());
+    // TODO: idea how to incorporate objective:
+    // - store the best objective in the propagator
+    // - increment generation
+    // - in the check method of the solver:
+    //   - take the lock: std::shared_lock lock(mutex_);
+    //   - check if the generation is smaller than the already incorporated one
+    //   - incorporate bound and update generation if necessary
+    // - how to incorporate bound?
+    //   - that's the tricky one...
+    // types:
+    // - size_t generation_;
+    // - Value objective_;
+    // - std::shared_mutex mutex_;
+    /*
+    {
+        std::unique_lock lock(mutex_);
+        if (objective > objective_) {
+            ++generation_;
+            objective_ = objective;
+        }
+    }
+    */
 }
 
 template<typename Factor, typename Value>
