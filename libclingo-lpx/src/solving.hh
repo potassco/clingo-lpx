@@ -42,8 +42,6 @@ struct Statistics {
     size_t propagated_bounds{0};
 };
 
-// TODO: it looks like the factor can be removed completely
-
 template <typename Value>
 class ObjectiveState {
 public:
