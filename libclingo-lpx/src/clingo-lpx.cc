@@ -41,48 +41,48 @@ namespace {
 using Clingo::Detail::handle_error;
 
 //! C initialization callback for the LPX propagator.
-template <typename Factor, typename Value>
+template <typename Value>
 bool init(clingo_propagate_init_t* i, void* data) {
     CLINGOLPX_TRY {
         Clingo::PropagateInit in(i);
-        static_cast<Propagator<Factor, Value>*>(data)->init(in);
+        static_cast<Propagator<Value>*>(data)->init(in);
     }
     CLINGOLPX_CATCH;
 }
 
 //! C propagation callback for the LPX propagator.
-template <typename Factor, typename Value>
+template <typename Value>
 bool propagate(clingo_propagate_control_t* i, const clingo_literal_t *changes, size_t size, void* data) {
     CLINGOLPX_TRY {
         Clingo::PropagateControl in(i);
-        static_cast<Propagator<Factor, Value>*>(data)->propagate(in, {changes, size});
+        static_cast<Propagator<Value>*>(data)->propagate(in, {changes, size});
     }
     CLINGOLPX_CATCH;
 }
 
 //! C undo callback for the LPX propagator.
-template <typename Factor, typename Value>
+template <typename Value>
 void undo(clingo_propagate_control_t const* i, const clingo_literal_t *changes, size_t size, void* data) {
     Clingo::PropagateControl in(const_cast<clingo_propagate_control_t *>(i)); // NOLINT
-    static_cast<Propagator<Factor, Value>*>(data)->undo(in, {changes, size});
+    static_cast<Propagator<Value>*>(data)->undo(in, {changes, size});
 }
 
 //! C check callback for the LPX propagator.
-template <typename Factor, typename Value>
+template <typename Value>
 bool check(clingo_propagate_control_t* i, void* data) {
     CLINGOLPX_TRY {
         Clingo::PropagateControl in(i);
-        static_cast<Propagator<Factor, Value>*>(data)->check(in);
+        static_cast<Propagator<Value>*>(data)->check(in);
     }
     CLINGOLPX_CATCH;
 }
 
 //! C decide callback for the LPX propagator.
-template <typename Factor, typename Value>
+template <typename Value>
 bool decide(clingo_id_t thread_id, clingo_assignment_t const *assignment, clingo_literal_t fallback, void *data, clingo_literal_t *decision) {
     CLINGOLPX_TRY {
         Clingo::Assignment assign(const_cast<clingo_assignment_t *>(assignment)); // NOLINT
-        *decision = static_cast<Propagator<Factor, Value>*>(data)->decide(thread_id, assign, fallback);
+        *decision = static_cast<Propagator<Value>*>(data)->decide(thread_id, assign, fallback);
     }
     CLINGOLPX_CATCH;
 }
@@ -119,24 +119,24 @@ public:
 };
 
 //! High level interface to use the LPX propagator.
-template <typename Factor, typename Value>
+template <typename Value>
 class LPXPropagatorFacade : public PropagatorFacade {
 public:
     LPXPropagatorFacade(clingo_control_t *control, char const *theory, Options const &options)
     : prop_{options} {
         handle_error(clingo_control_add(control, "base", nullptr, 0, theory));
         static clingo_propagator_t prp = {
-            init<Factor, Value>,
-            propagate<Factor, Value>,
-            undo<Factor, Value>,
-            check<Factor, Value>,
-            decide<Factor, Value>,
+            init<Value>,
+            propagate<Value>,
+            undo<Value>,
+            check<Value>,
+            decide<Value>,
         };
         static clingo_propagator_t heu = {
-            init<Factor, Value>,
-            propagate<Factor, Value>,
-            undo<Factor, Value>,
-            check<Factor, Value>,
+            init<Value>,
+            propagate<Value>,
+            undo<Value>,
+            check<Value>,
             nullptr,
         };
         handle_error(clingo_control_register_propagator(control, options.select != SelectionHeuristic::None ? &prp : &heu, &prop_, false));
@@ -199,7 +199,7 @@ public:
     }
 
 private:
-    Propagator<Factor, Value> prop_; //!< The underlying LPX propagator.
+    Propagator<Value> prop_; //!< The underlying LPX propagator.
     std::ostringstream ss_;
 };
 
@@ -337,10 +337,10 @@ extern "C" bool clingolpx_create(clingolpx_theory_t **theory) {
 extern "C" bool clingolpx_register(clingolpx_theory_t *theory, clingo_control_t* control) {
     CLINGOLPX_TRY {
         if (!theory->strict) {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, Rational>>(control, THEORY, theory->options);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational>>(control, THEORY, theory->options);
         }
         else {
-            theory->clingolpx = std::make_unique<LPXPropagatorFacade<Rational, RationalQ>>(control, THEORY_Q, theory->options);
+            theory->clingolpx = std::make_unique<LPXPropagatorFacade<RationalQ>>(control, THEORY_Q, theory->options);
         }
     }
     CLINGOLPX_CATCH;

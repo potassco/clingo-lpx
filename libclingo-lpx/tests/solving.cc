@@ -11,7 +11,7 @@ namespace {
 
 class SHM : public Clingo::SolveEventHandler {
 public:
-    SHM(Propagator<Rational, Rational> &prp)
+    SHM(Propagator<Rational> &prp)
     : prp_{prp} { }
     bool on_model(Clingo::Model &model) override {
         val_ = prp_.get_objective(model.thread_id());
@@ -22,13 +22,13 @@ public:
     }
 private:
     std::optional<std::pair<Rational, bool>> val_;
-    Propagator<Rational, Rational> &prp_;
+    Propagator<Rational> &prp_;
 };
 
 Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, true, true};
 
 bool run(char const *s) {
-    Propagator<Rational, Rational> prp{options};
+    Propagator<Rational> prp{options};
     Clingo::Control ctl;
     prp.register_control(ctl);
 
@@ -43,7 +43,7 @@ std::optional<std::pair<Rational, bool>> run_o(char const *s, bool global = fals
     if (global) {
         opts.global_objective = RationalQ{Rational{0}, Rational{0}};
     }
-    Propagator<Rational, Rational> prp{opts};
+    Propagator<Rational> prp{opts};
     SHM shm{prp};
     Clingo::Control ctl;
     if (global) {
@@ -61,7 +61,7 @@ std::optional<std::pair<Rational, bool>> run_o(char const *s, bool global = fals
 }
 
 bool run_q(char const *s) {
-    Propagator<Rational, RationalQ> prp{options};
+    Propagator<RationalQ> prp{options};
     Clingo::Control ctl;
     prp.register_control(ctl);
 
@@ -72,7 +72,7 @@ bool run_q(char const *s) {
 }
 
 size_t run_m(std::initializer_list<char const *> m) {
-    Propagator<Rational, Rational> prp{options};
+    Propagator<Rational> prp{options};
     Clingo::Control ctl{{"0"}};
     prp.register_control(ctl);
 

@@ -44,7 +44,7 @@ struct Statistics {
 
 // TODO: it looks like the factor can be removed completely
 
-template <typename Factor, typename Value>
+template <typename Value>
 class ObjectiveState {
 public:
     void update(std::pair<Value, bool> value);
@@ -57,7 +57,7 @@ private:
 };
 
 //! A solver for finding an assignment satisfying a set of inequalities.
-template <typename Factor, typename Value>
+template <typename Value>
 class Solver {
 private:
     //! Helper class to prepare the inequalities for solving.
@@ -73,8 +73,8 @@ private:
         GreaterEqual = 1,
         Equal = 2,
     };
-    template<typename F, typename V>
-    friend typename Solver<F, V>::BoundRelation bound_rel(Relation rel);
+    template<typename V>
+    friend typename Solver<V>::BoundRelation bound_rel(Relation rel);
     //! The bounds associated with a Variable.
     //!
     //! In practice, there should be a lot of variables with just one bound.
@@ -163,7 +163,7 @@ public:
     void optimize();
 
     //! Integrate the objective into this solver.
-    bool integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Factor, Value> &state);
+    bool integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state);
 
     //! Discard bounded solutions (if necessary).
     bool discard_bounded(Clingo::PropagateControl &ctl);
@@ -256,7 +256,7 @@ private:
     bool bounded_{true};
 };
 
-template <typename Factor, typename Value>
+template <typename Value>
 class Propagator : public Clingo::Heuristic {
 public:
     Propagator(Options options)
@@ -292,7 +292,7 @@ private:
     std::vector<Inequality> iqs_;
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;
-    std::vector<std::pair<size_t, Solver<Factor, Value>>> slvs_;
-    ObjectiveState<Factor, Value> objective_state_;
+    std::vector<std::pair<size_t, Solver<Value>>> slvs_;
+    ObjectiveState<Value> objective_state_;
     Options options_;
 };
