@@ -45,6 +45,7 @@ struct Statistics {
 template <typename Value>
 class ObjectiveState {
 public:
+    void reset();
     void update(std::pair<Value, bool> value);
     std::optional<std::pair<Value, bool>> value(size_t &generation);
 private:
@@ -288,6 +289,7 @@ private:
     SymbolVec var_vec_;
     std::vector<Term> objective_;
     std::vector<Inequality> iqs_;
+    size_t literal_offset_{0};
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;
     std::vector<std::pair<size_t, Solver<Value>>> slvs_;

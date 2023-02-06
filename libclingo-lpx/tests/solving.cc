@@ -201,12 +201,20 @@ TEST_CASE("solving") {
                        "&maximize { 8*x; -5*y }.\n")->second);
     }
     SECTION("optimize-global") {
-        REQUIRE(run_o("{ a; b }.\n"
-                      "&sum { a; b } <= 5.\n"
-                      "&sum { a } <= 2 :- a.\n"
-                      "&sum { b } <= 2 :- b.\n"
-                      "&maximize { a; b }.\n", true) == std::make_pair(Rational{5}, true));
+        REQUIRE(run_o(
+            "{ a; b }.\n"
+            "&sum { a; b } <= 5.\n"
+            "&sum { a } <= 2 :- a.\n"
+            "&sum { b } <= 2 :- b.\n"
+            "&maximize { a; b }.\n", true) == std::make_pair(Rational{5}, true));
+        REQUIRE(!run_o(
+            "{ a; b }.\n"
+            "&sum { a } <= 5 :- a.\n"
+            "&sum { b } <= 5 :- a.\n"
+            "&sum { b } <= 5 :- b.\n"
+            "&sum { a; b } <= 10 :- not a, not b.\n"
+            "&maximize { a; b }.\n", true)->second);
         REQUIRE(run_o(knapsack, true) == std::make_pair(Rational{180}, true));
-        REQUIRE(run_o<RationalQ>(knapsack, true, 0, 1) == std::make_pair(RationalQ{Rational{180}, Rational{0}}, true));
+        REQUIRE(run_o<RationalQ>(knapsack, true, 0, 1) == std::make_pair(RationalQ{Rational{180}}, true));
     }
 }
