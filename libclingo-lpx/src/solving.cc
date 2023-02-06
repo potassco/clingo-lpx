@@ -8,6 +8,7 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <ostream>
 #include <shared_mutex>
