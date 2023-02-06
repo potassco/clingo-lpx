@@ -4,10 +4,13 @@
 #include <clingo.hh>
 
 #include <climits>
+#include <cstddef>
 #include <exception>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <ostream>
+#include <shared_mutex>
 #include <sstream>
 #include <stdexcept>
 #include <tuple>
@@ -27,6 +30,26 @@ Rational as_value(RationalQ const &a, Rational *b) {
 }
 
 } // namespace
+
+template<typename Factor, typename Value>
+void ObjectiveState<Factor, Value>::update(std::pair<Value, bool> value) {
+    std::unique_lock<std::shared_mutex> lock{mutex_};
+    if (bounded_ && (value.second || value.first > value_)) {
+        ++generation_;
+        value_ = value.first;
+        bounded_ = value.second;
+    }
+}
+
+template<typename Factor, typename Value>
+std::optional<std::pair<Value, bool>> ObjectiveState<Factor, Value>::value(size_t &generation) {
+    std::shared_lock<std::shared_mutex> lock{mutex_};
+    if (generation != generation_) {
+        generation = generation_;
+        return std::make_pair(value_, bounded_);
+    }
+    return std::nullopt;
+}
 
 template<typename Factor, typename Value>
 typename Solver<Factor, Value>::BoundRelation bound_rel(Relation rel) {
@@ -343,7 +366,7 @@ bool Solver<Factor, Value>::prepare(Clingo::PropagateInit &init, SymbolMap const
             return variables_.size() - 1;
         };
         if (options_.global_objective.has_value()) {
-            idx_objective_bound_ = add_row();
+            idx_bound_objective_ = add_row();
         }
         idx_objective_ = add_row();
     }
@@ -430,23 +453,6 @@ void Solver<Factor, Value>::debug_() {
             std::cerr << "#sup";
         }
         std::cerr << std::endl;
-    }
-}
-
-template<typename Factor, typename Value>
-void Solver<Factor, Value>::update_objective(index_t level, Value const &bound) {
-    auto &z = variables_[idx_objective_bound_];
-    if (!z.has_lower() || bound > z.lower()) {
-        if (!z.has_lower()) {
-            throw std::logic_error("add a lower bound to the objective bound");
-        }
-        else { // NOLINT(readability-else-after-return)
-            throw std::logic_error("update the lower bound of the objective bound");
-        }
-        level_objective_ = level;
-    }
-    else if (level < level_objective_) {
-        level_objective_ = level;
     }
 }
 
@@ -608,6 +614,82 @@ void Solver<Factor, Value>::store_sat_assignment() {
 }
 
 template<typename Factor, typename Value>
+bool Solver<Factor, Value>::update_bound_(Clingo::PropagateControl &ctl, Bound const &bound) {
+    auto ass = ctl.assignment();
+    auto &x = variables_[bound.variable];
+    if (!x.update(*this, ass, bound)) {
+        conflict_clause_.clear();
+        conflict_clause_.emplace_back(-x.upper_bound->lit);
+        conflict_clause_.emplace_back(-x.lower_bound->lit);
+        ctl.add_clause(conflict_clause_);
+        return false;
+    }
+    if (x.reverse_index < n_non_basic_) {
+        if (x.has_lower() && x.value < x.lower()) {
+            update_(ass.decision_level(), x.reverse_index, x.lower());
+        }
+        else if (x.has_upper() && x.value > x.upper()) {
+            update_(ass.decision_level(), x.reverse_index, x.upper());
+        }
+    }
+    else {
+        enqueue_(x.reverse_index - n_non_basic_);
+    }
+    return true;
+}
+
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::assert_bound_(Clingo::PropagateControl &ctl, Value value) {
+    // Adds a new bound associated with a new literal that is made true by a
+    // unit clause. This ensures that the solver takes care of backtracking and
+    // reasserting the literal.
+    auto lit = ctl.add_literal();
+    ctl.add_watch(lit);
+    bounds_.emplace(lit, Bound{
+        std::move(value),
+        idx_bound_objective_,
+        lit,
+        BoundRelation::GreaterEqual});
+    conflict_clause_.clear();
+    conflict_clause_.emplace_back(lit);
+    return ctl.add_clause(conflict_clause_) && ctl.propagate();
+}
+
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Factor, Value> &state) {
+    // Here we discard bounded solutions by asserting that the objective value
+    // is greater than the current bound + an epsilon value taken from the
+    // configuration.
+    //
+    // Note that this function associates many bounds with the objective
+    // variable. In principle, it would be nice to remove the old ones. I think
+    // that clasp also offers a method to pop a literal introduced during
+    // search.
+    if (!options_.global_objective.has_value()) {
+        return true;
+    }
+    auto value = state.value(generation_objective_);
+    if (!value.has_value()) {
+        return true;
+    }
+    if (!value->second) {
+        discard_bounded_ = true;
+        return true;
+    }
+    return assert_bound_(ctl, value->first + as_value(*options_.global_objective, static_cast<Value*>(nullptr)));
+}
+
+template<typename Factor, typename Value>
+bool Solver<Factor, Value>::discard_bounded(Clingo::PropagateControl &ctl) {
+    // Here we discard bounded solutions by asserting that the objective
+    // is greater than the current optimal objective.
+    if (!options_.global_objective.has_value() || !bounded_ || !discard_bounded_) {
+        return true;
+    }
+    return assert_bound_(ctl, variables_[idx_objective_].value + 1);
+}
+
+template<typename Factor, typename Value>
 bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
     index_t i{0};
     index_t j{0};
@@ -618,7 +700,7 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
 
     if (trail_offset_.empty() || trail_offset_.back().level < level) {
         trail_offset_.emplace_back(TrailOffset{
-            ass.decision_level(),
+            level,
             static_cast<index_t>(bound_trail_.size()),
             static_cast<index_t>(assignment_trail_.size())});
     }
@@ -627,24 +709,8 @@ bool Solver<Factor, Value>::solve(Clingo::PropagateControl &ctl, Clingo::Literal
         for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
             auto const &[lit_a, bound_a] = *it;
             assert(lit == lit_a);
-            auto &x = variables_[bound_a.variable];
-            if (!x.update(*this, ctl.assignment(), bound_a)) {
-                conflict_clause_.clear();
-                conflict_clause_.emplace_back(-x.upper_bound->lit);
-                conflict_clause_.emplace_back(-x.lower_bound->lit);
-                ctl.add_clause(conflict_clause_);
+            if (!update_bound_(ctl, bound_a)) {
                 return false;
-            }
-            if (x.reverse_index < n_non_basic_) {
-                if (x.has_lower() && x.value < x.lower()) {
-                    update_(level, x.reverse_index, x.lower());
-                }
-                else if (x.has_upper() && x.value > x.upper()) {
-                    update_(level, x.reverse_index, x.upper());
-                }
-            }
-            else {
-                enqueue_(x.reverse_index - n_non_basic_);
             }
         }
     }
@@ -1071,6 +1137,11 @@ void Propagator<Factor, Value>::on_statistics(Clingo::UserStatistics step, Cling
 }
 
 template<typename Factor, typename Value>
+Clingo::literal_t Propagator<Factor, Value>::decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) {
+    return slvs_[thread_id].second.adjust(assign, fallback);
+}
+
+template<typename Factor, typename Value>
 void Propagator<Factor, Value>::on_model(Clingo::Model const &model) {
     if (!options_.global_objective.has_value()) {
         return;
@@ -1080,41 +1151,7 @@ void Propagator<Factor, Value>::on_model(Clingo::Model const &model) {
     if (!objective.has_value()) {
         return;
     }
-    std::ostringstream oss;
-    if (objective->second) {
-        oss << "TODO: incorporate z >= " << objective->first << "+" << as_value(*options_.global_objective, static_cast<Value*>(nullptr)) << " into problem";
-    }
-    else {
-        oss << "TODO: incorporate z >= infinity into problem";
-    }
-    throw std::logic_error(oss.str());
-    // TODO: idea how to incorporate objective:
-    // - store the best objective in the propagator
-    // - increment generation
-    // - in the check method of the solver:
-    //   - take the lock: std::shared_lock lock(mutex_);
-    //   - check if the generation is smaller than the already incorporated one
-    //   - incorporate bound and update generation if necessary
-    // - how to incorporate bound?
-    //   - that's the tricky one...
-    // types:
-    // - size_t generation_;
-    // - Value objective_;
-    // - std::shared_mutex mutex_;
-    /*
-    {
-        std::unique_lock lock(mutex_);
-        if (objective > objective_) {
-            ++generation_;
-            objective_ = objective;
-        }
-    }
-    */
-}
-
-template<typename Factor, typename Value>
-Clingo::literal_t Propagator<Factor, Value>::decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) {
-    return slvs_[thread_id].second.adjust(assign, fallback);
+    objective_state_.update(*objective);
 }
 
 template<typename Factor, typename Value>
@@ -1129,20 +1166,23 @@ void Propagator<Factor, Value>::check(Clingo::PropagateControl &ctl) {
             return;
         }
     }
-    // TODO: Here is a good place to assert a global bound. The bound has to be
-    // inserted into the bounds vector. (If this is done in the on_model
-    // callback no lock should be necessary.) We can associate it with the fact
-    // literal. It has to be reinserted on each level because it would be
-    // backtracked, otherwise. The clingcon system also does something similar
-    // to implement its optimization statement.
+    // Integrate the current objective value into the solver (if it is better).
+    if (!slv.integrate_objective(ctl, objective_state_)) {
+        return;
+    }
     if (ass.is_total()) {
+        // Compute an optimal assignment.
         if (!objective_.empty()) {
             slv.optimize();
         }
-        // store the current assignment in the hope that the next model can be
-        // obtained from it with a small number of pivots
+        // Store the current assignment in the hope that the next model can be
+        // obtained from it with a small number of pivots.
         if (options_.store_sat_assignment >= StoreSATAssignments::Partial) {
             slv.store_sat_assignment();
+        }
+        // Discard bounded assignments if the objective value is unbounded.
+        if (!slv.discard_bounded(ctl)) {
+            return;
         }
     }
 }

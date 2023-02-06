@@ -10,6 +10,7 @@
 #include <queue>
 #include <optional>
 #include <unordered_map>
+#include <shared_mutex>
 
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
@@ -39,6 +40,20 @@ struct Statistics {
 
     size_t pivots{0};
     size_t propagated_bounds{0};
+};
+
+// TODO: it looks like the factor can be removed completely
+
+template <typename Factor, typename Value>
+class ObjectiveState {
+public:
+    void update(std::pair<Value, bool> value);
+    std::optional<std::pair<Value, bool>> value(size_t &generation);
+private:
+    std::shared_mutex mutex_;
+    Value value_;
+    size_t generation_ = 0;
+    bool bounded_{true};
 };
 
 //! A solver for finding an assignment satisfying a set of inequalities.
@@ -147,8 +162,11 @@ public:
     //! Compute the optimal value for the objective function.
     void optimize();
 
-    //! Update the objective of this solver.
-    void update_objective(index_t level, Value const &bound);
+    //! Integrate the objective into this solver.
+    bool integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Factor, Value> &state);
+
+    //! Discard bounded solutions (if necessary).
+    bool discard_bounded(Clingo::PropagateControl &ctl);
 
     //! Ensure that the current (SAT) assignment will not be backtracked.
     void store_sat_assignment();
@@ -172,8 +190,13 @@ private:
     //! Print a readable representation of the internal problem to stderr.
     void debug_();
     //! Propagate (some) bounds.
-    bool propagate_(Clingo::PropagateControl &ctl);
+    [[nodiscard]] bool propagate_(Clingo::PropagateControl &ctl);
 
+    //! Apply the given bound.
+    [[nodiscard]] bool update_bound_(Clingo::PropagateControl &ctl, Bound const &bound);
+
+    //! Insert a new bound dynamically.
+    [[nodiscard]] bool assert_bound_(Clingo::PropagateControl &ctl, Value value);
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);
@@ -223,10 +246,12 @@ private:
 
     //! The index of the objective variable.
     index_t idx_objective_{0};
-    //! The index of the objective variable enforcing a bound.
-    index_t idx_objective_bound_{0};
-    //! The objective might not have been fully propagated below this level.
-    index_t level_objective_{0};
+    //! The bound for global optimization.
+    index_t idx_bound_objective_{0};
+    //! The generation at which the last objective has been integrated.
+    size_t generation_objective_{0};
+    //! Whether the problem is bounded.
+    bool discard_bounded_{false};
     //! Whether the problem is bounded.
     bool bounded_{true};
 };
@@ -268,5 +293,6 @@ private:
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;
     std::vector<std::pair<size_t, Solver<Factor, Value>>> slvs_;
+    ObjectiveState<Factor, Value> objective_state_;
     Options options_;
 };

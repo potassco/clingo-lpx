@@ -38,10 +38,17 @@ bool run(char const *s) {
     return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
 }
 
-std::optional<std::pair<Rational, bool>> run_o(char const *s) {
-    Propagator<Rational, Rational> prp{options};
+std::optional<std::pair<Rational, bool>> run_o(char const *s, bool global = false) {
+    Options opts = options;
+    if (global) {
+        opts.global_objective = RationalQ{Rational{0}, Rational{0}};
+    }
+    Propagator<Rational, Rational> prp{opts};
     SHM shm{prp};
     Clingo::Control ctl;
+    if (global) {
+        ctl.configuration()["solve"]["models"] = "0";
+    }
     prp.register_control(ctl);
 
     ctl.add("base", {}, s);
@@ -165,11 +172,10 @@ TEST_CASE("solving") {
                        "&maximize { 8*x; -5*y }.\n")->second);
     }
     SECTION("optimize-global") {
-        std::cerr << "TODO: adjust this test so that it computes a global optimum" << std::endl;
-        REQUIRE( run("{ a; b }.\n"
-                     "&sum { a; b } <= 5.\n"
-                     "&sum { a } <= 2 :- a.\n"
-                     "&sum { b } <= 2 :- b.\n"
-                     "&maximize { a; b }.\n"));
+        REQUIRE(run_o("{ a; b }.\n"
+                      "&sum { a; b } <= 5.\n"
+                      "&sum { a } <= 2 :- a.\n"
+                      "&sum { b } <= 2 :- b.\n"
+                      "&maximize { a; b }.\n", true) == std::make_pair(Rational{5}, true));
     }
 }
