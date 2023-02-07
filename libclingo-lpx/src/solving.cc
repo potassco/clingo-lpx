@@ -9,10 +9,8 @@
 #include <exception>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <ostream>
-#include <shared_mutex>
 #include <sstream>
 #include <stdexcept>
 #include <tuple>
@@ -42,7 +40,11 @@ void ObjectiveState<Value>::reset() {
 
 template<typename Value>
 void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
+#ifdef __cpp_lib_shared_mutex
     std::unique_lock<std::shared_mutex> lock{mutex_};
+#else
+    std::unique_lock<std::mutex> lock{mutex_};
+#endif
     if (bounded_ && (!value.second || generation_ == 0 || value.first > value_)) {
         ++generation_;
         value_ = std::move(value.first);
@@ -52,7 +54,11 @@ void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
 
 template<typename Value>
 std::optional<std::pair<Value, bool>> ObjectiveState<Value>::value(size_t &generation) {
+#ifdef __cpp_lib_shared_mutex
     std::shared_lock<std::shared_mutex> lock{mutex_};
+#else
+    std::unique_lock<std::mutex> lock{mutex_};
+#endif
     if (generation != generation_) {
         generation = generation_;
         return std::make_pair(value_, bounded_);

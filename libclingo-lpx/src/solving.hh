@@ -7,10 +7,11 @@
 
 #include <clingo.hh>
 
-#include <queue>
+#include <mutex>
 #include <optional>
-#include <unordered_map>
+#include <queue>
 #include <shared_mutex>
+#include <unordered_map>
 
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
@@ -50,7 +51,11 @@ public:
     void update(std::pair<Value, bool> value);
     std::optional<std::pair<Value, bool>> value(size_t &generation);
 private:
+#ifdef __cpp_lib_shared_mutex
     std::shared_mutex mutex_;
+#else
+    std::mutex mutex_;
+#endif
     Value value_;
     size_t generation_ = 0;
     bool bounded_{true};
