@@ -42,6 +42,7 @@ struct Statistics {
     size_t propagated_bounds{0};
 };
 
+//! Helper to distribute current best objective to solver threads.
 template <typename Value>
 class ObjectiveState {
 public:
@@ -138,13 +139,31 @@ private:
         Unsatisfiable = 1,
         Unknown = 2
     };
+    //! Captures the objective function.
+    struct Objective {
+        explicit operator bool() const {
+            return active;
+        }
+        //! The index of the objective variable.
+        index_t var{0};
+        //! The bound for global optimization.
+        index_t bound_var{0};
+        //! The generation at which the last objective has been integrated.
+        size_t generation{0};
+        //! Whether there is an objective function.
+        bool active{false};
+        //! Whether the problem is bounded.
+        bool discard_bounded{false};
+        //! Whether the problem is bounded.
+        bool bounded{true};
+    };
 
 public:
     //! Construct a new solver object.
-    Solver(Options const &options, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective);
+    Solver(Options const &options);
 
     //! Prepare inequalities for solving.
-    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols);
+    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective);
 
     //! Solve the (previously prepared) problem.
     [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
@@ -216,10 +235,6 @@ private:
 
     //! Options configuring the algorithms.
     Options const &options_;
-    //! The set of inequalities.
-    std::vector<Inequality> const &inequalities_;
-    //! The objective function.
-    std::vector<Term> const &objective_;
     //! Mapping from literals to bounds.
     std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
     //! Trail of bound assignments (variable, relation, Value).
@@ -242,17 +257,8 @@ private:
     index_t n_non_basic_{0};
     //! The number of basic variables.
     index_t n_basic_{0};
-
-    //! The index of the objective variable.
-    index_t idx_objective_{0};
-    //! The bound for global optimization.
-    index_t idx_bound_objective_{0};
-    //! The generation at which the last objective has been integrated.
-    size_t generation_objective_{0};
-    //! Whether the problem is bounded.
-    bool discard_bounded_{false};
-    //! Whether the problem is bounded.
-    bool bounded_{true};
+    //! The objective function.
+    Objective objective_;
 };
 
 template <typename Value>

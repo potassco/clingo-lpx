@@ -251,10 +251,8 @@ void Statistics::reset() {
 }
 
 template<typename Value>
-Solver<Value>::Solver(Options const &options, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective)
-: options_{options}
-, inequalities_{inequalities}
-, objective_{objective} { }
+Solver<Value>::Solver(Options const &options)
+: options_{options} { }
 
 template<typename Value>
 typename Solver<Value>::Variable &Solver<Value>::basic_(index_t i) {
@@ -286,18 +284,18 @@ Value Solver<Value>::get_value(index_t i) const {
 
 template<typename Value>
 std::optional<std::pair<Value, bool>> Solver<Value>::get_objective() const {
-    if (!objective_.empty()) {
-        return std::make_pair(variables_[idx_objective_].value, bounded_);
+    if (objective_) {
+        return std::make_pair(variables_[objective_.var].value, objective_.bounded);
     }
     return std::nullopt;
 }
 
 template<typename Value>
-bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols) {
+bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective) {
     auto ass = init.assignment();
 
     Prepare prep{*this, symbols};
-    for (auto const &x : inequalities_) {
+    for (auto const &x : inequalities) {
         if (ass.is_false(x.lit)) {
             continue;
         }
@@ -365,8 +363,9 @@ bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
     }
 
     // add objective function to tableau
-    if (!objective_.empty()) {
-        auto row = prep.add_row(objective_);
+    if (!objective.empty()) {
+        objective_.active = true;
+        auto row = prep.add_row(objective);
         auto add_row = [&, this]() {
             auto i = prep.add_basic();
             for (auto const &[j, v] : row) {
@@ -375,9 +374,9 @@ bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
             return variables_.size() - 1;
         };
         if (options_.global_objective.has_value()) {
-            idx_bound_objective_ = add_row();
+            objective_.bound_var = add_row();
         }
-        idx_objective_ = add_row();
+        objective_.var = add_row();
     }
 
     for (size_t i = 0; i < n_basic_; ++i) {
@@ -420,8 +419,8 @@ template<typename Value>
 void Solver<Value>::debug_() {
     std::cerr << "tableau:" << std::endl;
     tableau_.debug("  ");
-    if (!objective_.empty()) {
-        auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
+    if (objective_) {
+        auto z = variables_[objective_.var].reverse_index - n_non_basic_;
         std::cerr << "objective variable:\n  y_" << z << std::endl;
     }
 
@@ -467,8 +466,7 @@ void Solver<Value>::debug_() {
 
 template<typename Value>
 void Solver<Value>::optimize() {
-    assert(!objective_.empty());
-    assert(variables_[idx_objective_].reverse_index >= n_non_basic_);
+    assert(!objective_ || variables_[objective_.var].reverse_index >= n_non_basic_);
     // First, we select an entering variable x_e among the non-basic variables
     // corresponding to a non-zero coefficient a_ze in the objective function
     // (assuming that the objective value corresponds to basic variable x_z).
@@ -522,11 +520,14 @@ void Solver<Value>::optimize() {
     //     solution, this pivot cannot cause a conflict.
     // Case a_ze > 0:
     //   symmetric
+    if (!objective_) {
+        return;
+    }
 
     assert_extra(check_solution_());
     while (true) {
         // the objective assigned to variable y_z
-        auto z = variables_[idx_objective_].reverse_index - n_non_basic_;
+        auto z = variables_[objective_.var].reverse_index - n_non_basic_;
 
         // select entering variable x_e
         index_t ee = variables_.size();
@@ -547,7 +548,7 @@ void Solver<Value>::optimize() {
         // the solution is optimal if there is no exiting variable
         if (ee == variables_.size()) {
             assert_extra(check_solution_());
-            bounded_ = true;
+            objective_.bounded = true;
             return;
         }
 
@@ -596,7 +597,7 @@ void Solver<Value>::optimize() {
             if (pos_a_ze ? !x_e.has_upper()
                          : !x_e.has_lower()) {
                 assert_extra(check_solution_());
-                bounded_ = false;
+                objective_.bounded = false;
                 return;
             }
             // increase/decrease x_e
@@ -656,7 +657,7 @@ bool Solver<Value>::assert_bound_(Clingo::PropagateControl &ctl, Value value) {
     ctl.add_watch(lit);
     bounds_.emplace(lit, Bound{
         std::move(value),
-        idx_bound_objective_,
+        objective_.bound_var,
         lit,
         BoundRelation::GreaterEqual});
     conflict_clause_.clear();
@@ -677,12 +678,12 @@ bool Solver<Value>::integrate_objective(Clingo::PropagateControl &ctl, Objective
     if (!options_.global_objective.has_value()) {
         return true;
     }
-    auto value = state.value(generation_objective_);
+    auto value = state.value(objective_.generation);
     if (!value.has_value()) {
         return true;
     }
     if (!value->second) {
-        discard_bounded_ = true;
+        objective_.discard_bounded = true;
         return true;
     }
     return assert_bound_(ctl, value->first + as_value(*options_.global_objective, static_cast<Value*>(nullptr)));
@@ -692,10 +693,10 @@ template<typename Value>
 bool Solver<Value>::discard_bounded(Clingo::PropagateControl &ctl) {
     // Here we discard bounded solutions by asserting that the objective
     // is greater than the current optimal objective.
-    if (!options_.global_objective.has_value() || !bounded_ || !discard_bounded_) {
+    if (!objective_ || !options_.global_objective.has_value() || !objective_.bounded || !objective_.discard_bounded) {
         return true;
     }
-    return assert_bound_(ctl, variables_[idx_objective_].value + 1);
+    return assert_bound_(ctl, variables_[objective_.var].value + 1);
 }
 
 template<typename Value>
@@ -769,21 +770,12 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
         // check if a constraint provides a bound
         tableau_.update_row(i, [&,this](index_t j, Integer const &a_ij, Integer const &d_i) {
             auto &x_j = non_basic_(j);
-            if ((a_ij > 0) == (d_i > 0)) {
-                if (!x_j.has_lower()) {
-                    lower = std::nullopt;
-                }
-                if (!x_j.has_upper()) {
-                    upper = std::nullopt;
-                }
+            bool pos_a_ij = (a_ij > 0) == (d_i > 0);
+            if (pos_a_ij ? !x_j.has_lower() : !x_j.has_upper()) {
+                lower = std::nullopt;
             }
-            else {
-                if (!x_j.has_lower()) {
-                    upper = std::nullopt;
-                }
-                if (!x_j.has_upper()) {
-                    lower = std::nullopt;
-                }
+            if (pos_a_ij ? !x_j.has_upper() : !x_j.has_lower()) {
+                upper = std::nullopt;
             }
         });
         if (!upper.has_value() && !lower.has_value()) {
@@ -794,36 +786,41 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
         // compute the bound
         tableau_.update_row(i, [&,this](index_t j, Integer const &a_ij, Integer const &d_i) {
             auto &x_j = non_basic_(j);
+            auto update_lower = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) {
+                if (bound.has_value() && x_j.has_lower()) {
+                    *bound += x_j.lower() * a_ij / d_i;
+                    clause.emplace_back(-x_j.lower_bound->lit);
+                }
+            };
+            auto update_upper = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) {
+                if (bound.has_value() && x_j.has_upper()) {
+                    *bound += x_j.upper() * a_ij / d_i;
+                    clause.emplace_back(-x_j.upper_bound->lit);
+                }
+            };
             if ((a_ij > 0) == (d_i > 0)) {
-                if (lower.has_value() && x_j.has_lower()) {
-                    *lower+= x_j.lower() * a_ij / d_i;
-                    lower_clause.emplace_back(-x_j.lower_bound->lit);
-                }
-                if (upper.has_value() && x_j.has_upper()) {
-                    *upper+= x_j.upper() * a_ij / d_i;
-                    upper_clause.emplace_back(-x_j.upper_bound->lit);
-                }
+                update_lower(lower_clause, lower);
+                update_upper(upper_clause, upper);
             }
             else {
-                if (upper.has_value() && x_j.has_lower()) {
-                    *upper+= x_j.lower() * a_ij / d_i;
-                    upper_clause.emplace_back(-x_j.lower_bound->lit);
-                }
-                if (lower.has_value() && x_j.has_upper()) {
-                    *lower+= x_j.upper() * a_ij / d_i;
-                    lower_clause.emplace_back(-x_j.upper_bound->lit);
-                }
+                update_upper(lower_clause, lower);
+                update_lower(upper_clause, upper);
             }
         });
         auto &y_i = basic_(i);
+        auto propagate = [&, this](std::vector<Clingo::literal_t> &clause, Bound const &bound) {
+            clause.emplace_back(-bound.lit);
+            bool ret = !ctl.add_clause(clause) || !ctl.propagate();
+            clause.pop_back();
+            ++statistics_.propagated_bounds;
+            return ret;
+        };
         // propagate the bounds
         if (upper.has_value()) {
             // y_i <= upper
             for (auto &bound : y_i.bounds) {
                 if (bound->rel != BoundRelation::LessEqual && bound->value > *upper && !ass.is_false(bound->lit)) {
-                    upper_clause.emplace_back(-bound->lit);
-                    ++statistics_.propagated_bounds;
-                    if (!ctl.add_clause(upper_clause) || !ctl.propagate()) {
+                    if (!propagate(upper_clause, *bound)) {
                         return false;
                     }
                 }
@@ -833,9 +830,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
             // y_i >= lower
             for (auto &bound : y_i.bounds) {
                 if (bound->rel != BoundRelation::GreaterEqual && bound->value < *lower && !ass.is_false(bound->lit)) {
-                    lower_clause.emplace_back(-bound->lit);
-                    ++statistics_.propagated_bounds;
-                    if (!ctl.add_clause(lower_clause) || !ctl.propagate()) {
+                    if (!propagate(lower_clause, *bound)) {
                         return false;
                     }
                 }
@@ -1114,8 +1109,8 @@ void Propagator<Value>::init(Clingo::PropagateInit &init) {
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
         slvs_.emplace_back(std::piecewise_construct,
                            std::forward_as_tuple(0),
-                           std::forward_as_tuple(options_, iqs_, objective_));
-        if (!slvs_.back().second.prepare(init, var_map_)) {
+                           std::forward_as_tuple(options_));
+        if (!slvs_.back().second.prepare(init, var_map_, iqs_, objective_)) {
             return;
         }
     }
@@ -1163,7 +1158,7 @@ void Propagator<Value>::on_model(Clingo::Model const &model) {
     if (!objective.has_value()) {
         return;
     }
-    objective_state_.update(*objective);
+    objective_state_.update(*std::move(objective));
 }
 
 template<typename Value>
@@ -1184,9 +1179,7 @@ void Propagator<Value>::check(Clingo::PropagateControl &ctl) {
     }
     if (ass.is_total()) {
         // Compute an optimal assignment.
-        if (!objective_.empty()) {
-            slv.optimize();
-        }
+        slv.optimize();
         // Store the current assignment in the hope that the next model can be
         // obtained from it with a small number of pivots.
         if (options_.store_sat_assignment >= StoreSATAssignments::Partial) {
