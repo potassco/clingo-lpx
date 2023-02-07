@@ -1084,7 +1084,6 @@ Clingo::literal_t Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo
 
 template<typename Value>
 void Propagator<Value>::init(Clingo::PropagateInit &init) {
-    literal_offset_ = init.assignment().size();
     facts_offset_ = facts_.size();
     if (facts_offset_ > 0 || options_.global_objective.has_value()) {
         init.set_check_mode(Clingo::PropagatorCheckMode::Both);
@@ -1199,13 +1198,8 @@ template<typename Value>
 void Propagator<Value>::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
     auto ass = ctl.assignment();
     if (ass.decision_level() == 0 && ctl.thread_id() == 0) {
-        for (auto const &lit : changes) {
-            // Note that this is to avoid adding auxliary literals (even though
-            // the test will always be true with the current implementation).
-            if (static_cast<size_t>(std::abs(lit)) <= literal_offset_) {
-                facts_.emplace_back(lit);
-            }
-        }
+        // Note to self: auxiliary variables introduced during solving cannot become facts
+        facts_.insert(facts_.end(), changes.begin(), changes.end());
     }
     auto &[offset, slv] = slvs_[ctl.thread_id()];
     static_cast<void>(slv.solve(ctl, changes));
