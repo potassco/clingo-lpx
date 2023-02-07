@@ -291,7 +291,7 @@ std::optional<std::pair<Value, bool>> Solver<Value>::get_objective() const {
 }
 
 template<typename Value>
-bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective) {
+bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective, bool master) {
     auto ass = init.assignment();
 
     Prepare prep{*this, symbols};
@@ -305,6 +305,9 @@ bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
 
         // check bound against 0
         if (row.empty()) {
+            if (!master) {
+                continue;
+            }
             switch (x.rel) {
                 case Relation::Less: {
                     if (x.rhs >= 0 && !init.add_clause({-x.lit})) {
@@ -393,7 +396,7 @@ bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
     // Add binary clauses for the following bounds:
     //
     //   x >= u implies not x <= l for all l < u.
-    if (options_.propagate_conflicts) {
+    if (options_.propagate_conflicts && master) {
         for (auto const &var : variables_) {
             for (auto it_a = var.bounds.begin(), ie = var.bounds.end(); it_a != ie; ++it_a) {
                 auto const &ba = **it_a;
@@ -1110,7 +1113,7 @@ void Propagator<Value>::init(Clingo::PropagateInit &init) {
         slvs_.emplace_back(std::piecewise_construct,
                            std::forward_as_tuple(0),
                            std::forward_as_tuple(options_));
-        if (!slvs_.back().second.prepare(init, var_map_, iqs_, objective_)) {
+        if (!slvs_.back().second.prepare(init, var_map_, iqs_, objective_, i == 0)) {
             return;
         }
     }

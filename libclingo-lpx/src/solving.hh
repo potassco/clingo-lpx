@@ -163,7 +163,7 @@ public:
     Solver(Options const &options);
 
     //! Prepare inequalities for solving.
-    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective);
+    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective, bool master);
 
     //! Solve the (previously prepared) problem.
     [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
