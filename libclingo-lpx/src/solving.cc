@@ -45,7 +45,7 @@ void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
     std::unique_lock<std::shared_mutex> lock{mutex_};
     if (bounded_ && (!value.second || generation_ == 0 || value.first > value_)) {
         ++generation_;
-        value_ = value.first;
+        value_ = std::move(value.first);
         bounded_ = value.second;
     }
 }
@@ -689,7 +689,7 @@ bool Solver<Value>::integrate_objective(Clingo::PropagateControl &ctl, Objective
         objective_.discard_bounded = true;
         return true;
     }
-    return assert_bound_(ctl, value->first + as_value(*options_.global_objective, static_cast<Value*>(nullptr)));
+    return assert_bound_(ctl, std::move(value->first) + as_value(*options_.global_objective, static_cast<Value*>(nullptr)));
 }
 
 template<typename Value>
