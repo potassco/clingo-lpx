@@ -112,7 +112,7 @@ To compile and profile the package, [cmake], [gperftools], [clingo], and a C++ c
 All these requirements can be installed with [conda-forge].
 
 ```bash
-conda create -n profile -c conda-forge cmake ninja libflint clingo cxx-compiler gperftools
+conda create -n profile -c conda-forge cmake libflint clingo cxx-compiler gperftools
 conda activate profile
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCLINGOLPX_PROFILE=ON
 cmake --build build
