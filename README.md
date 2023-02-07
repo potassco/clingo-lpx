@@ -93,7 +93,7 @@ For example, the following objective is accepted:
 &maximize { 2*x; -2*y }.
 ```
 
-By default, the optimal objective value is w.r.t. a stable model.
+By default, the optimal objective value is reported w.r.t. a stable model.
 Using option `--objective=global` together with `--models=0` can be used to enumerate globally optimal solutions.
 It is also possible to give a step value requiring the next objective to be greater than or equal to the current one plus the step value.
 In strict mode with option `--strict`, it is possible to use a symbolic epsilon value as step value,
