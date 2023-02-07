@@ -99,6 +99,18 @@ It is also possible to give a step value requiring the next objective to be grea
 In strict mode with option `--strict`, it is possible to use a symbolic epsilon value as step value,
 that is, by passing option `--objective=global,e`.
 
+## Options
+
+| Option | Description |
+| :-- | :-- |
+| `--[no-]strict` | Enable support for strict constraints. |
+| `--[no-]propagate-conflicts` | Add binary clauses for conflicting bounds involving the same variable. |
+| `--[no-]propagate-bounds` | Enable propagation of conflicting bounds. The current algorithm should be considered preliminary. It is neither as exhaustive as it could be nor is it very efficient. |
+| `--objective={local,global[,step]}` | Configure how to treat the objective function. Values `local` and `global` compute optimal assignments w.r.t. to one and all stable models, respectively. When computing global optima, it is also possible to give a step value requiring the next objective to be greater than or equal to the current one plus the step value. In strict mode with option `--strict`, it is possible to use a symbolic epsilon value as step value, that is, by passing option `--objective=global,e`. |
+| `--select={none,match,conflict}` | Configure the sign heuristic for linear constraints. It can be set to `none` to use the sign heuristic of the ASP solver, `match` to make literals true whenever the corresponding constraint does not violate the current assignment, or `conflict` to do the opposite. |
+| `--store={no,partial,total}` | Configure whether to maintain satisfying assignments when backtracking. Value `partial` and `total` determine whether this is done w.r.t. to partial or total propagation fixed points. The latter is especially interesting when enumerating models to reduce the number of pivots. |
+| `--[no-]enable-python` | Enable Python script tags. Only works when running the python module, e.g., `python -m clingolpx`. |
+
 ## Profiling
 
 Profiling with the [gperftools] can be enabled via cmake.
