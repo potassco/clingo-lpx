@@ -10,9 +10,16 @@
 #include <queue>
 #include <optional>
 #include <unordered_map>
+#include <shared_mutex>
 
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
+
+enum class StoreSATAssignments : int {
+    No = 0,
+    Partial = 1,
+    Total = 2,
+};
 
 enum class SelectionHeuristic : int {
     None = 0,
@@ -20,14 +27,37 @@ enum class SelectionHeuristic : int {
     Conflict = 2,
 };
 
+struct Options {
+    SelectionHeuristic select = SelectionHeuristic::None;
+    StoreSATAssignments store_sat_assignment = StoreSATAssignments::No;
+    std::optional<RationalQ> global_objective = std::nullopt;
+    bool propagate_bounds = false;
+    bool propagate_conflicts = false;
+};
+
 struct Statistics {
     void reset();
 
-    size_t pivots_{0};
+    size_t pivots{0};
+    size_t propagated_bounds{0};
+};
+
+//! Helper to distribute current best objective to solver threads.
+template <typename Value>
+class ObjectiveState {
+public:
+    void reset();
+    void update(std::pair<Value, bool> value);
+    std::optional<std::pair<Value, bool>> value(size_t &generation);
+private:
+    std::shared_mutex mutex_;
+    Value value_;
+    size_t generation_ = 0;
+    bool bounded_{true};
 };
 
 //! A solver for finding an assignment satisfying a set of inequalities.
-template <typename Factor, typename Value>
+template <typename Value>
 class Solver {
 private:
     //! Helper class to prepare the inequalities for solving.
@@ -43,8 +73,8 @@ private:
         GreaterEqual = 1,
         Equal = 2,
     };
-    template<typename F, typename V>
-    friend typename Solver<F, V>::BoundRelation bound_rel(Relation rel);
+    template<typename V>
+    friend typename Solver<V>::BoundRelation bound_rel(Relation rel);
     //! The bounds associated with a Variable.
     //!
     //! In practice, there should be a lot of variables with just one bound.
@@ -109,16 +139,34 @@ private:
         Unsatisfiable = 1,
         Unknown = 2
     };
+    //! Captures the objective function.
+    struct Objective {
+        explicit operator bool() const {
+            return active;
+        }
+        //! The index of the objective variable.
+        index_t var{0};
+        //! The bound for global optimization.
+        index_t bound_var{0};
+        //! The generation at which the last objective has been integrated.
+        size_t generation{0};
+        //! Whether there is an objective function.
+        bool active{false};
+        //! Whether the problem is bounded.
+        bool discard_bounded{false};
+        //! Whether the problem is bounded.
+        bool bounded{true};
+    };
 
 public:
     //! Construct a new solver object.
-    Solver(std::vector<Inequality> const &inequalities);
+    Solver(Options const &options);
 
     //! Prepare inequalities for solving.
-    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols);
+    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective, bool master);
 
     //! Solve the (previously prepared) problem.
-    [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits, bool propagate_conflicts);
+    [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
 
     //! Undo assignments on the current level.
     void undo();
@@ -126,12 +174,27 @@ public:
     //! Get the currently assigned value.
     [[nodiscard]] Value get_value(index_t i) const;
 
+    //! Get the currently assigned objective value.
+    [[nodiscard]] std::optional<std::pair<Value, bool>> get_objective() const;
+
+    //! Compute the optimal value for the objective function.
+    void optimize();
+
+    //! Integrate the objective into this solver.
+    bool integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state);
+
+    //! Discard bounded solutions (if necessary).
+    bool discard_bounded(Clingo::PropagateControl &ctl);
+
+    //! Ensure that the current (SAT) assignment will not be backtracked.
+    void store_sat_assignment();
+
     //! Return the solve statistics.
     [[nodiscard]] Statistics const &statistics() const;
 
     //! Adjust the sign of the given literal so that it does not conflict with
     //! the current tableau.
-    [[nodiscard]] Clingo::literal_t adjust(SelectionHeuristic heuristic, Clingo::Assignment const &assign, Clingo::literal_t lit) const;
+    [[nodiscard]] Clingo::literal_t adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const;
 
 private:
     //! Check if the tableau.
@@ -142,6 +205,16 @@ private:
     [[nodiscard]] bool check_non_basic_();
     //! Check if the current assignment is a solution.
     [[nodiscard]] bool check_solution_();
+    //! Print a readable representation of the internal problem to stderr.
+    void debug_();
+    //! Propagate (some) bounds.
+    [[nodiscard]] bool propagate_(Clingo::PropagateControl &ctl);
+
+    //! Apply the given bound.
+    [[nodiscard]] bool update_bound_(Clingo::PropagateControl &ctl, Bound const &bound);
+
+    //! Insert a new bound dynamically.
+    [[nodiscard]] bool assert_bound_(Clingo::PropagateControl &ctl, Value value);
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);
@@ -152,8 +225,6 @@ private:
     //! Pivots basic variable `x_i` and non-basic variable `x_j`.
     void pivot_(index_t level, index_t i, index_t j, Value const &v);
 
-    //! Helper function to select pivot point.
-    [[nodiscard]] bool select_(bool upper, Variable &x);
     //! Select pivot point using Bland's rule.
     State select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v);
 
@@ -162,8 +233,8 @@ private:
     //! Get non-basic variable associated with column `j`.
     Variable &non_basic_(index_t j);
 
-    //! The set of inequalities.
-    std::vector<Inequality> const &inequalities_;
+    //! Options configuring the algorithms.
+    Options const &options_;
     //! Mapping from literals to bounds.
     std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
     //! Trail of bound assignments (variable, relation, Value).
@@ -186,14 +257,15 @@ private:
     index_t n_non_basic_{0};
     //! The number of basic variables.
     index_t n_basic_{0};
+    //! The objective function.
+    Objective objective_;
 };
 
-template <typename Factor, typename Value>
+template <typename Value>
 class Propagator : public Clingo::Heuristic {
 public:
-    Propagator(SelectionHeuristic heuristic, bool propagate_conflicts)
-    : heuristic_{heuristic}
-    , propagate_conflicts_{propagate_conflicts} { }
+    Propagator(Options options)
+    : options_{std::move(options)} { }
     Propagator(Propagator const &) = default;
     Propagator(Propagator &&) noexcept = default;
     Propagator &operator=(Propagator const &) = default;
@@ -201,11 +273,13 @@ public:
     ~Propagator() override = default;
     void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
+    void on_model(Clingo::Model const &model);
 
     [[nodiscard]] std::optional<index_t> lookup_symbol(Clingo::Symbol symbol) const;
     [[nodiscard]] Clingo::Symbol get_symbol(index_t i) const;
     [[nodiscard]] bool has_value(index_t thread_id, index_t i) const;
     [[nodiscard]] Value get_value(index_t thread_id, index_t i) const;
+    [[nodiscard]] std::optional<std::pair<Value, bool>> get_objective(index_t thread_id) const;
     [[nodiscard]] index_t n_values(index_t thread_id) const;
 
     void init(Clingo::PropagateInit &init) override;
@@ -219,10 +293,11 @@ private:
     VarMap aux_map_;
     SymbolMap var_map_;
     SymbolVec var_vec_;
+    std::vector<Term> objective_;
     std::vector<Inequality> iqs_;
     size_t facts_offset_{0};
     std::vector<Clingo::literal_t> facts_;
-    std::vector<std::pair<size_t, Solver<Factor, Value>>> slvs_;
-    SelectionHeuristic heuristic_;
-    bool propagate_conflicts_;
+    std::vector<std::pair<size_t, Solver<Value>>> slvs_;
+    ObjectiveState<Value> objective_state_;
+    Options options_;
 };

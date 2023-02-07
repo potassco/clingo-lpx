@@ -64,7 +64,8 @@ private:
     friend int compare(Integer const &a, fixed_int b);
     friend int compare(Integer const &a, Integer const &b);
 
-    friend std::tuple<Integer, Integer, Integer> gcd(Integer const &a, Integer const &b);
+    friend Integer gcd(Integer const &a, Integer const &b);
+    friend std::tuple<Integer, Integer, Integer> gcd_div(Integer const &a, Integer const &b);
 
 public:
     Integer() noexcept;
@@ -78,6 +79,7 @@ public:
     ~Integer() noexcept;
 
     void swap(Integer &x) noexcept;
+    Integer &divide(Integer const &a);
     Integer &add_mul(Integer const &a, Integer const &b) &;
     Integer add_mul(Integer const &a, Integer const &b) &&;
     Integer &neg();
@@ -249,6 +251,11 @@ inline Integer::~Integer() noexcept {
 
 inline void Integer::swap(Integer &x) noexcept {
     mp_int_swap(&num_, &x.num_);
+}
+
+inline Integer &Integer::divide(Integer const &a) {
+    mp_int_div(&num_, &a.num_, &num_, nullptr);
+    return *this;
 }
 
 inline Integer &Integer::add_mul(Integer const &a, Integer const &b) & {
@@ -452,14 +459,18 @@ inline std::ostream &operator<<(std::ostream &out, Integer const &a) {
 
 // gcd
 
-[[nodiscard]] inline std::tuple<Integer, Integer, Integer> gcd(Integer const &a, Integer const &b) {
+[[nodiscard]] inline Integer gcd(Integer const &a, Integer const &b) {
     Integer g;
-    Integer ga;
-    Integer gb;
     mp_int_gcd(&a.num_, &b.num_, &g.num_);
-    mp_int_div(&a.num_, &g.num_, &ga.num_, nullptr);
-    mp_int_div(&b.num_, &g.num_, &gb.num_, nullptr);
-    return {g, ga, gb};
+    return g;
+}
+
+[[nodiscard]] inline std::tuple<Integer, Integer, Integer> gcd_div(Integer const &a, Integer const &b) {
+    std::tuple<Integer, Integer, Integer> ret;
+    mp_int_gcd(&a.num_, &b.num_, &std::get<0>(ret).num_);
+    mp_int_div(&a.num_, &std::get<0>(ret).num_, &std::get<1>(ret).num_, nullptr);
+    mp_int_div(&b.num_, &std::get<0>(ret).num_, &std::get<2>(ret).num_, nullptr);
+    return ret;
 }
 
 // Rational

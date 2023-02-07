@@ -1,8 +1,14 @@
 #include "parsing.hh"
 #include "util.hh"
 
+#include <clingo.hh>
+
+#include <algorithm>
+#include <iterator>
 #include <map>
 #include <regex>
+#include <stdexcept>
+#include <unordered_map>
 
 namespace {
 
@@ -153,54 +159,92 @@ bool is_string(Clingo::TheoryTerm const &term) {
     return throw_syntax_error<Relation>();
 }
 
+[[nodiscard]] std::vector<Term> evaluate_terms(LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs, Clingo::TheoryElementSpan elements) {
+    std::vector<Term> lhs;
+    for (auto &&elem : elements) {
+        check_syntax(elem.tuple().size() == 1);
+        auto &&term = elem.tuple().front();
+        if (match(term, "-", 1)) {
+            lhs.emplace_back(Term{
+                -1,
+                evaluate_var(term.arguments().back())});
+        }
+        else if (match(term, "*", 2)) {
+            lhs.emplace_back(Term{
+                evaluate_num(term.arguments().front()),
+                evaluate_var(term.arguments().back())});
+        }
+        else {
+            lhs.emplace_back(Term{1, evaluate_var(term)});
+        }
+        if (!elem.condition().empty()) {
+            auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(safe_cast<int>(var_map.size())));
+            if (res.second) {
+                auto lit = mapper(elem.condition_id());
+                iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -lit});
+                iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, lit});
+            }
+            lhs.back().var = res.first->second;
+        }
+    }
+    return lhs;
+}
+
+void simplify(std::unordered_map<Clingo::Symbol, Term&> &cos, std::vector<Term> &terms) {
+    auto ib = terms.begin();
+    auto ie = terms.end();
+
+    // combine cofficients
+    cos.clear();
+    std::for_each(ib, ie, [&cos](Term &term) {
+        if (auto [jt, res] = cos.emplace(term.var, term); !res) {
+            jt->second.co += term.co;
+            term.co = 0;
+        }
+    });
+
+    // remove terms with zero coeffcients
+    terms.erase(std::remove_if(ib, ie, [](Term const &term) {
+        return term.co == 0;
+    }), ie);
+}
+
 } // namespace
 
-void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs) {
+void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective) {
+    std::unordered_map<Clingo::Symbol, Term&> cos;
     for (auto &&atom : theory) {
         if (match(atom.term(), "dom", 0)) {
             check_syntax(atom.elements().size() == 1);
             auto &&elem = atom.elements().front();
             check_syntax(elem.tuple().size() == 1 && elem.condition().empty());
             auto &&term = elem.tuple().front();
-            check_syntax(match(term, "..", 2));
+            check_syntax(atom.has_guard(), "&dom constraints need guards");
+            check_syntax(match(term, "..", 2), "interval in &dom constraint expected");
             auto var = evaluate_var(atom.guard().second);
             auto lit = mapper(atom.literal());
             iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().back()), Relation::LessEqual, lit});
             iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(term.arguments().front()), Relation::GreaterEqual, lit});
         }
         else if (match(atom.term(), "sum", 0)) {
-            std::vector<Term> lhs;
-            for (auto &&elem : atom.elements()) {
-                check_syntax(elem.tuple().size() == 1);
-                auto &&term = elem.tuple().front();
-                if (match(term, "-", 1)) {
-                    lhs.emplace_back(Term{
-                        -1,
-                        evaluate_var(term.arguments().back())});
-                }
-                else if (match(term, "*", 2)) {
-                    lhs.emplace_back(Term{
-                        evaluate_num(term.arguments().front()),
-                        evaluate_var(term.arguments().back())});
-                }
-                else {
-                    lhs.emplace_back(Term{1, evaluate_var(term)});
-                }
-                if (!elem.condition().empty()) {
-                    auto res = var_map.try_emplace(std::make_pair(lhs.back().var, elem.condition_id()), Clingo::Number(safe_cast<int>(var_map.size())));
-                    if (res.second) {
-                        auto lit = mapper(elem.condition_id());
-                        iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -lit});
-                        iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, lhs.back().var}}, 0, Relation::Equal, lit});
-                    }
-                    lhs.back().var = res.first->second;
-                }
-            }
+            check_syntax(atom.has_guard(), "&sum constraints need guards");
+            auto lhs = evaluate_terms(mapper, var_map, iqs, atom.elements());
             auto lit = mapper(atom.literal());
+            simplify(cos, lhs);
             iqs.emplace_back(Inequality{std::move(lhs),
                                         evaluate_num(atom.guard().second),
                                         evaluate_cmp(atom.guard().first),
                                         lit});
         }
+        else if (match(atom.term(), "minimize", 0) || match(atom.term(), "maximize", 0)) {
+            auto lhs = evaluate_terms(mapper, var_map, iqs, atom.elements());
+            if (match(atom.term(), "minimize", 0)) {
+                for (auto &term: lhs) {
+                    term.co.neg();
+                }
+            }
+            std::move(lhs.begin(), lhs.end(), std::back_inserter(objective));
+        }
     }
+    simplify(cos, objective);
 }

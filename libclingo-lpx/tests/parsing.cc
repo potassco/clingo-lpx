@@ -11,6 +11,7 @@ std::string str(T &&x) {
     return oss.str();
 }
 
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 TEST_CASE("parsing") {
     Clingo::Control ctl;
     ctl.add("base", {}, THEORY);
@@ -25,8 +26,10 @@ TEST_CASE("parsing") {
 
         VarMap vars;
         std::vector<Inequality> eqs;
-        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs);
+        std::vector<Term> objective;
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs, objective);
         REQUIRE(eqs.size() == 1);
+        REQUIRE(objective.empty());
         REQUIRE(str(eqs.front()) == "x2 + x3 >= 10");
     }
 
@@ -36,8 +39,10 @@ TEST_CASE("parsing") {
 
         VarMap vars;
         std::vector<Inequality> eqs;
-        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs);
+        std::vector<Term> objective;
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs, objective);
         REQUIRE(eqs.size() == 1);
+        REQUIRE(objective.empty());
         REQUIRE(str(eqs.front()) == "-x <= 0");
     }
 
@@ -47,9 +52,25 @@ TEST_CASE("parsing") {
 
         VarMap vars;
         std::vector<Inequality> eqs;
-        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs);
+        std::vector<Term> objective;
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs, objective);
         REQUIRE(eqs.size() == 1);
+        REQUIRE(objective.empty());
         REQUIRE(str(eqs.front()) == "-x + 2/3*y = -1");
+    }
+
+    SECTION("example 3") {
+        ctl.add("base", {}, "&minimize { 3*x }. &maximize { -y }.");
+        ctl.ground({{"base", {}}});
+
+        VarMap vars;
+        std::vector<Inequality> eqs;
+        std::vector<Term> objective;
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs, objective);
+        REQUIRE(eqs.empty());
+        REQUIRE(objective.size() == 2);
+        std::sort(objective.begin(), objective.end(), [](auto &a, auto &b) { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
+        REQUIRE(str(Inequality{objective, 0, Relation::Equal, 0}) == "-3*x + -y = 0");
     }
 }
 

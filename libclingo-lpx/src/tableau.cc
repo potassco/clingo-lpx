@@ -2,6 +2,7 @@
 
 #include <numeric>
 #include <cassert>
+#include <iostream>
 
 Rational Tableau::get(index_t i, index_t j) const {
     if (i < rows_.size()) {
@@ -37,7 +38,7 @@ void Tableau::set(index_t i, index_t j, Rational const &a) {
     else {
         auto &r = reserve_row_(i);
         auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
-        auto [g, ag, rg] = gcd(a.den(), r.den);
+        auto [g, ag, rg] = gcd_div(a.den(), r.den);
         if (it == r.cells.end() || it->col != j) {
             it = r.cells.emplace(it, j, a.num() * rg);
         }
@@ -63,6 +64,25 @@ void Tableau::set(index_t i, index_t j, Rational const &a) {
 }
 // NOLINTEND(clang-analyzer-core.UndefinedBinaryOperatorResult)
 
+void Tableau::simplify_(index_t i) {
+    auto &row = rows_[i];
+    if (row.den == 1) {
+        return;
+    }
+    auto g = row.den;
+    for (auto &[col, val] : row.cells) {
+        g = gcd(val, g);
+        if (g == 1) {
+            return;
+        }
+    }
+    for (auto &[col, val] : row.cells) {
+        static_cast<void>(col);
+        val.divide(g);
+    }
+    row.den.divide(g);
+}
+
 void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     // Detailed notes how this algorithm works can be found in doc/pivot.lyx.
 
@@ -84,7 +104,7 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     // - there are no insertions in column j because each a_kj != 0
     update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) {
         if (k != i) {
-            auto [g, ga_ij, ga_kj] = gcd(a_ij, a_kj);
+            auto [g, ga_ij, ga_kj] = gcd_div(a_ij, a_kj);
             size_t pivot_index = 0;
             for (auto A_il = A_i0, A_kl = rows_[k].cells.begin(), A_kn = rows_[k].cells.end(); A_il != A_in || A_kl != A_kn; ) {
                 // case A_il != 0 and A_kl == 0
@@ -126,10 +146,12 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
             row[pivot_index].val = std::move(ga_kj) * d_i;
             std::swap(rows_[k].cells, row);
             row.clear();
+            simplify_(k);
         }
     });
     // pivot element in row i
     a_ij.swap(d_i);
+    simplify_(i);
 
     // Ensure that column vectors are sorted.
     //
@@ -161,27 +183,20 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     }
 }
 
-void Tableau::print(std::ostream &out, char const *indent) const {
+void Tableau::debug(char const *indent) const {
     size_t m = rows_.size();
     size_t n = cols_.size();
-    out << indent << "{";
     for (size_t i = 0; i < m; ++i) {
-        if (i > 0) {
-            out << indent << " ";
-        }
-        out << "{";
+        std::cerr << indent;
+        std::cerr << "y_" << i << " = ";
         for (size_t j = 0; j < n; ++j) {
             if (j > 0) {
-                out << ", ";
+                std::cerr << " + ";
             }
-            out << get(i, j);
+            std::cerr << get(i, j) << "*x_" << j;
         }
-        out << "}";
-        if (i < m - 1) {
-            out << ",\n";
-        }
+        std::cerr << "\n";
     }
-    out << "}";
 }
 
 size_t Tableau::size() const {

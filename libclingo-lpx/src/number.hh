@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+#include <stdexcept>
 #include <utility>
 #include <iostream>
 
@@ -104,15 +106,32 @@ public:
     RationalQ &operator=(RationalQ &&) = default;
     ~RationalQ() = default;
 
-    void swap(RationalQ &q) {
-        c_.swap(q.c_);
-        k_.swap(q.k_);
-    }
+    void swap(RationalQ &q);
+    [[nodiscard]] bool is_rational() const;
+    [[nodiscard]] Rational const &as_rational() const;
 
 private:
     Rational c_;
     Rational k_;
 };
+
+// implementation
+
+inline void RationalQ::swap(RationalQ &q) {
+    c_.swap(q.c_);
+    k_.swap(q.k_);
+}
+
+inline bool RationalQ::is_rational() const {
+    return k_ == 0;
+}
+
+inline Rational const &RationalQ::as_rational() const {
+    if (!is_rational()) {
+        throw std::runtime_error("cannot convert number with epsilon component to rational");
+    }
+    return c_;
+}
 
 // comparision
 

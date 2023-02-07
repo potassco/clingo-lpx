@@ -25,6 +25,7 @@
 #include <clingo.hh>
 #include <clingo-lpx.h>
 #include <clingo-lpx-app/app.hh>
+#include <optional>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -37,7 +38,6 @@ namespace ClingoLPX {
 #ifdef CLINGOLPX_PROFILE
 
 namespace {
-
 
 class Profiler {
 public:
@@ -93,16 +93,24 @@ public:
             symbols = model.symbols(Clingo::ShowType::Theory);
             std::sort(symbols.begin(), symbols.end());
             comma = false;
+            std::optional<std::pair<Clingo::Symbol, bool>> objective;
             for (auto const &sym : symbols) {
-                if (std::strcmp("__lpx", sym.name()) != 0) {
-                    continue;
+                if (sym.match("__lpx", 2) && sym.arguments().back().type() == Clingo::SymbolType::String) {
+                    if (comma) {
+                        std::cout << " ";
+                    }
+                    auto args = sym.arguments();
+                    std::cout << args.front() << "=" << args.back().string();
+                    comma = true;
                 }
-                if (comma) {
-                    std::cout << " ";
+                else if (sym.match("__lpx_objective", 2) && sym.arguments().front().type() == Clingo::SymbolType::String && sym.arguments().back().type() == Clingo::SymbolType::Number) {
+                    auto args = sym.arguments();
+                    objective = std::make_pair(args.front(), args.back() == Clingo::Number(1));
+
                 }
-                auto args = sym.arguments();
-                std::cout << args.front() << "=" << args.back().string();
-                comma = true;
+            }
+            if (objective.has_value()) {
+                std::cout << "\nOptimization: " << objective->first.string() << " [" << (objective->second ? "bounded" : "unbounded") << "]";
             }
             std::cout << std::endl;
         }

@@ -63,7 +63,8 @@ class Integer {
     friend int compare(Integer const &a, fixed_int b);
     friend int compare(Integer const &a, Integer const &b);
 
-    friend std::tuple<Integer, Integer, Integer> gcd(Integer const &a, Integer const &b);
+    friend Integer gcd(Integer const &a, Integer const &b);
+    friend std::tuple<Integer, Integer, Integer> gcd_div(Integer const &a, Integer const &b);
 
 public:
     Integer() noexcept;
@@ -77,6 +78,7 @@ public:
     ~Integer() noexcept;
 
     void swap(Integer &x) noexcept;
+    Integer &divide(Integer const &a);
     Integer &add_mul(Integer const &a, Integer const &b) &;
     Integer add_mul(Integer const &a, Integer const &b) &&;
     Integer &neg();
@@ -231,6 +233,11 @@ inline Integer::~Integer() noexcept {
 
 inline void Integer::swap(Integer &x) noexcept {
     fmpz_swap(&num_, &x.num_);
+}
+
+inline Integer &Integer::divide(Integer const &a) {
+    fmpz_divexact(&num_, &num_, &a.num_);
+    return *this;
 }
 
 inline Integer &Integer::add_mul(Integer const &a, Integer const &b) & {
@@ -452,14 +459,18 @@ inline std::ostream &operator<<(std::ostream &out, Integer const &a) {
 
 // gcd
 
-[[nodiscard]] inline std::tuple<Integer, Integer, Integer> gcd(Integer const &a, Integer const &b) {
+[[nodiscard]] inline Integer gcd(Integer const &a, Integer const &b) {
     Integer g;
-    Integer ga;
-    Integer gb;
     fmpz_gcd(&g.num_, &a.num_, &b.num_);
-    fmpz_divexact(&ga.num_, &a.num_, &g.num_);
-    fmpz_divexact(&gb.num_, &b.num_, &g.num_);
-    return {g, ga, gb};
+    return g;
+}
+
+[[nodiscard]] inline std::tuple<Integer, Integer, Integer> gcd_div(Integer const &a, Integer const &b) {
+    std::tuple<Integer, Integer, Integer> ret;
+    fmpz_gcd(&std::get<0>(ret).num_, &a.num_, &b.num_);
+    fmpz_divexact(&std::get<1>(ret).num_, &a.num_, &std::get<0>(ret).num_);
+    fmpz_divexact(&std::get<2>(ret).num_, &b.num_, &std::get<0>(ret).num_);
+    return ret;
 }
 
 // Rational

@@ -32,20 +32,15 @@ $ clingo -c n=132 encoding.lp tai4_4_1.lp
 
 ## Installation
 
-To compile the package, [cmake], [gmp], [clingo], and a C++ compiler supporting C++17 have to be installed.
-All these requirements can be installed with [anaconda].
+Precompiled packages are available:
 
-```bash
-conda create -n simplex -c potassco/label/dev cmake ninja gmp clingo gxx_linux-64
-conda activate simplex
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
+- https://anaconda.org/potassco/clingo-lpx
+- https://anaconda.org/conda-forge/clingo-lpx
+- https://pypi.org/project/clingo-lpx/
+- https://launchpad.net/~potassco/+archive/ubuntu/stable
 
-[cmake]: https://cmake.org
-[gmp]: https://gmplib.org
-[clingo]: https://github.com/potassco/clingo
-[anaconda]: https://anaconda.org
+To install the conda packages, please install [miniconda] first.
+Note that packages from the [conda-forge] channel offer better performance than the ones from the potassco channel.
 
 ## Input format
 
@@ -84,14 +79,42 @@ For example, with the above program, `x>=1+e` will appear in the output.
 This feature could also be used to support constraints in rule body and the `!=` relation;
 neither is implemented at the moment.
 
+Finally, the solver supports `&minimize` and `&maxmize` objectives where the former is a shortcut for the latter negating coefficients.
+The terms between the braces have the same syntax as for `&sum` constraints.
+However, objectives do not have a guard.
+
+For example, the following objective is accepted:
+```
+&maximize { 2*x; -2*y }.
+```
+
+By default, the optimal objective value is reported w.r.t. a stable model.
+Using option `--objective=global` together with `--models=0` can be used to enumerate globally optimal solutions.
+It is also possible to give a step value requiring the next objective to be greater than or equal to the current one plus the step value.
+In strict mode with option `--strict`, it is possible to use a symbolic epsilon value as step value,
+that is, by passing option `--objective=global,e`.
+
+## Options
+
+| Option | Description |
+| :-- | :-- |
+| `--[no-]strict` | Enable support for strict constraints. |
+| `--[no-]propagate-conflicts` | Add binary clauses for conflicting bounds involving the same variable. |
+| `--[no-]propagate-bounds` | Enable propagation of conflicting bounds. The current algorithm should be considered preliminary. It is neither as exhaustive as it could be nor is it very efficient. |
+| `--objective={local,global[,step]}` | Configure how to treat the objective function. Values `local` and `global` compute optimal assignments w.r.t. to one and all stable models, respectively. When computing global optima, it is also possible to give a step value requiring the next objective to be greater than or equal to the current one plus the step value. In strict mode with option `--strict`, it is possible to use a symbolic epsilon value as step value, that is, by passing option `--objective=global,e`. |
+| `--select={none,match,conflict}` | Configure the sign heuristic for linear constraints. It can be set to `none` to use the sign heuristic of the ASP solver, `match` to make literals true whenever the corresponding constraint does not violate the current assignment, or `conflict` to do the opposite. |
+| `--store={no,partial,total}` | Configure whether to maintain satisfying assignments when backtracking. Value `partial` and `total` determine whether this is done w.r.t. to partial or total propagation fixed points. The latter is especially interesting when enumerating models to reduce the number of pivots. |
+| `--[no-]enable-python` | Enable Python script tags. Only works when running the python module, e.g., `python -m clingolpx`. |
+
 ## Profiling
 
-Profiling with the [gperftools] can be enabled via cmake.
+To compile and profile the package, [cmake], [gperftools], [clingo], and a C++ compiler supporting C++17 have to be installed.
+All these requirements can be installed with [conda-forge].
 
 ```bash
-conda create -n profile -c conda-forge -c potassco/label/dev cmake ninja gmp clingo gxx_linux-64 gperftools
+conda create -n profile -c conda-forge cmake libflint clingo cxx-compiler gperftools
 conda activate profile
-cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCLINGOLP_PROFILE=ON
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCLINGOLPX_PROFILE=ON
 cmake --build build
 ```
 
@@ -102,8 +125,6 @@ CPUPROFILE_FREQUENCY=1000 ./build/bin/clingo-lpx examples/encoding-lp.lp example
 google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 ```
 
-[gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html
-
 ## Literature
 
 - "Integrating Simplex with `DPLL(T)`" by Bruno Dutertre and Leonardo de Moura
@@ -111,16 +132,14 @@ google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 
 ## Math Libraries
 
-The project currently uses the [GMP], which is problematic on Windows.
-Below are some alternatives that could be explored.
+The project currently uses [FLINT] for arithmetics.
+Alternatively, the slower but more lightwight [IMath] library can be used when configuring with `CLINGOLPX_MATH_LIBRARY=imath`.
+Furthermore, note that [IMath] uses the MIT and [FLINT] the LGPL license.
 
-- https://gmplib.org/
-- https://github.com/wbhart/flint2
-- https://github.com/creachadair/imath
-- https://github.com/suiginsoft/hebimath
-- https://libs.suckless.org/libzahl/
-
-Currently, the [IMath] library can be used as an alternative using option `CLINGOLPX_USE_IMATH`.
-This should make it possible to use the project on Windows and also to use it with MIT-only licenses.
-
+[FLINT]: https://github.com/wbhart/flint2
 [IMath]: https://github.com/creachadair/imath
+[cmake]: https://cmake.org
+[clingo]: https://github.com/potassco/clingo
+[conda-forge]: https://conda-forge.org/
+[gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html
+[miniconda]: https://docs.conda.io/en/latest/miniconda.html
