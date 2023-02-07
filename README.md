@@ -32,20 +32,15 @@ $ clingo -c n=132 encoding.lp tai4_4_1.lp
 
 ## Installation
 
-To compile the package, [cmake], [gmp], [clingo], and a C++ compiler supporting C++17 have to be installed.
-All these requirements can be installed with [anaconda].
+Precompiled packages are available:
 
-```bash
-conda create -n simplex -c potassco/label/dev cmake ninja gmp clingo gxx_linux-64
-conda activate simplex
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
+- https://anaconda.org/potassco/clingo-lpx
+- https://anaconda.org/conda-forge/clingo-lpx
+- https://pypi.org/project/clingo-lpx/
+- https://launchpad.net/~potassco/+archive/ubuntu/stable
 
-[cmake]: https://cmake.org
-[gmp]: https://gmplib.org
-[clingo]: https://github.com/potassco/clingo
-[anaconda]: https://anaconda.org
+To install the conda packages, please install [miniconda] first.
+Note that packages from the [conda-forge] channel offer better performance than the ones from the potassco channel.
 
 ## Input format
 
@@ -113,12 +108,13 @@ that is, by passing option `--objective=global,e`.
 
 ## Profiling
 
-Profiling with the [gperftools] can be enabled via cmake.
+To compile and profile the package, [cmake], [gperftools], [clingo], and a C++ compiler supporting C++17 have to be installed.
+All these requirements can be installed with [conda-forge].
 
 ```bash
-conda create -n profile -c conda-forge -c potassco/label/dev cmake ninja gmp clingo gxx_linux-64 gperftools
+conda create -n profile -c conda-forge cmake ninja libflint clingo cxx-compiler gperftools
 conda activate profile
-cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCLINGOLP_PROFILE=ON
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCLINGOLPX_PROFILE=ON
 cmake --build build
 ```
 
@@ -128,8 +124,6 @@ The resulting binary can then be profiled using the following calls:
 CPUPROFILE_FREQUENCY=1000 ./build/bin/clingo-lpx examples/encoding-lp.lp examples/tai4_4_1.lp --stats -c n=132 -q 0
 google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 ```
-
-[gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html
 
 ## Literature
 
@@ -144,3 +138,8 @@ Furthermore, note that [IMath] uses the MIT and [FLINT] the LGPL license.
 
 [FLINT]: https://github.com/wbhart/flint2
 [IMath]: https://github.com/creachadair/imath
+[cmake]: https://cmake.org
+[clingo]: https://github.com/potassco/clingo
+[conda-forge]: https://conda-forge.org/
+[gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html
+[miniconda]: https://docs.conda.io/en/latest/miniconda.html
