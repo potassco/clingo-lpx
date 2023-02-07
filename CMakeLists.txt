@@ -61,8 +61,6 @@ if (MSVC)
     SET(CMAKE_STATIC_LINKER_FLAGS_RELEASE "${CMAKE_STATIC_LINKER_FLAGS_RELEASE} ${VC_RELEASE_LINK_OPTIONS}")
 endif()
 
-try_compile(CLINGOLPX_HAS_SHARED_MUTEX "${CMAKE_BINARY_DIR}/try_compile" SOURCES "${CMAKE_SOURCE_DIR}/cmake/shared_mutex.cc")
-
 if (POLICY CMP0063 AND CLINGOLPX_BUILD_SHARED)
     set(CMAKE_CXX_VISIBILITY_PRESET hidden)
     set(CMAKE_C_VISIBILITY_PRESET hidden)
@@ -96,6 +94,15 @@ if (NOT CMAKE_IMPORT_LIBRARY_PREFIX)
 endif()
 
 find_package(Threads)
+
+try_compile(
+    CLINGOLPX_HAS_SHARED_MUTEX "${CMAKE_BINARY_DIR}/try_compile"
+    SOURCES "${CMAKE_SOURCE_DIR}/cmake/shared_mutex.cc"
+    LINK_LIBRARIES Threads::Threads)
+
+if (NOT CLINGOLPX_HAS_SHARED_MUTEX)
+    message(WARNING "shared mutex support not available falling back to mutex")
+endif()
 
 if (CLINGOLPX_MATH_LIBRARY STREQUAL "imath" OR PYCLINGOLPX_ENABLE STREQUAL "pip")
     set(_CLINGOLPX_MATH_LIBRARY "imath")
