@@ -51,7 +51,7 @@ public:
     void update(std::pair<Value, bool> value);
     std::optional<std::pair<Value, bool>> value(size_t &generation);
 private:
-#ifdef __cpp_lib_shared_mutex
+#ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::shared_mutex mutex_;
 #else
     std::mutex mutex_;

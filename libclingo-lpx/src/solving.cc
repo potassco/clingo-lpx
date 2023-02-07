@@ -40,7 +40,7 @@ void ObjectiveState<Value>::reset() {
 
 template<typename Value>
 void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
-#ifdef __cpp_lib_shared_mutex
+#ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::unique_lock<std::shared_mutex> lock{mutex_};
 #else
     std::unique_lock<std::mutex> lock{mutex_};
@@ -54,7 +54,7 @@ void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
 
 template<typename Value>
 std::optional<std::pair<Value, bool>> ObjectiveState<Value>::value(size_t &generation) {
-#ifdef __cpp_lib_shared_mutex
+#ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::shared_lock<std::shared_mutex> lock{mutex_};
 #else
     std::unique_lock<std::mutex> lock{mutex_};

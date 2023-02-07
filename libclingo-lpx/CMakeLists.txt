@@ -48,6 +48,10 @@ add_library(libclingo-lpx ${clingolpx_lib_type})
 target_sources(libclingo-lpx ${clingolpx_private_scope_} ${header} ${source})
 target_include_directories(libclingo-lpx ${clingolpx_public_scope_} "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>")
 target_compile_definitions(libclingo-lpx ${clingolpx_private_scope_} CLINGOLPX_BUILD_LIBRARY)
+if (NOT CLINGOLPX_HAS_SHARED_MUTEX)
+    target_compile_definitions(libclingo-lpx ${clingolpx_private_scope_} CLINGOLPX_NO_SHARED_MUTEX)
+endif()
+
 if (CLINGOLPX_PROFILE) 
     target_compile_definitions(libclingo-lpx ${clingolpx_public_scope_} "CLINGOLPX_PROFILE")
     target_link_libraries(libclingo-lpx ${clingolpx_public_scope_} Gperftools::Gperftools)
@@ -101,6 +105,9 @@ if (CLINGOLPX_BUILD_TESTS)
     target_compile_definitions(libclingo-lpx_t PUBLIC CLINGOLPX_NO_VISIBILITY)
     target_link_libraries(libclingo-lpx_t PUBLIC libclingo MATH::MATH Threads::Threads)
     target_compile_definitions(libclingo-lpx_t PUBLIC "CLINGOLPX_CROSSCHECK")
+    if (NOT CLINGOLPX_HAS_SHARED_MUTEX)
+        target_compile_definitions(libclingo-lpx_t PUBLIC CLINGOLPX_NO_SHARED_MUTEX)
+    endif()
     set_target_properties(libclingo-lpx_t PROPERTIES
         OUTPUT_NAME clingo-lpx_t
         LIBRARY_OUTPUT_NAME clingo-lpx_t
