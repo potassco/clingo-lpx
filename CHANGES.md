@@ -4,6 +4,8 @@
 
 * switch from gmpxx to libflint
 * optimize tableau representation
+* add objective function
+* add option to propagate bounds
 
 ## clingo-lpx 1.2.1
 
