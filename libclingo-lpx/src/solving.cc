@@ -828,7 +828,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
         auto &y_i = basic_(i);
         auto propagate = [&, this](std::vector<Clingo::literal_t> &clause, Bound const &bound) {
             clause.emplace_back(-bound.lit);
-            bool ret = !ctl.add_clause(clause) || !ctl.propagate();
+            bool ret = ctl.add_clause(clause) && ctl.propagate();
             clause.pop_back();
             ++statistics_.propagated_bounds;
             return ret;
