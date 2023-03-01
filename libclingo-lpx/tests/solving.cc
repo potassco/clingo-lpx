@@ -27,7 +27,7 @@ private:
     Propagator<V> &prp_;
 };
 
-Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, true, true};
+Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, PropagateMode::Changed, true};
 
 template <typename V = Rational>
 bool run(char const *s) {

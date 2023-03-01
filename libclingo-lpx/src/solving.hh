@@ -7,6 +7,7 @@
 
 #include <clingo.hh>
 
+#include <deque>
 #include <mutex>
 #include <optional>
 #include <queue>
@@ -28,11 +29,17 @@ enum class SelectionHeuristic : int {
     Conflict = 2,
 };
 
+enum class PropagateMode : int {
+    None = 0,
+    Changed = 1,
+    Full = 2,
+};
+
 struct Options {
     SelectionHeuristic select = SelectionHeuristic::None;
     StoreSATAssignments store_sat_assignment = StoreSATAssignments::No;
     std::optional<RationalQ> global_objective = std::nullopt;
-    bool propagate_bounds = false;
+    PropagateMode propagate_mode = PropagateMode::None;
     bool propagate_conflicts = false;
 };
 
@@ -131,6 +138,8 @@ private:
         std::vector<Bound const *> bounds;
         //! Whether this variales is in the queue of conflicting variables.
         bool queued{false};
+        //! Whether this variales is in the queue of (non-basic) variables to porpagate.
+        bool propagate{false};
     };
     struct TrailOffset {
         index_t level;
@@ -256,6 +265,8 @@ private:
     std::priority_queue<index_t, std::vector<index_t>, std::greater<>> conflicts_;
     //! The conflict clause.
     std::vector<Clingo::literal_t> conflict_clause_;
+    //! The vector of non-basic variables to propagate.
+    std::deque<index_t> propagate_queue_;
     //! Problem and solving statistics.
     Statistics statistics_;
     //! The number of non-basic variables.

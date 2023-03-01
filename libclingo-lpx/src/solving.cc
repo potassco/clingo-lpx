@@ -281,6 +281,11 @@ void Solver<Value>::enqueue_(index_t i) {
         conflicts_.emplace(ii);
         xi.queued = true;
     }
+    // Note that this explicitely marks the row not the variable to propagate.
+    if (options_.propagate_mode == PropagateMode::Changed && !variables_[i].propagate) {
+        variables_[i].propagate = true;
+        propagate_queue_.emplace_back(i);
+    }
 }
 
 template<typename Value>
@@ -760,20 +765,24 @@ bool Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lit
 
 template<typename Value>
 bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
-    // This implemenation is a proof of concept. In principle it can also
-    // propgate more (see clingcon). It is very likely that it is too expensive
-    // in this form. I would invest some more time into tuning once we have
-    // examples where it applies.
+    // In principle we could also propgate more bounds (see clingcon). This
+    // would very likely be too expensive.
     //
-    // One possible heuristic to compute bounds would be to only consider
-    // pivoted rows.
-    if (!options_.propagate_bounds) {
+    // Currently, the function propagates rows whose values have changed due to
+    // a bound change (or all rows). In principal, the simplex algorithm sets
+    // the value of a non-basic variable to a lower or upper bound and then
+    // updates the basic variable associated with the row. This means that
+    // already the current assignment could be used for bound propagation
+    // avoiding any arithmetic operations. However, we spend a little more
+    // effort here to compute more bounds.
+    if (options_.propagate_mode == PropagateMode::None) {
         return true;
     }
     auto ass = ctl.assignment();
     std::vector<Clingo::literal_t> lower_clause;
     std::vector<Clingo::literal_t> upper_clause;
-    for (index_t i = 0; i < n_basic_; ++i) {
+    auto propagate_row = [&](index_t i) {
+        variables_[i].propagate = false;
         std::optional<Value> lower = Value{0};
         std::optional<Value> upper = Value{0};
         // check if a constraint provides a bound
@@ -788,7 +797,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
             }
         });
         if (!upper.has_value() && !lower.has_value()) {
-            continue;
+            return true;
         }
         lower_clause.clear();
         upper_clause.clear();
@@ -819,7 +828,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
         auto &y_i = basic_(i);
         auto propagate = [&, this](std::vector<Clingo::literal_t> &clause, Bound const &bound) {
             clause.emplace_back(-bound.lit);
-            bool ret = !ctl.add_clause(clause) || !ctl.propagate();
+            bool ret = ctl.add_clause(clause) && ctl.propagate();
             clause.pop_back();
             ++statistics_.propagated_bounds;
             return ret;
@@ -843,6 +852,23 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
                         return false;
                     }
                 }
+            }
+        }
+        return true;
+    };
+    if (options_.propagate_mode == PropagateMode::Changed) {
+        while (!propagate_queue_.empty()) {
+            auto i  = propagate_queue_.front();
+            propagate_queue_.pop_front();
+            if (!propagate_row(i)) {
+                return false;
+            }
+        }
+    }
+    else {
+        for (index_t i = 0; i < n_basic_; ++i) {
+            if (!propagate_row(i)) {
+                return false;
             }
         }
     }
