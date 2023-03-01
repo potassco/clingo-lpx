@@ -251,6 +251,24 @@ bool parse_select(const char *value, void *data) {
     return false;
 }
 
+//! Parse value for propagate mode.
+bool parse_propagate(const char *value, void *data) {
+    auto &options = *static_cast<Options*>(data);
+    if (iequals(value, "none")) {
+        options.propagate_mode = PropagateMode::None;
+        return true;
+    }
+    if (iequals(value, "changed")) {
+        options.propagate_mode = PropagateMode::Changed;
+        return true;
+    }
+    if (iequals(value, "full")) {
+        options.propagate_mode = PropagateMode::Full;
+        return true;
+    }
+    return false;
+}
+
 //! Parse value for store SAT assignment configuration.
 bool parse_store(const char *value, void *data) {
     auto &options = *static_cast<Options*>(data);
@@ -374,7 +392,7 @@ extern "C" bool clingolpx_configure(clingolpx_theory_t *theory, char const *key,
             return check_parse("propagate-conflicts", parse_bool(value, &theory->options.propagate_conflicts));
         }
         if (strcmp(key, "propagate-bounds") == 0) {
-            return check_parse("propagate-bounds", parse_bool(value, &theory->options.propagate_bounds));
+            return check_parse("propagate-bounds", parse_propagate(value, &theory->options.propagate_mode));
         }
         if (strcmp(key, "select") == 0) {
             return check_parse("select", parse_select(value, &theory->options));
@@ -395,7 +413,7 @@ extern "C" bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_op
         char const * group = "Clingo.LPX Options";
         handle_error(clingo_options_add_flag(options, group, "strict", "Enable support for strict constraints", &theory->strict));
         handle_error(clingo_options_add_flag(options, group, "propagate-conflicts", "Propagate conflicting bounds", &theory->options.propagate_conflicts));
-        handle_error(clingo_options_add_flag(options, group, "propagate-bounds", "Propagate bounds", &theory->options.propagate_bounds));
+        handle_error(clingo_options_add(options, group, "propagate-bounds", "Propagate bounds", parse_propagate, &theory->options, false, "{none,changed,full}"));
         handle_error(clingo_options_add(options, group, "objective", "Choose how to treat objective function", parse_objective, &theory->options, false, "{local,global[,step]}"));
         handle_error(clingo_options_add(options, group, "select", "Choose phase selection heuristic", parse_select, &theory->options, false, "{none,match,conflict}"));
         handle_error(clingo_options_add(options, group, "store", "Whether to store SAT assignments", parse_store, &theory->options, false, "{no,partial,total}"));
