@@ -54,7 +54,7 @@ endif()
 
 if (CLINGOLPX_PROFILE) 
     target_compile_definitions(libclingo-lpx ${clingolpx_public_scope_} "CLINGOLPX_PROFILE")
-    target_link_libraries(libclingo-lpx ${clingolpx_public_scope_} Gperftools::Gperftools)
+    target_link_libraries(libclingo-lpx ${clingolpx_public_scope_} Gperftools::Profiler)
 endif()
 if (CLINGOLPX_CROSSCHECK)
     target_compile_definitions(libclingo-lpx ${clingolpx_public_scope_} "CLINGOLPX_CROSSCHECK")
