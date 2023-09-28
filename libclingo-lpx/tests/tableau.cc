@@ -4,7 +4,7 @@
 
 namespace {
 
-std::vector<std::vector<Rational>> as_num_mat(Tableau const &tab, index_t m, index_t n) {
+auto as_num_mat(Tableau const &tab, index_t m, index_t n) -> std::vector<std::vector<Rational>> {
     std::vector<std::vector<Rational>> ret;
     ret.reserve(m);
     for (index_t i = 0; i < m; ++i) {
@@ -18,7 +18,7 @@ std::vector<std::vector<Rational>> as_num_mat(Tableau const &tab, index_t m, ind
     return ret;
 }
 
-std::vector<std::vector<Integer>> as_int_mat(Tableau &tab, index_t m, index_t n) {
+auto as_int_mat(Tableau &tab, index_t m, index_t n) -> std::vector<std::vector<Integer>> {
     std::vector<std::vector<Integer>> ret;
     ret.reserve(m);
     for (index_t i = 0; i < m; ++i) {
@@ -37,7 +37,7 @@ std::vector<std::vector<Integer>> as_int_mat(Tableau &tab, index_t m, index_t n)
     return ret;
 }
 
-}
+} // namespace
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -51,26 +51,26 @@ TEST_CASE("matrix") {
         tab.set(0, 0, Rational{Integer{2}, Integer{4}});
         tab.set(0, 1, Rational{Integer{1}, Integer{3}});
         tab.set(0, 2, Rational{Integer{1}, Integer{5}});
-        tab.set(0, 3, Rational{Integer{1}, Integer{2L*3*5*7}});
+        tab.set(0, 3, Rational{Integer{1}, Integer{2L * 3 * 5 * 7}});
 
         tab.unsafe_get(0, 0, num, den);
-        REQUIRE(*num == (3L*5*7));
-        REQUIRE(*den == (2L*3*5*7));
+        REQUIRE(*num == (3L * 5 * 7));
+        REQUIRE(*den == (2L * 3 * 5 * 7));
 
         tab.unsafe_get(0, 1, num, den);
-        REQUIRE(*num == (2L*5*7));
+        REQUIRE(*num == (2L * 5 * 7));
 
         tab.unsafe_get(0, 2, num, den);
-        REQUIRE(*num == (2L*3*7));
+        REQUIRE(*num == (2L * 3 * 7));
 
         tab.unsafe_get(0, 3, num, den);
         REQUIRE(*num == 1);
 
-        tab.set(0, 4, Rational{Integer{7}, Integer{2L*3*5*7}});
+        tab.set(0, 4, Rational{Integer{7}, Integer{2L * 3 * 5 * 7}});
 
         tab.unsafe_get(0, 4, num, den);
         REQUIRE(*num == 7);
-        REQUIRE(*den == (2L*3*5*7));
+        REQUIRE(*den == (2L * 3 * 5 * 7));
     }
 
     SECTION("integer") {
@@ -151,13 +151,8 @@ TEST_CASE("matrix") {
         std::vector<std::vector<Integer>> int_ret = as_int_mat(tab, 3, 3);
 
         std::vector<std::vector<Rational>> num_sol = {
-            { {-3, 5}, {2, 5}, { 3, 5} },
-            { {-4, 5}, {1, 5}, {-6, 5} },
-            { { 3, 5}, {8, 5}, {-3, 5} } };
-        std::vector<std::vector<Integer>> int_sol = {
-            { -3, 2,  3, 5 },
-            { -4, 1, -6, 5 },
-            {  3, 8, -3, 5 } };
+            {{-3, 5}, {2, 5}, {3, 5}}, {{-4, 5}, {1, 5}, {-6, 5}}, {{3, 5}, {8, 5}, {-3, 5}}};
+        std::vector<std::vector<Integer>> int_sol = {{-3, 2, 3, 5}, {-4, 1, -6, 5}, {3, 8, -3, 5}};
 
         REQUIRE(num_ret == num_sol);
         REQUIRE(int_ret == int_sol);

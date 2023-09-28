@@ -22,13 +22,13 @@
 
 // }}}
 
-#include <clingo.hh>
-#include <clingo-lpx.h>
 #include <clingo-lpx-app/app.hh>
-#include <optional>
-#include <sstream>
+#include <clingo-lpx.h>
+#include <clingo.hh>
 #include <fstream>
 #include <limits>
+#include <optional>
+#include <sstream>
 #ifdef CLINGOLPX_PROFILE
 #include <gperftools/profiler.h>
 #endif
@@ -40,13 +40,9 @@ namespace ClingoLPX {
 namespace {
 
 class Profiler {
-public:
-    Profiler(char const *path) {
-        ProfilerStart(path);
-    }
-    ~Profiler() {
-        ProfilerStop();
-    }
+  public:
+    Profiler(char const *path) { ProfilerStart(path); }
+    ~Profiler() { ProfilerStop(); }
 };
 
 } // namespace
@@ -57,25 +53,17 @@ using Clingo::Detail::handle_error;
 
 //! Application class to run clingo-lpx.
 class App : public Clingo::Application, private Clingo::SolveEventHandler {
-public:
-    App() {
-        handle_error(clingolpx_create(&theory_));
-    }
+  public:
+    App() { handle_error(clingolpx_create(&theory_)); }
     App(App const &) = default;
     App(App &&) = default;
-    App &operator=(App const &) = default;
-    App &operator=(App &&) = default;
-    ~App() override {
-        clingolpx_destroy(theory_);
-    }
+    auto operator=(App const &) -> App & = default;
+    auto operator=(App &&) -> App & = default;
+    ~App() override { clingolpx_destroy(theory_); }
     //! Set program name to clingo-lpx.
-    [[nodiscard]] char const *program_name() const noexcept override {
-        return "clingo-lpx";
-    }
+    [[nodiscard]] auto program_name() const noexcept -> char const * override { return "clingo-lpx"; }
     //! Set the version.
-    [[nodiscard]] char const *version() const noexcept override {
-        return CLINGOLPX_VERSION;
-    }
+    [[nodiscard]] auto version() const noexcept -> char const * override { return CLINGOLPX_VERSION; }
     void print_model(Clingo::Model const &model, std::function<void()> default_printer) noexcept override {
         static_cast<void>(default_printer);
         try {
@@ -102,23 +90,23 @@ public:
                     auto args = sym.arguments();
                     std::cout << args.front() << "=" << args.back().string();
                     comma = true;
-                }
-                else if (sym.match("__lpx_objective", 2) && sym.arguments().front().type() == Clingo::SymbolType::String && sym.arguments().back().type() == Clingo::SymbolType::Number) {
+                } else if (sym.match("__lpx_objective", 2) &&
+                           sym.arguments().front().type() == Clingo::SymbolType::String &&
+                           sym.arguments().back().type() == Clingo::SymbolType::Number) {
                     auto args = sym.arguments();
                     objective = std::make_pair(args.front(), args.back() == Clingo::Number(1));
-
                 }
             }
             if (objective.has_value()) {
-                std::cout << "\nOptimization: " << objective->first.string() << " [" << (objective->second ? "bounded" : "unbounded") << "]";
+                std::cout << "\nOptimization: " << objective->first.string() << " ["
+                          << (objective->second ? "bounded" : "unbounded") << "]";
             }
             std::cout << std::endl;
-        }
-        catch(...) {
+        } catch (...) {
         }
     }
     //! Pass models to the theory.
-    bool on_model(Clingo::Model &model) override {
+    auto on_model(Clingo::Model &model) -> bool override {
         handle_error(clingolpx_on_model(theory_, model.to_c()));
         return true;
     }
@@ -146,18 +134,16 @@ public:
         handle_error(clingolpx_register_options(theory_, options.to_c()));
     }
     //! Validate options of the theory.
-    void validate_options() override {
-        handle_error(clingolpx_validate_options(theory_));
-    }
+    void validate_options() override { handle_error(clingolpx_validate_options(theory_)); }
 
-private:
+  private:
     clingolpx_theory_t *theory_{nullptr}; //!< The underlying DL theory.
 };
 
 } // namespace ClingoLPX
 
 //! Run the clingo-lpx application.
-int main(int argc, char *argv[]) { // NOLINT(bugprone-exception-escape)
+auto main(int argc, char *argv[]) -> int { // NOLINT(bugprone-exception-escape)
     ClingoLPX::App app;
     return Clingo::clingo_main(app, {argv + 1, static_cast<size_t>(argc - 1)});
 }

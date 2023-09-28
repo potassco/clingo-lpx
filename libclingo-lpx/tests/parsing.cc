@@ -4,8 +4,7 @@
 
 #include <sstream>
 
-template <typename T>
-std::string str(T &&x) {
+template <typename T> auto str(T &&x) -> std::string {
     std::ostringstream oss;
     oss << x;
     return oss.str();
@@ -69,8 +68,8 @@ TEST_CASE("parsing") {
         evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs, objective);
         REQUIRE(eqs.empty());
         REQUIRE(objective.size() == 2);
-        std::sort(objective.begin(), objective.end(), [](auto &a, auto &b) { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
+        std::sort(objective.begin(), objective.end(),
+                  [](auto &a, auto &b) { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
         REQUIRE(str(Inequality{objective, 0, Relation::Equal, 0}) == "-3*x + -y = 0");
     }
 }
-

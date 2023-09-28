@@ -25,27 +25,27 @@
 #ifndef CLINGOLPX_APP_HH
 #define CLINGOLPX_APP_HH
 
-#include <clingo.hh>
 #include <clingo-lpx.h>
+#include <clingo.hh>
 #include <optional>
 
 namespace ClingoLPX {
 
 //! Helper class to rewrite logic programs to use with the clingo DL theory.
 class Rewriter {
-public:
+  public:
     Rewriter(clingolpx_theory_t *theory, clingo_program_builder_t *builder);
     //! Rewrite the given files.
     void rewrite(Clingo::Control &control, Clingo::StringSpan files);
     //! Rewrite the given program.
     void rewrite(Clingo::Control &control, char const *str);
 
-private:
+  private:
     //! C callback to add a statement using the builder.
-    static bool add_(clingo_ast_t *stm, void *data);
+    static auto add_(clingo_ast_t *stm, void *data) -> bool;
 
     //! C callback to rewrite a statement and add it via the builder.
-    static bool rewrite_(clingo_ast_t *stm, void *data);
+    static auto rewrite_(clingo_ast_t *stm, void *data) -> bool;
 
     clingolpx_theory_t *theory_;        //!< A theory handle to rewrite statements.
     clingo_program_builder_t *builder_; //!< The builder to add rewritten statements to.

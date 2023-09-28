@@ -1,10 +1,10 @@
 #include "tableau.hh"
 
-#include <numeric>
 #include <cassert>
 #include <iostream>
+#include <numeric>
 
-Rational Tableau::get(index_t i, index_t j) const {
+auto Tableau::get(index_t i, index_t j) const -> Rational {
     if (i < rows_.size()) {
         auto const &r = rows_[i];
         auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
@@ -34,15 +34,13 @@ void Tableau::set(index_t i, index_t j, Rational const &a) {
                 r.erase(it);
             }
         }
-    }
-    else {
+    } else {
         auto &r = reserve_row_(i);
         auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
         auto [g, ag, rg] = gcd_div(a.den(), r.den);
         if (it == r.cells.end() || it->col != j) {
             it = r.cells.emplace(it, j, a.num() * rg);
-        }
-        else {
+        } else {
             // Note: this case is only for completeness it is not going to be
             // used in practice.
             it->val = a.num() * rg;
@@ -106,7 +104,8 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
         if (k != i) {
             auto [g, ga_ij, ga_kj] = gcd_div(a_ij, a_kj);
             size_t pivot_index = 0;
-            for (auto A_il = A_i0, A_kl = rows_[k].cells.begin(), A_kn = rows_[k].cells.end(); A_il != A_in || A_kl != A_kn; ) {
+            for (auto A_il = A_i0, A_kl = rows_[k].cells.begin(), A_kn = rows_[k].cells.end();
+                 A_il != A_in || A_kl != A_kn;) {
                 // case A_il != 0 and A_kl == 0
                 if (A_kl == A_kn || (A_il != A_in && A_il->col < A_kl->col)) {
                     assert(A_il->col != j);
@@ -199,14 +198,13 @@ void Tableau::debug(char const *indent) const {
     }
 }
 
-size_t Tableau::size() const {
+auto Tableau::size() const -> size_t {
     return std::accumulate(rows_.begin(), rows_.end(), static_cast<size_t>(0),
                            [](size_t n, auto const &r) { return n + r.cells.size(); });
 }
 
-bool Tableau::empty() const {
-    return std::all_of(rows_.cbegin(), rows_.cend(),
-                       [](auto const &r) { return r.cells.empty(); });
+auto Tableau::empty() const -> bool {
+    return std::all_of(rows_.cbegin(), rows_.cend(), [](auto const &r) { return r.cells.empty(); });
 }
 
 void Tableau::clear() {
@@ -214,20 +212,20 @@ void Tableau::clear() {
     cols_.clear();
 }
 
-Tableau::Row &Tableau::reserve_row_(index_t i) {
+auto Tableau::reserve_row_(index_t i) -> Tableau::Row & {
     if (rows_.size() <= i) {
         rows_.resize(i + 1);
     }
     return rows_[i];
 }
-std::vector<index_t> &Tableau::reserve_col_(index_t j) {
+auto Tableau::reserve_col_(index_t j) -> std::vector<index_t> & {
     if (cols_.size() <= j) {
         cols_.resize(j + 1);
     }
     return cols_[j];
 }
 
-Rational const &Tableau::zero_() {
+auto Tableau::zero_() -> Rational const & {
     static Rational zero{0};
     return zero;
 }

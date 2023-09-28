@@ -19,27 +19,25 @@
 
 namespace {
 
-RationalQ as_value(RationalQ const &a, RationalQ *b) {
+auto as_value(RationalQ const &a, RationalQ *b) -> RationalQ {
     static_cast<void>(b);
     return a;
 }
 
-Rational as_value(RationalQ const &a, Rational *b) {
+auto as_value(RationalQ const &a, Rational *b) -> Rational {
     static_cast<void>(b);
     return a.as_rational();
 }
 
 } // namespace
 
-template<typename Value>
-void ObjectiveState<Value>::reset() {
+template <typename Value> void ObjectiveState<Value>::reset() {
     value_ = Value{};
     generation_ = 0;
     bounded_ = true;
 }
 
-template<typename Value>
-void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
+template <typename Value> void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
 #ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::unique_lock<std::shared_mutex> lock{mutex_};
 #else
@@ -52,8 +50,8 @@ void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
     }
 }
 
-template<typename Value>
-std::optional<std::pair<Value, bool>> ObjectiveState<Value>::value(size_t &generation) {
+template <typename Value>
+auto ObjectiveState<Value>::value(size_t &generation) -> std::optional<std::pair<Value, bool>> {
 #ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::shared_lock<std::shared_mutex> lock{mutex_};
 #else
@@ -66,8 +64,7 @@ std::optional<std::pair<Value, bool>> ObjectiveState<Value>::value(size_t &gener
     return std::nullopt;
 }
 
-template<typename Value>
-typename Solver<Value>::BoundRelation bound_rel(Relation rel) {
+template <typename Value> auto bound_rel(Relation rel) -> typename Solver<Value>::BoundRelation {
     switch (rel) {
         case Relation::Less:
         case Relation::LessEqual: {
@@ -84,18 +81,15 @@ typename Solver<Value>::BoundRelation bound_rel(Relation rel) {
     return Solver<Value>::BoundRelation::Equal;
 }
 
-template<typename Value>
-Value bound_val(Rational x, Relation rel);
+template <typename Value> auto bound_val(Rational x, Relation rel) -> Value;
 
-template<>
-Rational bound_val<Rational>(Rational x, Relation rel) {
+template <> auto bound_val<Rational>(Rational x, Relation rel) -> Rational {
     static_cast<void>(rel);
     assert(rel != Relation::Less && rel != Relation::Greater);
     return x;
 }
 
-template<>
-RationalQ bound_val<RationalQ>(Rational x, Relation rel) {
+template <> auto bound_val<RationalQ>(Rational x, Relation rel) -> RationalQ {
     switch (rel) {
         case Relation::Less: {
             return RationalQ{std::move(x), -1};
@@ -112,11 +106,8 @@ RationalQ bound_val<RationalQ>(Rational x, Relation rel) {
     return RationalQ{std::move(x)};
 }
 
-template<typename Value>
-struct Solver<Value>::Prepare {
-    Prepare(Solver &slv, SymbolMap const &map)
-    : slv{slv}
-    , map{map} {
+template <typename Value> struct Solver<Value>::Prepare {
+    Prepare(Solver &slv, SymbolMap const &map) : slv{slv}, map{map} {
         slv.variables_.resize(map.size());
         slv.n_non_basic_ = map.size();
         for (index_t i = 0; i != slv.n_non_basic_; ++i) {
@@ -125,13 +116,13 @@ struct Solver<Value>::Prepare {
         }
     }
 
-    index_t get_non_basic(Clingo::Symbol var) {
+    auto get_non_basic(Clingo::Symbol var) -> index_t {
         auto jt = map.find(var);
         assert(jt != map.end());
         return slv.variables_[jt->second].reverse_index;
     }
 
-    index_t add_basic() {
+    auto add_basic() -> index_t {
         auto index = slv.variables_.size();
         slv.variables_.emplace_back();
         slv.variables_.back().index = index;
@@ -139,7 +130,7 @@ struct Solver<Value>::Prepare {
         return slv.n_basic_++;
     }
 
-    std::vector<std::pair<index_t, Rational>> add_row(std::vector<Term> const &x) {
+    auto add_row(std::vector<Term> const &x) -> std::vector<std::pair<index_t, Rational>> {
         std::vector<std::pair<index_t, Rational>> row;
         row.reserve(x.size());
 
@@ -155,8 +146,7 @@ struct Solver<Value>::Prepare {
     SymbolMap const &map;
 };
 
-template<typename Value>
-bool Solver<Value>::Solver::Bound::compare(Value const &value) const {
+template <typename Value> auto Solver<Value>::Solver::Bound::compare(Value const &value) const -> bool {
     switch (rel) {
         case BoundRelation::Equal: {
             return value == this->value;
@@ -171,8 +161,7 @@ bool Solver<Value>::Solver::Bound::compare(Value const &value) const {
     return value >= this->value;
 }
 
-template<typename Value>
-bool Solver<Value>::Solver::Bound::conflicts(Bound const &other) const {
+template <typename Value> auto Solver<Value>::Solver::Bound::conflicts(Bound const &other) const -> bool {
     switch (rel) {
         case BoundRelation::Equal: {
             return other.rel == BoundRelation::Equal ? value != other.value : other.conflicts(*this);
@@ -187,8 +176,8 @@ bool Solver<Value>::Solver::Bound::conflicts(Bound const &other) const {
     return value >= this->value;
 }
 
-template<typename Value>
-bool Solver<Value>::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+template <typename Value>
+auto Solver<Value>::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) -> bool {
     if (!has_upper() || bound.value < upper()) {
         if (!has_upper() || ass.level(upper_bound->lit) < ass.decision_level()) {
             s.bound_trail_.emplace_back(bound.variable, BoundRelation::LessEqual, upper_bound);
@@ -198,14 +187,13 @@ bool Solver<Value>::Variable::update_upper(Solver &s, Clingo::Assignment ass, Bo
     return !has_lower() || lower() <= upper();
 }
 
-template<typename Value>
-bool Solver<Value>::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+template <typename Value>
+auto Solver<Value>::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) -> bool {
     if (!has_lower() || bound.value > lower()) {
         if (!has_lower() || ass.level(lower_bound->lit) < ass.decision_level()) {
             if (upper_bound != &bound) {
                 s.bound_trail_.emplace_back(bound.variable, BoundRelation::GreaterEqual, lower_bound);
-            }
-            else {
+            } else {
                 // Note: this assumes that update_lower is called right after update_upper for the same bound
                 std::get<1>(s.bound_trail_.back()) = BoundRelation::Equal;
             }
@@ -215,8 +203,8 @@ bool Solver<Value>::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bo
     return !has_upper() || lower() <= upper();
 }
 
-template<typename Value>
-bool Solver<Value>::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bound) {
+template <typename Value>
+auto Solver<Value>::Variable::update(Solver &s, Clingo::Assignment ass, Bound const &bound) -> bool {
     switch (bound.rel) {
         case BoundRelation::LessEqual: {
             return update_upper(s, ass, bound);
@@ -231,8 +219,7 @@ bool Solver<Value>::Variable::update(Solver &s, Clingo::Assignment ass, Bound co
     return update_upper(s, ass, bound) && update_lower(s, ass, bound);
 }
 
-template<typename Value>
-void Solver<Value>::Variable::set_value(Solver &s, index_t lvl, Value const &val, bool add) {
+template <typename Value> void Solver<Value>::Variable::set_value(Solver &s, index_t lvl, Value const &val, bool add) {
     // We can always assume that the assignment on a previous level was satisfying.
     // Thus, we simply store the old values to be able to restore them when backtracking.
     if (lvl != level) {
@@ -241,39 +228,30 @@ void Solver<Value>::Variable::set_value(Solver &s, index_t lvl, Value const &val
     }
     if (add) {
         value += val;
-    }
-    else {
+    } else {
         value = val;
     }
 }
 
-template<typename Value>
-bool Solver<Value>::Variable::has_conflict() const {
+template <typename Value> auto Solver<Value>::Variable::has_conflict() const -> bool {
     return (has_lower() && value < lower()) || (has_upper() && value > upper());
 }
 
-void Statistics::reset() {
-    *this = {};
-}
+void Statistics::reset() { *this = {}; }
 
-template<typename Value>
-Solver<Value>::Solver(Options const &options)
-: options_{options} { }
+template <typename Value> Solver<Value>::Solver(Options const &options) : options_{options} {}
 
-template<typename Value>
-typename Solver<Value>::Variable &Solver<Value>::basic_(index_t i) {
+template <typename Value> auto Solver<Value>::basic_(index_t i) -> typename Solver<Value>::Variable & {
     assert(i < n_basic_);
     return variables_[variables_[i + n_non_basic_].index];
 }
 
-template<typename Value>
-typename Solver<Value>::Variable &Solver<Value>::non_basic_(index_t j) {
+template <typename Value> auto Solver<Value>::non_basic_(index_t j) -> typename Solver<Value>::Variable & {
     assert(j < n_non_basic_);
     return variables_[variables_[j].index];
 }
 
-template<typename Value>
-void Solver<Value>::enqueue_(index_t i) {
+template <typename Value> void Solver<Value>::enqueue_(index_t i) {
     assert(i < n_basic_);
     auto ii = variables_[i + n_non_basic_].index;
     auto &xi = variables_[ii];
@@ -288,21 +266,19 @@ void Solver<Value>::enqueue_(index_t i) {
     }
 }
 
-template<typename Value>
-Value Solver<Value>::get_value(index_t i) const {
-    return variables_[i].value;
-}
+template <typename Value> auto Solver<Value>::get_value(index_t i) const -> Value { return variables_[i].value; }
 
-template<typename Value>
-std::optional<std::pair<Value, bool>> Solver<Value>::get_objective() const {
+template <typename Value> auto Solver<Value>::get_objective() const -> std::optional<std::pair<Value, bool>> {
     if (objective_) {
         return std::make_pair(variables_[objective_.var].value, objective_.bounded);
     }
     return std::nullopt;
 }
 
-template<typename Value>
-bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective, bool master) {
+template <typename Value>
+auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols,
+                            std::vector<Inequality> const &inequalities, std::vector<Term> const &objective,
+                            bool master) -> bool {
     auto ass = init.assignment();
 
     Prepare prep{*this, symbols};
@@ -356,20 +332,14 @@ bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
         else if (row.size() == 1) {
             auto const &[j, v] = row.front();
             auto rel = v < 0 ? invert(x.rel) : x.rel;
-            bounds_.emplace(x.lit, Bound{
-                bound_val<Value>(x.rhs / v, rel),
-                variables_[j].index,
-                x.lit,
-                bound_rel<Value>(rel)});
+            bounds_.emplace(x.lit,
+                            Bound{bound_val<Value>(x.rhs / v, rel), variables_[j].index, x.lit, bound_rel<Value>(rel)});
         }
         // add an inequality
         else {
             auto i = prep.add_basic();
-            bounds_.emplace(x.lit, Bound{
-                bound_val<Value>(x.rhs, x.rel),
-                static_cast<index_t>(variables_.size() - 1),
-                x.lit,
-                bound_rel<Value>(x.rel)});
+            bounds_.emplace(x.lit, Bound{bound_val<Value>(x.rhs, x.rel), static_cast<index_t>(variables_.size() - 1),
+                                         x.lit, bound_rel<Value>(x.rel)});
             for (auto const &[j, v] : row) {
                 tableau_.set(i, j, v);
             }
@@ -429,8 +399,7 @@ bool Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
     return true;
 }
 
-template<typename Value>
-void Solver<Value>::debug_() {
+template <typename Value> void Solver<Value>::debug_() {
     std::cerr << "tableau:" << std::endl;
     tableau_.debug("  ");
     if (objective_) {
@@ -444,15 +413,13 @@ void Solver<Value>::debug_() {
         std::cerr << "  y_" << i << " = " << x_i.value << " for ";
         if (x_i.has_lower()) {
             std::cerr << x_i.lower();
-        }
-        else {
+        } else {
             std::cerr << "#inf";
         }
         std::cerr << " <= y_" << i << " <= ";
         if (x_i.has_upper()) {
             std::cerr << x_i.upper();
-        }
-        else {
+        } else {
             std::cerr << "#sup";
         }
         std::cerr << std::endl;
@@ -463,23 +430,20 @@ void Solver<Value>::debug_() {
         std::cerr << "  x_" << i << " = " << x_i.value << " for ";
         if (x_i.has_lower()) {
             std::cerr << x_i.lower();
-        }
-        else {
+        } else {
             std::cerr << "#inf";
         }
         std::cerr << " <= x_" << i << " <= ";
         if (x_i.has_upper()) {
             std::cerr << x_i.upper();
-        }
-        else {
+        } else {
             std::cerr << "#sup";
         }
         std::cerr << std::endl;
     }
 }
 
-template<typename Value>
-void Solver<Value>::optimize() {
+template <typename Value> void Solver<Value>::optimize() {
     assert(!objective_ || variables_[objective_.var].reverse_index >= n_non_basic_);
     // First, we select an entering variable x_e among the non-basic variables
     // corresponding to a non-zero coefficient a_ze in the objective function
@@ -578,8 +542,7 @@ void Solver<Value>::optimize() {
             auto &y_i = basic_(i);
             bool pos_a_ie = ((a_ie > 0) == (d_i > 0));
             bool increase = pos_a_ie == pos_a_ze;
-            if (increase ? !y_i.has_upper()
-                         : !y_i.has_lower()) {
+            if (increase ? !y_i.has_upper() : !y_i.has_lower()) {
                 return;
             }
             auto ii = variables_[i + n_non_basic_].index;
@@ -587,8 +550,7 @@ void Solver<Value>::optimize() {
             Value const &v_i = increase ? y_i.upper() : y_i.lower();
             // we compute the updated value of x_e (see Solver::pivot_)
             Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
-            if (pos_a_ze ? x_e.has_upper() && v >= x_e.upper()
-                         : x_e.has_lower() && v <= x_e.lower()) {
+            if (pos_a_ze ? x_e.has_upper() && v >= x_e.upper() : x_e.has_lower() && v <= x_e.lower()) {
                 return;
             }
             if (bound_l == nullptr || (pos_a_ze ? v < v_e : v > v_e) || (ii < ll && v == v_e)) {
@@ -605,40 +567,34 @@ void Solver<Value>::optimize() {
         if (bound_l != nullptr) {
             auto l = variables_[ll].reverse_index - n_non_basic_;
             pivot_(level, l, e, *bound_l);
-        }
-        else {
+        } else {
             // variable x_e is unbounded
-            if (pos_a_ze ? !x_e.has_upper()
-                         : !x_e.has_lower()) {
+            if (pos_a_ze ? !x_e.has_upper() : !x_e.has_lower()) {
                 assert_extra(check_solution_());
                 objective_.bounded = false;
                 return;
             }
             // increase/decrease x_e
-            update_(level, e, pos_a_ze ? x_e.upper()
-                                       : x_e.lower());
+            update_(level, e, pos_a_ze ? x_e.upper() : x_e.lower());
         }
     }
 }
 
-template<typename Value>
-void Solver<Value>::store_sat_assignment() {
+template <typename Value> void Solver<Value>::store_sat_assignment() {
     for (auto &[level, index, number] : assignment_trail_) {
         variables_[index].level = 0;
     }
     for (auto it = trail_offset_.rbegin(), ie = trail_offset_.rend(); it != ie; ++it) {
         if (it->assignment > 0) {
             it->assignment = 0;
-        }
-        else {
+        } else {
             break;
         }
     }
     assignment_trail_.clear();
 }
 
-template<typename Value>
-bool Solver<Value>::update_bound_(Clingo::PropagateControl &ctl, Bound const &bound) {
+template <typename Value> auto Solver<Value>::update_bound_(Clingo::PropagateControl &ctl, Bound const &bound) -> bool {
     auto ass = ctl.assignment();
     auto &x = variables_[bound.variable];
     if (!x.update(*this, ass, bound)) {
@@ -651,36 +607,29 @@ bool Solver<Value>::update_bound_(Clingo::PropagateControl &ctl, Bound const &bo
     if (x.reverse_index < n_non_basic_) {
         if (x.has_lower() && x.value < x.lower()) {
             update_(ass.decision_level(), x.reverse_index, x.lower());
-        }
-        else if (x.has_upper() && x.value > x.upper()) {
+        } else if (x.has_upper() && x.value > x.upper()) {
             update_(ass.decision_level(), x.reverse_index, x.upper());
         }
-    }
-    else {
+    } else {
         enqueue_(x.reverse_index - n_non_basic_);
     }
     return true;
 }
 
-template<typename Value>
-bool Solver<Value>::assert_bound_(Clingo::PropagateControl &ctl, Value value) {
+template <typename Value> auto Solver<Value>::assert_bound_(Clingo::PropagateControl &ctl, Value value) -> bool {
     // Adds a new bound associated with a new literal that is made true by a
     // unit clause. This ensures that the solver takes care of backtracking and
     // reasserting the literal.
     auto lit = ctl.add_literal();
     ctl.add_watch(lit);
-    bounds_.emplace(lit, Bound{
-        std::move(value),
-        objective_.bound_var,
-        lit,
-        BoundRelation::GreaterEqual});
+    bounds_.emplace(lit, Bound{std::move(value), objective_.bound_var, lit, BoundRelation::GreaterEqual});
     conflict_clause_.clear();
     conflict_clause_.emplace_back(lit);
     return ctl.add_clause(conflict_clause_) && ctl.propagate();
 }
 
-template<typename Value>
-bool Solver<Value>::integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state) {
+template <typename Value>
+auto Solver<Value>::integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state) -> bool {
     // Here we discard bounded solutions by asserting that the objective value
     // is greater than the current bound + an epsilon value taken from the
     // configuration.
@@ -700,11 +649,11 @@ bool Solver<Value>::integrate_objective(Clingo::PropagateControl &ctl, Objective
         objective_.discard_bounded = true;
         return true;
     }
-    return assert_bound_(ctl, std::move(value->first) + as_value(*options_.global_objective, static_cast<Value*>(nullptr)));
+    return assert_bound_(ctl,
+                         std::move(value->first) + as_value(*options_.global_objective, static_cast<Value *>(nullptr)));
 }
 
-template<typename Value>
-bool Solver<Value>::discard_bounded(Clingo::PropagateControl &ctl) {
+template <typename Value> auto Solver<Value>::discard_bounded(Clingo::PropagateControl &ctl) -> bool {
     // Here we discard bounded solutions by asserting that the objective
     // is greater than the current optimal objective.
     if (!objective_ || !options_.global_objective.has_value() || !objective_.bounded || !objective_.discard_bounded) {
@@ -713,8 +662,7 @@ bool Solver<Value>::discard_bounded(Clingo::PropagateControl &ctl) {
     return assert_bound_(ctl, variables_[objective_.var].value + 1);
 }
 
-template<typename Value>
-bool Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) {
+template <typename Value> auto Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) -> bool {
     index_t i{0};
     index_t j{0};
     Value const *v{nullptr};
@@ -723,10 +671,8 @@ bool Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lit
     auto level = ass.decision_level();
 
     if (trail_offset_.empty() || trail_offset_.back().level < level) {
-        trail_offset_.emplace_back(TrailOffset{
-            level,
-            static_cast<index_t>(bound_trail_.size()),
-            static_cast<index_t>(assignment_trail_.size())});
+        trail_offset_.emplace_back(TrailOffset{level, static_cast<index_t>(bound_trail_.size()),
+                                               static_cast<index_t>(assignment_trail_.size())});
     }
 
     for (auto lit : lits) {
@@ -763,8 +709,7 @@ bool Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lit
     }
 }
 
-template<typename Value>
-bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
+template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateControl &ctl) -> bool {
     // In principle we could also propgate more bounds (see clingcon). This
     // would very likely be too expensive.
     //
@@ -786,7 +731,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
         std::optional<Value> lower = Value{0};
         std::optional<Value> upper = Value{0};
         // check if a constraint provides a bound
-        tableau_.update_row(i, [&,this](index_t j, Integer const &a_ij, Integer const &d_i) {
+        tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) {
             auto &x_j = non_basic_(j);
             bool pos_a_ij = (a_ij > 0) == (d_i > 0);
             if (pos_a_ij ? !x_j.has_lower() : !x_j.has_upper()) {
@@ -802,7 +747,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
         lower_clause.clear();
         upper_clause.clear();
         // compute the bound
-        tableau_.update_row(i, [&,this](index_t j, Integer const &a_ij, Integer const &d_i) {
+        tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) {
             auto &x_j = non_basic_(j);
             auto update_lower = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) {
                 if (bound.has_value() && x_j.has_lower()) {
@@ -819,8 +764,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
             if ((a_ij > 0) == (d_i > 0)) {
                 update_lower(lower_clause, lower);
                 update_upper(upper_clause, upper);
-            }
-            else {
+            } else {
                 update_upper(lower_clause, lower);
                 update_lower(upper_clause, upper);
             }
@@ -858,14 +802,13 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
     };
     if (options_.propagate_mode == PropagateMode::Changed) {
         while (!propagate_queue_.empty()) {
-            auto i  = propagate_queue_.front();
+            auto i = propagate_queue_.front();
             propagate_queue_.pop_front();
             if (!propagate_row(i)) {
                 return false;
             }
         }
-    }
-    else {
+    } else {
         for (index_t i = 0; i < n_basic_; ++i) {
             if (!propagate_row(i)) {
                 return false;
@@ -875,8 +818,7 @@ bool Solver<Value>::propagate_(Clingo::PropagateControl &ctl) {
     return true;
 }
 
-template<typename Value>
-void Solver<Value>::undo() {
+template <typename Value> void Solver<Value>::undo() {
     try {
         // this function restores the last satisfying assignment
         auto &offset = trail_offset_.back();
@@ -918,24 +860,18 @@ void Solver<Value>::undo() {
         trail_offset_.pop_back();
 
         assert_extra(check_solution_());
-    }
-    catch (...) {
+    } catch (...) {
         std::terminate();
     }
 }
 
-template<typename Value>
-Statistics const &Solver<Value>::statistics() const {
-    return statistics_;
-}
+template <typename Value> auto Solver<Value>::statistics() const -> Statistics const & { return statistics_; }
 
-template<typename Value>
-bool Solver<Value>::check_tableau_() {
+template <typename Value> auto Solver<Value>::check_tableau_() -> bool {
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
-        tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer d_i){
-            v_i += non_basic_(j).value * a_ij / d_i;
-        });
+        tableau_.update_row(
+            i, [&](index_t j, Integer const &a_ij, Integer d_i) { v_i += non_basic_(j).value * a_ij / d_i; });
         if (v_i != basic_(i).value) {
             return false;
         }
@@ -943,8 +879,7 @@ bool Solver<Value>::check_tableau_() {
     return true;
 }
 
-template<typename Value>
-bool Solver<Value>::check_basic_() {
+template <typename Value> auto Solver<Value>::check_basic_() -> bool {
     for (index_t i = 0; i < n_basic_; ++i) {
         auto &xi = basic_(i);
         if (xi.has_lower() && xi.value < xi.lower() && !xi.queued) {
@@ -957,8 +892,7 @@ bool Solver<Value>::check_basic_() {
     return true;
 }
 
-template<typename Value>
-bool Solver<Value>::check_non_basic_() {
+template <typename Value> auto Solver<Value>::check_non_basic_() -> bool {
     for (index_t j = 0; j < n_non_basic_; ++j) {
         auto &xj = non_basic_(j);
         if (xj.has_lower() && xj.value < xj.lower()) {
@@ -971,8 +905,7 @@ bool Solver<Value>::check_non_basic_() {
     return true;
 }
 
-template<typename Value>
-bool Solver<Value>::check_solution_() {
+template <typename Value> auto Solver<Value>::check_solution_() -> bool {
     for (auto &x : variables_) {
         if (x.has_lower() && x.lower() > x.value) {
             return false;
@@ -984,8 +917,7 @@ bool Solver<Value>::check_solution_() {
     return check_tableau_() && check_basic_();
 }
 
-template<typename Value>
-void Solver<Value>::update_(index_t level, index_t j, Value v) {
+template <typename Value> void Solver<Value>::update_(index_t level, index_t j, Value v) {
     auto &xj = non_basic_(j);
     tableau_.update_col(j, [&](index_t i, Integer const &a_ij, Integer d_i) {
         basic_(i).set_value(*this, level, (v - xj.value) * a_ij / d_i, true);
@@ -994,8 +926,7 @@ void Solver<Value>::update_(index_t level, index_t j, Value v) {
     xj.set_value(*this, level, std::move(v), false);
 }
 
-template<typename Value>
-void Solver<Value>::pivot_(index_t level, index_t i, index_t j, Value const &v) {
+template <typename Value> void Solver<Value>::pivot_(index_t level, index_t i, index_t j, Value const &v) {
     Integer *a_ij = nullptr;
     Integer *d_i = nullptr;
     tableau_.unsafe_get(i, j, a_ij, d_i);
@@ -1031,8 +962,8 @@ void Solver<Value>::pivot_(index_t level, index_t i, index_t j, Value const &v) 
     assert_extra(check_non_basic_());
 }
 
-template<typename Value>
-typename Solver<Value>::State Solver<Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) {
+template <typename Value>
+auto Solver<Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) -> typename Solver<Value>::State {
     // This implements Bland's rule selecting the variables with the smallest
     // indices for pivoting.
 
@@ -1063,10 +994,8 @@ typename Solver<Value>::State Solver<Value>::select_(index_t &ret_i, index_t &re
                 auto &x_j = variables_[jj];
                 bool upper = lower == ((a_ij > 0) == (d_i > 0));
                 // preemptively add bound to conflict clause if it can be increased no further
-                if (upper ? x_j.has_upper() && x_j.value >= x_j.upper()
-                          : x_j.has_lower() && x_j.value <= x_j.lower()) {
-                    conflict_clause_.emplace_back(upper ? -x_j.upper_bound->lit
-                                                        : -x_j.lower_bound->lit);
+                if (upper ? x_j.has_upper() && x_j.value >= x_j.upper() : x_j.has_lower() && x_j.value <= x_j.lower()) {
+                    conflict_clause_.emplace_back(upper ? -x_j.upper_bound->lit : -x_j.lower_bound->lit);
                 }
                 // we can set x_i to one of its bounds to get rid of the conflict
                 else {
@@ -1089,8 +1018,8 @@ typename Solver<Value>::State Solver<Value>::select_(index_t &ret_i, index_t &re
     return State::Satisfiable;
 }
 
-template<typename Value>
-Clingo::literal_t Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const {
+template <typename Value>
+auto Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const -> Clingo::literal_t {
     static_cast<void>(assign);
     if (options_.select == SelectionHeuristic::None) {
         return lit;
@@ -1114,17 +1043,18 @@ Clingo::literal_t Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo
     return lit;
 }
 
-template<typename Value>
-void Propagator<Value>::init(Clingo::PropagateInit &init) {
+template <typename Value> void Propagator<Value>::init(Clingo::PropagateInit &init) {
     facts_offset_ = facts_.size();
     if (facts_offset_ > 0 || options_.global_objective.has_value()) {
         init.set_check_mode(Clingo::PropagatorCheckMode::Both);
     }
 
-    evaluate_theory(init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_, objective_);
+    evaluate_theory(
+        init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_,
+        objective_);
 
     auto gather_vars = [this](std::vector<Term> const &terms) {
-        for (auto const &term: terms) {
+        for (auto const &term : terms) {
             if (var_map_.emplace(term.var, var_map_.size()).second) {
                 var_vec_.emplace_back(term.var);
             }
@@ -1141,27 +1071,23 @@ void Propagator<Value>::init(Clingo::PropagateInit &init) {
     slvs_.clear();
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
-        slvs_.emplace_back(std::piecewise_construct,
-                           std::forward_as_tuple(0),
-                           std::forward_as_tuple(options_));
+        slvs_.emplace_back(std::piecewise_construct, std::forward_as_tuple(0), std::forward_as_tuple(options_));
         if (!slvs_.back().second.prepare(init, var_map_, iqs_, objective_, i == 0)) {
             return;
         }
     }
 }
 
-template<typename Value>
-void Propagator<Value>::register_control(Clingo::Control &ctl) {
+template <typename Value> void Propagator<Value>::register_control(Clingo::Control &ctl) {
     ctl.register_propagator(*this);
-    if constexpr(std::is_same_v<Value, RationalQ>) {
+    if constexpr (std::is_same_v<Value, RationalQ>) {
         ctl.add("base", {}, THEORY_Q);
-    }
-    else {
+    } else {
         ctl.add("base", {}, THEORY);
     }
 }
 
-template<typename Value>
+template <typename Value>
 void Propagator<Value>::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
     auto step_simplex = step.add_subkey("Simplex", Clingo::StatisticsType::Map);
     auto step_pivots = step_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
@@ -1177,13 +1103,13 @@ void Propagator<Value>::on_statistics(Clingo::UserStatistics step, Clingo::UserS
     }
 }
 
-template<typename Value>
-Clingo::literal_t Propagator<Value>::decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) {
+template <typename Value>
+auto Propagator<Value>::decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback)
+    -> Clingo::literal_t {
     return slvs_[thread_id].second.adjust(assign, fallback);
 }
 
-template<typename Value>
-void Propagator<Value>::on_model(Clingo::Model const &model) {
+template <typename Value> void Propagator<Value>::on_model(Clingo::Model const &model) {
     if (!options_.global_objective.has_value()) {
         return;
     }
@@ -1195,8 +1121,7 @@ void Propagator<Value>::on_model(Clingo::Model const &model) {
     objective_state_.update(*std::move(objective));
 }
 
-template<typename Value>
-void Propagator<Value>::check(Clingo::PropagateControl &ctl) {
+template <typename Value> void Propagator<Value>::check(Clingo::PropagateControl &ctl) {
     auto ass = ctl.assignment();
     auto &[offset, slv] = slvs_[ctl.thread_id()];
     if (ass.decision_level() == 0 && offset < facts_offset_) {
@@ -1226,7 +1151,7 @@ void Propagator<Value>::check(Clingo::PropagateControl &ctl) {
     }
 }
 
-template<typename Value>
+template <typename Value>
 void Propagator<Value>::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
     auto ass = ctl.assignment();
     if (ass.decision_level() == 0 && ctl.thread_id() == 0) {
@@ -1237,43 +1162,36 @@ void Propagator<Value>::propagate(Clingo::PropagateControl &ctl, Clingo::Literal
     static_cast<void>(slv.solve(ctl, changes));
 }
 
-template<typename Value>
+template <typename Value>
 void Propagator<Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
     static_cast<void>(changes);
     slvs_[ctl.thread_id()].second.undo();
 }
 
-template<typename Value>
-std::optional<index_t> Propagator<Value>::lookup_symbol(Clingo::Symbol symbol) const {
+template <typename Value> auto Propagator<Value>::lookup_symbol(Clingo::Symbol symbol) const -> std::optional<index_t> {
     if (auto it = var_map_.find(symbol); it != var_map_.end()) {
         return it->second;
     }
     return {};
 }
 
-template<typename Value>
-Clingo::Symbol Propagator<Value>::get_symbol(index_t i) const {
-    return var_vec_[i];
-}
+template <typename Value> auto Propagator<Value>::get_symbol(index_t i) const -> Clingo::Symbol { return var_vec_[i]; }
 
-template<typename Value>
-bool Propagator<Value>::has_value(index_t thread_id, index_t i) const {
+template <typename Value> auto Propagator<Value>::has_value(index_t thread_id, index_t i) const -> bool {
     static_cast<void>(thread_id);
     return i < var_vec_.size();
 }
 
-template<typename Value>
-Value Propagator<Value>::get_value(index_t thread_id, index_t i) const {
+template <typename Value> auto Propagator<Value>::get_value(index_t thread_id, index_t i) const -> Value {
     return slvs_[thread_id].second.get_value(i);
 }
 
-template<typename Value>
-std::optional<std::pair<Value, bool>> Propagator<Value>::get_objective(index_t thread_id) const {
+template <typename Value>
+auto Propagator<Value>::get_objective(index_t thread_id) const -> std::optional<std::pair<Value, bool>> {
     return slvs_[thread_id].second.get_objective();
 }
 
-template<typename Value>
-index_t Propagator<Value>::n_values(index_t thread_id) const {
+template <typename Value> auto Propagator<Value>::n_values(index_t thread_id) const -> index_t {
     static_cast<void>(thread_id);
     return var_vec_.size();
 }

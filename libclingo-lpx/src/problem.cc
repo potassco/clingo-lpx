@@ -1,6 +1,6 @@
 #include "problem.hh"
 
-Relation invert(Relation rel) {
+auto invert(Relation rel) -> Relation {
     switch (rel) {
         case Relation::LessEqual: {
             return Relation::GreaterEqual;
@@ -21,7 +21,7 @@ Relation invert(Relation rel) {
     return Relation::Equal;
 }
 
-std::ostream &operator<<(std::ostream &out, Relation const &rel) {
+auto operator<<(std::ostream &out, Relation const &rel) -> std::ostream & {
     switch (rel) {
         case Relation::LessEqual: {
             out << "<=";
@@ -47,24 +47,22 @@ std::ostream &operator<<(std::ostream &out, Relation const &rel) {
     return out;
 }
 
-std::ostream &operator<<(std::ostream &out, Term const &term) {
+auto operator<<(std::ostream &out, Term const &term) -> std::ostream & {
     if (term.co == -1) {
         out << "-";
-    }
-    else if (term.co != 1) {
+    } else if (term.co != 1) {
         out << term.co << "*";
     }
     out << term.var;
     return out;
 }
 
-std::ostream &operator<<(std::ostream &out, Inequality const &x) {
+auto operator<<(std::ostream &out, Inequality const &x) -> std::ostream & {
     bool plus{false};
     for (auto const &term : x.lhs) {
         if (plus) {
             out << " + ";
-        }
-        else {
+        } else {
             plus = true;
         }
         out << term;

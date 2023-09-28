@@ -1,116 +1,113 @@
 #pragma once
 
 #include <functional>
+#include <iostream>
 #include <stdexcept>
 #include <utility>
-#include <iostream>
 
 #include "number_flint.hh"
 #include "number_imath.hh"
 
-
 class RationalQ {
-private:
-    friend RationalQ operator+(RationalQ const &a, fixed_int b);
-    friend RationalQ operator+(RationalQ const &a, Integer const &b);
-    friend RationalQ operator+(RationalQ const &a, Rational  const &b);
-    friend RationalQ operator+(RationalQ const &a, RationalQ const &b);
-    friend RationalQ operator+(RationalQ &&a, fixed_int b);
-    friend RationalQ operator+(RationalQ &&a, Integer const &b);
-    friend RationalQ operator+(RationalQ &&a, Rational  const &b);
-    friend RationalQ operator+(RationalQ &&a, RationalQ const &b);
-    friend RationalQ &operator+=(RationalQ &a, fixed_int b);
-    friend RationalQ &operator+=(RationalQ &a, Integer const &b);
-    friend RationalQ &operator+=(RationalQ &a, Rational const &b);
-    friend RationalQ &operator+=(RationalQ &a, RationalQ const &b);
+  private:
+    friend auto operator+(RationalQ const &a, fixed_int b) -> RationalQ;
+    friend auto operator+(RationalQ const &a, Integer const &b) -> RationalQ;
+    friend auto operator+(RationalQ const &a, Rational const &b) -> RationalQ;
+    friend auto operator+(RationalQ const &a, RationalQ const &b) -> RationalQ;
+    friend auto operator+(RationalQ &&a, fixed_int b) -> RationalQ;
+    friend auto operator+(RationalQ &&a, Integer const &b) -> RationalQ;
+    friend auto operator+(RationalQ &&a, Rational const &b) -> RationalQ;
+    friend auto operator+(RationalQ &&a, RationalQ const &b) -> RationalQ;
+    friend auto operator+=(RationalQ &a, fixed_int b) -> RationalQ &;
+    friend auto operator+=(RationalQ &a, Integer const &b) -> RationalQ &;
+    friend auto operator+=(RationalQ &a, Rational const &b) -> RationalQ &;
+    friend auto operator+=(RationalQ &a, RationalQ const &b) -> RationalQ &;
 
-    friend RationalQ operator-(RationalQ a);
+    friend auto operator-(RationalQ a) -> RationalQ;
 
-    friend RationalQ operator-(RationalQ const &a, fixed_int b);
-    friend RationalQ operator-(RationalQ const &a, Integer const &b);
-    friend RationalQ operator-(RationalQ const &a, Rational  const &b);
-    friend RationalQ operator-(RationalQ const &a, RationalQ const &b);
-    friend RationalQ operator-(RationalQ &&a, fixed_int b);
-    friend RationalQ operator-(RationalQ &&a, Integer const &b);
-    friend RationalQ operator-(RationalQ &&a, Rational const &b);
-    friend RationalQ operator-(RationalQ &&a, RationalQ const &b);
-    friend RationalQ &operator-=(RationalQ &a, fixed_int b);
-    friend RationalQ &operator-=(RationalQ &a, Integer const &b);
-    friend RationalQ &operator-=(RationalQ &a, Rational const &b);
-    friend RationalQ &operator-=(RationalQ &a, RationalQ const &b);
+    friend auto operator-(RationalQ const &a, fixed_int b) -> RationalQ;
+    friend auto operator-(RationalQ const &a, Integer const &b) -> RationalQ;
+    friend auto operator-(RationalQ const &a, Rational const &b) -> RationalQ;
+    friend auto operator-(RationalQ const &a, RationalQ const &b) -> RationalQ;
+    friend auto operator-(RationalQ &&a, fixed_int b) -> RationalQ;
+    friend auto operator-(RationalQ &&a, Integer const &b) -> RationalQ;
+    friend auto operator-(RationalQ &&a, Rational const &b) -> RationalQ;
+    friend auto operator-(RationalQ &&a, RationalQ const &b) -> RationalQ;
+    friend auto operator-=(RationalQ &a, fixed_int b) -> RationalQ &;
+    friend auto operator-=(RationalQ &a, Integer const &b) -> RationalQ &;
+    friend auto operator-=(RationalQ &a, Rational const &b) -> RationalQ &;
+    friend auto operator-=(RationalQ &a, RationalQ const &b) -> RationalQ &;
 
-    friend RationalQ operator*(RationalQ const &a, fixed_int b);
-    friend RationalQ operator*(RationalQ const &a, Integer const &b);
-    friend RationalQ operator*(RationalQ const &a, Rational  const &b);
-    friend RationalQ operator*(RationalQ &&a, fixed_int b);
-    friend RationalQ operator*(RationalQ &&a, Integer const &b);
-    friend RationalQ operator*(RationalQ &&a, Rational const &b);
-    friend RationalQ &operator*=(RationalQ &a, fixed_int b);
-    friend RationalQ &operator*=(RationalQ &a, Integer const &b);
-    friend RationalQ &operator*=(RationalQ &a, Rational const &b);
+    friend auto operator*(RationalQ const &a, fixed_int b) -> RationalQ;
+    friend auto operator*(RationalQ const &a, Integer const &b) -> RationalQ;
+    friend auto operator*(RationalQ const &a, Rational const &b) -> RationalQ;
+    friend auto operator*(RationalQ &&a, fixed_int b) -> RationalQ;
+    friend auto operator*(RationalQ &&a, Integer const &b) -> RationalQ;
+    friend auto operator*(RationalQ &&a, Rational const &b) -> RationalQ;
+    friend auto operator*=(RationalQ &a, fixed_int b) -> RationalQ &;
+    friend auto operator*=(RationalQ &a, Integer const &b) -> RationalQ &;
+    friend auto operator*=(RationalQ &a, Rational const &b) -> RationalQ &;
 
-    friend RationalQ operator/(RationalQ const &a, fixed_int b);
-    friend RationalQ operator/(RationalQ const &a, Integer const &b);
-    friend RationalQ operator/(RationalQ const &a, Rational  const &b);
-    friend RationalQ operator/(RationalQ &&a, fixed_int b);
-    friend RationalQ operator/(RationalQ &&a, Integer const &b);
-    friend RationalQ operator/(RationalQ &&a, Rational const &b);
-    friend RationalQ &operator/=(RationalQ &a, fixed_int b);
-    friend RationalQ &operator/=(RationalQ &a, Integer const &b);
-    friend RationalQ &operator/=(RationalQ &a, Rational const &b);
+    friend auto operator/(RationalQ const &a, fixed_int b) -> RationalQ;
+    friend auto operator/(RationalQ const &a, Integer const &b) -> RationalQ;
+    friend auto operator/(RationalQ const &a, Rational const &b) -> RationalQ;
+    friend auto operator/(RationalQ &&a, fixed_int b) -> RationalQ;
+    friend auto operator/(RationalQ &&a, Integer const &b) -> RationalQ;
+    friend auto operator/(RationalQ &&a, Rational const &b) -> RationalQ;
+    friend auto operator/=(RationalQ &a, fixed_int b) -> RationalQ &;
+    friend auto operator/=(RationalQ &a, Integer const &b) -> RationalQ &;
+    friend auto operator/=(RationalQ &a, Rational const &b) -> RationalQ &;
 
-    friend bool operator<(RationalQ const &a, fixed_int b);
-    friend bool operator<(RationalQ const &a, Integer const &b);
-    friend bool operator<(RationalQ const &a, Rational const &b);
-    friend bool operator<(RationalQ const &a, RationalQ const &b);
+    friend auto operator<(RationalQ const &a, fixed_int b) -> bool;
+    friend auto operator<(RationalQ const &a, Integer const &b) -> bool;
+    friend auto operator<(RationalQ const &a, Rational const &b) -> bool;
+    friend auto operator<(RationalQ const &a, RationalQ const &b) -> bool;
 
-    friend bool operator<=(RationalQ const &a, fixed_int b);
-    friend bool operator<=(RationalQ const &a, Integer const &b);
-    friend bool operator<=(RationalQ const &a, Rational const &b);
-    friend bool operator<=(RationalQ const &a, RationalQ const &b);
+    friend auto operator<=(RationalQ const &a, fixed_int b) -> bool;
+    friend auto operator<=(RationalQ const &a, Integer const &b) -> bool;
+    friend auto operator<=(RationalQ const &a, Rational const &b) -> bool;
+    friend auto operator<=(RationalQ const &a, RationalQ const &b) -> bool;
 
-    friend bool operator>(RationalQ const &a, fixed_int b);
-    friend bool operator>(RationalQ const &a, Integer const &b);
-    friend bool operator>(RationalQ const &a, Rational const &b);
-    friend bool operator>(RationalQ const &a, RationalQ const &b);
+    friend auto operator>(RationalQ const &a, fixed_int b) -> bool;
+    friend auto operator>(RationalQ const &a, Integer const &b) -> bool;
+    friend auto operator>(RationalQ const &a, Rational const &b) -> bool;
+    friend auto operator>(RationalQ const &a, RationalQ const &b) -> bool;
 
-    friend bool operator>=(RationalQ const &a, fixed_int b);
-    friend bool operator>=(RationalQ const &a, Integer const &b);
-    friend bool operator>=(RationalQ const &a, Rational const &b);
-    friend bool operator>=(RationalQ const &a, RationalQ const &b);
+    friend auto operator>=(RationalQ const &a, fixed_int b) -> bool;
+    friend auto operator>=(RationalQ const &a, Integer const &b) -> bool;
+    friend auto operator>=(RationalQ const &a, Rational const &b) -> bool;
+    friend auto operator>=(RationalQ const &a, RationalQ const &b) -> bool;
 
-    friend bool operator==(RationalQ const &a, fixed_int b);
-    friend bool operator==(RationalQ const &a, Integer const &b);
-    friend bool operator==(RationalQ const &a, Rational const &b);
-    friend bool operator==(RationalQ const &a, RationalQ const &b);
+    friend auto operator==(RationalQ const &a, fixed_int b) -> bool;
+    friend auto operator==(RationalQ const &a, Integer const &b) -> bool;
+    friend auto operator==(RationalQ const &a, Rational const &b) -> bool;
+    friend auto operator==(RationalQ const &a, RationalQ const &b) -> bool;
 
-    friend bool operator!=(RationalQ const &a, fixed_int b);
-    friend bool operator!=(RationalQ const &a, Integer const &b);
-    friend bool operator!=(RationalQ const &a, RationalQ const &b);
-    friend bool operator!=(RationalQ const &a, Rational const &b);
+    friend auto operator!=(RationalQ const &a, fixed_int b) -> bool;
+    friend auto operator!=(RationalQ const &a, Integer const &b) -> bool;
+    friend auto operator!=(RationalQ const &a, RationalQ const &b) -> bool;
+    friend auto operator!=(RationalQ const &a, Rational const &b) -> bool;
 
-    friend std::ostream &operator<<(std::ostream &out, RationalQ const &q);
+    friend auto operator<<(std::ostream &out, RationalQ const &q) -> std::ostream &;
 
-    friend int compare(RationalQ const &a, fixed_int b);
-    friend int compare(RationalQ const &a, Integer const &b);
-    friend int compare(RationalQ const &a, Rational const &b);
-    friend int compare(RationalQ const &a, RationalQ const &b);
+    friend auto compare(RationalQ const &a, fixed_int b) -> int;
+    friend auto compare(RationalQ const &a, Integer const &b) -> int;
+    friend auto compare(RationalQ const &a, Rational const &b) -> int;
+    friend auto compare(RationalQ const &a, RationalQ const &b) -> int;
 
-public:
-    explicit RationalQ(Rational c = Rational{}, Rational k = Rational{})
-    : c_{std::move(c)}
-    , k_{std::move(k)} { }
+  public:
+    explicit RationalQ(Rational c = Rational{}, Rational k = Rational{}) : c_{std::move(c)}, k_{std::move(k)} {}
     RationalQ(RationalQ const &) = default;
     RationalQ(RationalQ &&) = default;
-    RationalQ &operator=(RationalQ const &) = default;
-    RationalQ &operator=(RationalQ &&) = default;
+    auto operator=(RationalQ const &) -> RationalQ & = default;
+    auto operator=(RationalQ &&) -> RationalQ & = default;
     ~RationalQ() = default;
 
     void swap(RationalQ &q);
-    [[nodiscard]] bool is_rational() const;
-    [[nodiscard]] Rational const &as_rational() const;
+    [[nodiscard]] auto is_rational() const -> bool;
+    [[nodiscard]] auto as_rational() const -> Rational const &;
 
-private:
+  private:
     Rational c_;
     Rational k_;
 };
@@ -122,11 +119,9 @@ inline void RationalQ::swap(RationalQ &q) {
     k_.swap(q.k_);
 }
 
-inline bool RationalQ::is_rational() const {
-    return k_ == 0;
-}
+inline auto RationalQ::is_rational() const -> bool { return k_ == 0; }
 
-inline Rational const &RationalQ::as_rational() const {
+inline auto RationalQ::as_rational() const -> Rational const & {
     if (!is_rational()) {
         throw std::runtime_error("cannot convert number with epsilon component to rational");
     }
@@ -135,7 +130,7 @@ inline Rational const &RationalQ::as_rational() const {
 
 // comparision
 
-[[nodiscard]] inline int compare(RationalQ const &a, fixed_int b) {
+[[nodiscard]] inline auto compare(RationalQ const &a, fixed_int b) -> int {
     auto ret = compare(a.c_, b);
     if (ret != 0) {
         return ret;
@@ -149,7 +144,7 @@ inline Rational const &RationalQ::as_rational() const {
     return 0;
 }
 
-[[nodiscard]] inline int compare(RationalQ const &a, Integer const &b) {
+[[nodiscard]] inline auto compare(RationalQ const &a, Integer const &b) -> int {
     auto ret = compare(a.c_, b);
     if (ret != 0) {
         return ret;
@@ -163,7 +158,7 @@ inline Rational const &RationalQ::as_rational() const {
     return 0;
 }
 
-[[nodiscard]] inline int compare(RationalQ const &a, Rational const &b) {
+[[nodiscard]] inline auto compare(RationalQ const &a, Rational const &b) -> int {
     auto ret = compare(a.c_, b);
     if (ret != 0) {
         return ret;
@@ -177,7 +172,7 @@ inline Rational const &RationalQ::as_rational() const {
     return 0;
 }
 
-[[nodiscard]] inline int compare(RationalQ const &a, RationalQ const &b) {
+[[nodiscard]] inline auto compare(RationalQ const &a, RationalQ const &b) -> int {
     auto ret = compare(a.c_, b.c_);
     if (ret != 0) {
         return ret;
@@ -187,54 +182,44 @@ inline Rational const &RationalQ::as_rational() const {
 
 // addition
 
-[[nodiscard]] inline RationalQ operator+(RationalQ const &a, fixed_int b) {
+[[nodiscard]] inline auto operator+(RationalQ const &a, fixed_int b) -> RationalQ { return RationalQ{a.c_ + b, a.k_}; }
+
+[[nodiscard]] inline auto operator+(RationalQ const &a, Integer const &b) -> RationalQ {
     return RationalQ{a.c_ + b, a.k_};
 }
 
-[[nodiscard]] inline RationalQ operator+(RationalQ const &a, Integer const &b) {
+[[nodiscard]] inline auto operator+(RationalQ const &a, Rational const &b) -> RationalQ {
     return RationalQ{a.c_ + b, a.k_};
 }
 
-[[nodiscard]] inline RationalQ operator+(RationalQ const &a, Rational const &b) {
-    return RationalQ{a.c_ + b, a.k_};
-}
-
-[[nodiscard]] inline RationalQ operator+(RationalQ const &a, RationalQ const &b) {
+[[nodiscard]] inline auto operator+(RationalQ const &a, RationalQ const &b) -> RationalQ {
     return RationalQ{a.c_ + b.c_, a.k_ + b.k_};
 }
 
-[[nodiscard]] inline RationalQ operator+(RationalQ &&a, fixed_int b) {
-    return std::move(a += b);
-}
+[[nodiscard]] inline auto operator+(RationalQ &&a, fixed_int b) -> RationalQ { return std::move(a += b); }
 
-[[nodiscard]] inline RationalQ operator+(RationalQ &&a, Integer const &b) {
-    return std::move(a += b);
-}
+[[nodiscard]] inline auto operator+(RationalQ &&a, Integer const &b) -> RationalQ { return std::move(a += b); }
 
-[[nodiscard]] inline RationalQ operator+(RationalQ &&a, Rational const &b) {
-    return std::move(a += b);
-}
+[[nodiscard]] inline auto operator+(RationalQ &&a, Rational const &b) -> RationalQ { return std::move(a += b); }
 
-[[nodiscard]] inline RationalQ operator+(RationalQ &&a, RationalQ const &b) {
-    return std::move(a += b);
-}
+[[nodiscard]] inline auto operator+(RationalQ &&a, RationalQ const &b) -> RationalQ { return std::move(a += b); }
 
-inline RationalQ &operator+=(RationalQ &a, fixed_int b) {
+inline auto operator+=(RationalQ &a, fixed_int b) -> RationalQ & {
     a.c_ += b;
     return a;
 }
 
-inline RationalQ &operator+=(RationalQ &a, Integer const &b) {
+inline auto operator+=(RationalQ &a, Integer const &b) -> RationalQ & {
     a.c_ += b;
     return a;
 }
 
-inline RationalQ &operator+=(RationalQ &a, Rational const &b) {
+inline auto operator+=(RationalQ &a, Rational const &b) -> RationalQ & {
     a.c_ += b;
     return a;
 }
 
-inline RationalQ &operator+=(RationalQ &a, RationalQ const &b) {
+inline auto operator+=(RationalQ &a, RationalQ const &b) -> RationalQ & {
     a.c_ += b.c_;
     a.k_ += b.k_;
     return a;
@@ -242,60 +227,50 @@ inline RationalQ &operator+=(RationalQ &a, RationalQ const &b) {
 
 // subtraction
 
-[[nodiscard]] inline RationalQ operator-(RationalQ a) {
+[[nodiscard]] inline auto operator-(RationalQ a) -> RationalQ {
     a.c_.neg();
     a.k_.neg();
     return a;
 }
 
-[[nodiscard]] inline RationalQ operator-(RationalQ const &a, fixed_int b) {
+[[nodiscard]] inline auto operator-(RationalQ const &a, fixed_int b) -> RationalQ { return RationalQ{a.c_ - b, a.k_}; }
+
+[[nodiscard]] inline auto operator-(RationalQ const &a, Integer const &b) -> RationalQ {
     return RationalQ{a.c_ - b, a.k_};
 }
 
-[[nodiscard]] inline RationalQ operator-(RationalQ const &a, Integer const &b) {
+[[nodiscard]] inline auto operator-(RationalQ const &a, Rational const &b) -> RationalQ {
     return RationalQ{a.c_ - b, a.k_};
 }
 
-[[nodiscard]] inline RationalQ operator-(RationalQ const &a, Rational const &b) {
-    return RationalQ{a.c_ - b, a.k_};
-}
-
-[[nodiscard]] inline RationalQ operator-(RationalQ const &a, RationalQ const &b) {
+[[nodiscard]] inline auto operator-(RationalQ const &a, RationalQ const &b) -> RationalQ {
     return RationalQ{a.c_ - b.c_, a.k_ - b.k_};
 }
 
-[[nodiscard]] inline RationalQ operator-(RationalQ &&a, fixed_int b) {
-    return std::move(a -= b);
-}
+[[nodiscard]] inline auto operator-(RationalQ &&a, fixed_int b) -> RationalQ { return std::move(a -= b); }
 
-[[nodiscard]] inline RationalQ operator-(RationalQ &&a, Integer const &b) {
-    return std::move(a -= b);
-}
+[[nodiscard]] inline auto operator-(RationalQ &&a, Integer const &b) -> RationalQ { return std::move(a -= b); }
 
-[[nodiscard]] inline RationalQ operator-(RationalQ &&a, Rational const &b) {
-    return std::move(a -= b);
-}
+[[nodiscard]] inline auto operator-(RationalQ &&a, Rational const &b) -> RationalQ { return std::move(a -= b); }
 
-[[nodiscard]] inline RationalQ operator-(RationalQ &&a, RationalQ const &b) {
-    return std::move(a -= b);
-}
+[[nodiscard]] inline auto operator-(RationalQ &&a, RationalQ const &b) -> RationalQ { return std::move(a -= b); }
 
-inline RationalQ &operator-=(RationalQ &a, fixed_int b) {
+inline auto operator-=(RationalQ &a, fixed_int b) -> RationalQ & {
     a.c_ -= b;
     return a;
 }
 
-inline RationalQ &operator-=(RationalQ &a, Integer const &b) {
+inline auto operator-=(RationalQ &a, Integer const &b) -> RationalQ & {
     a.c_ -= b;
     return a;
 }
 
-inline RationalQ &operator-=(RationalQ &a, Rational const &b) {
+inline auto operator-=(RationalQ &a, Rational const &b) -> RationalQ & {
     a.c_ -= b;
     return a;
 }
 
-inline RationalQ &operator-=(RationalQ &a, RationalQ const &b) {
+inline auto operator-=(RationalQ &a, RationalQ const &b) -> RationalQ & {
     a.c_ -= b.c_;
     a.k_ -= b.k_;
     return a;
@@ -303,43 +278,37 @@ inline RationalQ &operator-=(RationalQ &a, RationalQ const &b) {
 
 // multiplication
 
-[[nodiscard]] inline RationalQ operator*(RationalQ const &a, fixed_int b) {
+[[nodiscard]] inline auto operator*(RationalQ const &a, fixed_int b) -> RationalQ {
     return RationalQ{a.c_ * b, a.k_ * b};
 }
 
-[[nodiscard]] inline RationalQ operator*(RationalQ const &a, Integer const &b) {
+[[nodiscard]] inline auto operator*(RationalQ const &a, Integer const &b) -> RationalQ {
     return RationalQ{a.c_ * b, a.k_ * b};
 }
 
-[[nodiscard]] inline RationalQ operator*(RationalQ const &a, Rational const &b) {
+[[nodiscard]] inline auto operator*(RationalQ const &a, Rational const &b) -> RationalQ {
     return RationalQ{a.c_ * b, a.k_ * b};
 }
 
-[[nodiscard]] inline RationalQ operator*(RationalQ &&a, fixed_int b) {
-    return std::move(a *= b);
-}
+[[nodiscard]] inline auto operator*(RationalQ &&a, fixed_int b) -> RationalQ { return std::move(a *= b); }
 
-[[nodiscard]] inline RationalQ operator*(RationalQ &&a, Integer const &b) {
-    return std::move(a *= b);
-}
+[[nodiscard]] inline auto operator*(RationalQ &&a, Integer const &b) -> RationalQ { return std::move(a *= b); }
 
-[[nodiscard]] inline RationalQ operator*(RationalQ &&a, Rational const &b) {
-    return std::move(a *= b);
-}
+[[nodiscard]] inline auto operator*(RationalQ &&a, Rational const &b) -> RationalQ { return std::move(a *= b); }
 
-inline RationalQ &operator*=(RationalQ &a, fixed_int b) {
+inline auto operator*=(RationalQ &a, fixed_int b) -> RationalQ & {
     a.c_ *= b;
     a.k_ *= b;
     return a;
 }
 
-inline RationalQ &operator*=(RationalQ &a, Integer const &b) {
+inline auto operator*=(RationalQ &a, Integer const &b) -> RationalQ & {
     a.c_ *= b;
     a.k_ *= b;
     return a;
 }
 
-inline RationalQ &operator*=(RationalQ &a, Rational const &b) {
+inline auto operator*=(RationalQ &a, Rational const &b) -> RationalQ & {
     a.c_ *= b;
     a.k_ *= b;
     return a;
@@ -347,43 +316,37 @@ inline RationalQ &operator*=(RationalQ &a, Rational const &b) {
 
 // division
 
-[[nodiscard]] inline RationalQ operator/(RationalQ const &a, fixed_int b) {
+[[nodiscard]] inline auto operator/(RationalQ const &a, fixed_int b) -> RationalQ {
     return RationalQ{a.c_ / b, a.k_ / b};
 }
 
-[[nodiscard]] inline RationalQ operator/(RationalQ const &a, Integer const &b) {
+[[nodiscard]] inline auto operator/(RationalQ const &a, Integer const &b) -> RationalQ {
     return RationalQ{a.c_ / b, a.k_ / b};
 }
 
-[[nodiscard]] inline RationalQ operator/(RationalQ const &a, Rational const &b) {
+[[nodiscard]] inline auto operator/(RationalQ const &a, Rational const &b) -> RationalQ {
     return RationalQ{a.c_ / b, a.k_ / b};
 }
 
-[[nodiscard]] inline RationalQ operator/(RationalQ &&a, fixed_int b) {
-    return std::move(a /= b);
-}
+[[nodiscard]] inline auto operator/(RationalQ &&a, fixed_int b) -> RationalQ { return std::move(a /= b); }
 
-[[nodiscard]] inline RationalQ operator/(RationalQ &&a, Integer const &b) {
-    return std::move(a /= b);
-}
+[[nodiscard]] inline auto operator/(RationalQ &&a, Integer const &b) -> RationalQ { return std::move(a /= b); }
 
-[[nodiscard]] inline RationalQ operator/(RationalQ &&a, Rational const &b) {
-    return std::move(a /= b);
-}
+[[nodiscard]] inline auto operator/(RationalQ &&a, Rational const &b) -> RationalQ { return std::move(a /= b); }
 
-inline RationalQ &operator/=(RationalQ &a, fixed_int b) {
+inline auto operator/=(RationalQ &a, fixed_int b) -> RationalQ & {
     a.c_ /= b;
     a.k_ /= b;
     return a;
 }
 
-inline RationalQ &operator/=(RationalQ &a, Integer const &b) {
+inline auto operator/=(RationalQ &a, Integer const &b) -> RationalQ & {
     a.c_ /= b;
     a.k_ /= b;
     return a;
 }
 
-inline RationalQ &operator/=(RationalQ &a, Rational const &b) {
+inline auto operator/=(RationalQ &a, Rational const &b) -> RationalQ & {
     a.c_ /= b;
     a.k_ /= b;
     return a;
@@ -391,85 +354,39 @@ inline RationalQ &operator/=(RationalQ &a, Rational const &b) {
 
 // comparison
 
-[[nodiscard]] inline bool operator<(RationalQ const &a, fixed_int b) {
-    return compare(a, b) < 0;
-}
-[[nodiscard]] inline bool operator<(RationalQ const &a, Integer const &b) {
-    return compare(a, b) < 0;
-}
-[[nodiscard]] inline bool operator<(RationalQ const &a, Rational const &b) {
-    return compare(a, b) < 0;
-}
-[[nodiscard]] inline bool operator<(RationalQ const &a, RationalQ const &b) {
-    return compare(a, b) < 0;
-}
+[[nodiscard]] inline auto operator<(RationalQ const &a, fixed_int b) -> bool { return compare(a, b) < 0; }
+[[nodiscard]] inline auto operator<(RationalQ const &a, Integer const &b) -> bool { return compare(a, b) < 0; }
+[[nodiscard]] inline auto operator<(RationalQ const &a, Rational const &b) -> bool { return compare(a, b) < 0; }
+[[nodiscard]] inline auto operator<(RationalQ const &a, RationalQ const &b) -> bool { return compare(a, b) < 0; }
 
-[[nodiscard]] inline bool operator<=(RationalQ const &a, fixed_int b) {
-    return compare(a, b) <= 0;
-}
-[[nodiscard]] inline bool operator<=(RationalQ const &a, Integer const &b) {
-    return compare(a, b) <= 0;
-}
-[[nodiscard]] inline bool operator<=(RationalQ const &a, Rational const &b) {
-    return compare(a, b) <= 0;
-}
-[[nodiscard]] inline bool operator<=(RationalQ const &a, RationalQ const &b) {
-    return compare(a, b) <= 0;
-}
+[[nodiscard]] inline auto operator<=(RationalQ const &a, fixed_int b) -> bool { return compare(a, b) <= 0; }
+[[nodiscard]] inline auto operator<=(RationalQ const &a, Integer const &b) -> bool { return compare(a, b) <= 0; }
+[[nodiscard]] inline auto operator<=(RationalQ const &a, Rational const &b) -> bool { return compare(a, b) <= 0; }
+[[nodiscard]] inline auto operator<=(RationalQ const &a, RationalQ const &b) -> bool { return compare(a, b) <= 0; }
 
-[[nodiscard]] inline bool operator>(RationalQ const &a, fixed_int b) {
-    return compare(a, b) > 0;
-}
-[[nodiscard]] inline bool operator>(RationalQ const &a, Integer const &b) {
-    return compare(a, b) > 0;
-}
-[[nodiscard]] inline bool operator>(RationalQ const &a, Rational const &b) {
-    return compare(a, b) > 0;
-}
-[[nodiscard]] inline bool operator>(RationalQ const &a, RationalQ const &b) {
-    return compare(a, b) > 0;
-}
+[[nodiscard]] inline auto operator>(RationalQ const &a, fixed_int b) -> bool { return compare(a, b) > 0; }
+[[nodiscard]] inline auto operator>(RationalQ const &a, Integer const &b) -> bool { return compare(a, b) > 0; }
+[[nodiscard]] inline auto operator>(RationalQ const &a, Rational const &b) -> bool { return compare(a, b) > 0; }
+[[nodiscard]] inline auto operator>(RationalQ const &a, RationalQ const &b) -> bool { return compare(a, b) > 0; }
 
-[[nodiscard]] inline bool operator>=(RationalQ const &a, fixed_int b) {
-    return compare(a, b) >= 0;
-}
-[[nodiscard]] inline bool operator>=(RationalQ const &a, Integer const &b) {
-    return compare(a, b) >= 0;
-}
-[[nodiscard]] inline bool operator>=(RationalQ const &a, Rational const &b) {
-    return compare(a, b) >= 0;
-}
-[[nodiscard]] inline bool operator>=(RationalQ const &a, RationalQ const &b) {
-    return compare(a, b) >= 0;
-}
+[[nodiscard]] inline auto operator>=(RationalQ const &a, fixed_int b) -> bool { return compare(a, b) >= 0; }
+[[nodiscard]] inline auto operator>=(RationalQ const &a, Integer const &b) -> bool { return compare(a, b) >= 0; }
+[[nodiscard]] inline auto operator>=(RationalQ const &a, Rational const &b) -> bool { return compare(a, b) >= 0; }
+[[nodiscard]] inline auto operator>=(RationalQ const &a, RationalQ const &b) -> bool { return compare(a, b) >= 0; }
 
-[[nodiscard]] inline bool operator==(RationalQ const &a, fixed_int b) {
-    return a.k_ == 0 && a.c_ == b;
-}
-[[nodiscard]] inline bool operator==(RationalQ const &a, Integer const &b) {
-    return a.k_ == 0 && a.c_ == b;
-}
-[[nodiscard]] inline bool operator==(RationalQ const &a, Rational const &b) {
-    return a.k_ == 0 && a.c_ == b;
-}
-[[nodiscard]] inline bool operator==(RationalQ const &a, RationalQ const &b) {
+[[nodiscard]] inline auto operator==(RationalQ const &a, fixed_int b) -> bool { return a.k_ == 0 && a.c_ == b; }
+[[nodiscard]] inline auto operator==(RationalQ const &a, Integer const &b) -> bool { return a.k_ == 0 && a.c_ == b; }
+[[nodiscard]] inline auto operator==(RationalQ const &a, Rational const &b) -> bool { return a.k_ == 0 && a.c_ == b; }
+[[nodiscard]] inline auto operator==(RationalQ const &a, RationalQ const &b) -> bool {
     return a.c_ == b.c_ && a.k_ == b.k_;
 }
 
-[[nodiscard]] inline bool operator!=(RationalQ const &a, fixed_int b) {
-    return !(a == b);
-}
-[[nodiscard]] inline bool operator!=(RationalQ const &a, Integer const &b) {
-    return !(a == b);
-}
-[[nodiscard]] inline bool operator!=(RationalQ const &a, Rational const &b) {
-    return !(a == b);
-}
-[[nodiscard]] inline bool operator!=(RationalQ const &a, RationalQ const &b) {
-    return !(a == b);
-}
+[[nodiscard]] inline auto operator!=(RationalQ const &a, fixed_int b) -> bool { return !(a == b); }
+[[nodiscard]] inline auto operator!=(RationalQ const &a, Integer const &b) -> bool { return !(a == b); }
+[[nodiscard]] inline auto operator!=(RationalQ const &a, Rational const &b) -> bool { return !(a == b); }
+[[nodiscard]] inline auto operator!=(RationalQ const &a, RationalQ const &b) -> bool { return !(a == b); }
 
-inline std::ostream &operator<<(std::ostream &out, RationalQ const &q) {
+inline auto operator<<(std::ostream &out, RationalQ const &q) -> std::ostream & {
     if (q.c_ != 0 || q.k_ == 0) {
         out << q.c_;
     }

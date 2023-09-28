@@ -25,32 +25,31 @@
 #include <clingo-lpx-app/app.hh>
 
 #include <clingo.hh>
+#include <cmath>
 #include <iostream>
 #include <limits>
-#include <cmath>
 
 namespace ClingoLPX {
 
 Rewriter::Rewriter(clingolpx_theory_t *theory, clingo_program_builder_t *builder)
-: theory_{theory}
-, builder_{builder} {
-}
+    : theory_{theory}, builder_{builder} {}
 
 void Rewriter::rewrite(Clingo::Control &control, Clingo::StringSpan files) {
-    Clingo::Detail::handle_error(clingo_ast_parse_files(files.begin(), files.size(), rewrite_, this, control.to_c(), nullptr, nullptr, 0));
+    Clingo::Detail::handle_error(
+        clingo_ast_parse_files(files.begin(), files.size(), rewrite_, this, control.to_c(), nullptr, nullptr, 0));
 }
 
 void Rewriter::rewrite(Clingo::Control &control, char const *str) {
     Clingo::Detail::handle_error(clingo_ast_parse_string(str, rewrite_, this, control.to_c(), nullptr, nullptr, 0));
 }
 
-bool Rewriter::add_(clingo_ast_t *stm, void *data) {
-    auto *self = static_cast<Rewriter*>(data);
+auto Rewriter::add_(clingo_ast_t *stm, void *data) -> bool {
+    auto *self = static_cast<Rewriter *>(data);
     return clingo_program_builder_add(self->builder_, stm);
 }
 
-bool Rewriter::rewrite_(clingo_ast_t *stm, void *data) {
-    auto *self = static_cast<Rewriter*>(data);
+auto Rewriter::rewrite_(clingo_ast_t *stm, void *data) -> bool {
+    auto *self = static_cast<Rewriter *>(data);
     return clingolpx_rewrite_ast(self->theory_, stm, add_, self);
 }
 

@@ -31,4 +31,3 @@ TEST_CASE("number") {
 
     REQUIRE_THROWS(Rational{"xxx", 10});
 }
-

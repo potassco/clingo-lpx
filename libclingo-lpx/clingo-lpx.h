@@ -25,6 +25,8 @@
 #ifndef CLINGOLPX_H
 #define CLINGOLPX_H
 
+#include <clingo.h>
+
 //! Major version number.
 #define CLINGOLPX_VERSION_MAJOR 1
 //! Minor version number.
@@ -39,31 +41,31 @@ extern "C" {
 #endif
 
 #if defined _WIN32 || defined __CYGWIN__
-#   define CLINGOLPX_WIN
+#define CLINGOLPX_WIN
 #endif
 #ifdef CLINGOLPX_NO_VISIBILITY
-#   define CLINGOLPX_VISIBILITY_DEFAULT
-#   define CLINGOLPX_VISIBILITY_PRIVATE
+#define CLINGOLPX_VISIBILITY_DEFAULT
+#define CLINGOLPX_VISIBILITY_PRIVATE
 #else
-#   ifdef CLINGOLPX_WIN
-#       ifdef CLINGOLPX_BUILD_LIBRARY
-#           define CLINGOLPX_VISIBILITY_DEFAULT __declspec (dllexport)
-#       else
-#           define CLINGOLPX_VISIBILITY_DEFAULT __declspec (dllimport)
-#       endif
-#       define CLINGOLPX_VISIBILITY_PRIVATE
-#   else
-#       if __GNUC__ >= 4
-#           define CLINGOLPX_VISIBILITY_DEFAULT  __attribute__ ((visibility ("default")))
-#           define CLINGOLPX_VISIBILITY_PRIVATE __attribute__ ((visibility ("hidden")))
-#       else
-#           define CLINGOLPX_VISIBILITY_DEFAULT
-#           define CLINGOLPX_VISIBILITY_PRIVATE
-#       endif
-#   endif
+#ifdef CLINGOLPX_WIN
+#ifdef CLINGOLPX_BUILD_LIBRARY
+#define CLINGOLPX_VISIBILITY_DEFAULT __declspec(dllexport)
+#else
+#define CLINGOLPX_VISIBILITY_DEFAULT __declspec(dllimport)
+#endif
+#define CLINGOLPX_VISIBILITY_PRIVATE
+#else
+#if __GNUC__ >= 4
+#define CLINGOLPX_VISIBILITY_DEFAULT __attribute__((visibility("default")))
+#define CLINGOLPX_VISIBILITY_PRIVATE __attribute__((visibility("hidden")))
+#else
+#define CLINGOLPX_VISIBILITY_DEFAULT
+#define CLINGOLPX_VISIBILITY_PRIVATE
+#endif
+#endif
 #endif
 
-#include <clingo.h>
+// NOLINTBEGIN(modernize-use-using,modernize-use-trailing-return-type)
 
 enum clingolpx_value_type {
     clingolpx_value_type_int = 0,
@@ -93,13 +95,14 @@ CLINGOLPX_VISIBILITY_DEFAULT void clingolpx_version(int *major, int *minor, int 
 CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_create(clingolpx_theory_t **theory);
 
 //! registers the theory with the control
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_register(clingolpx_theory_t *theory, clingo_control_t* control);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_register(clingolpx_theory_t *theory, clingo_control_t *control);
 
 //! Rewrite asts before adding them via the given callback.
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_rewrite_ast(clingolpx_theory_t *theory, clingo_ast_t *ast, clingolpx_ast_callback_t add, void *data);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_rewrite_ast(clingolpx_theory_t *theory, clingo_ast_t *ast,
+                                                        clingolpx_ast_callback_t add, void *data);
 
 //! prepare the theory between grounding and solving
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_prepare(clingolpx_theory_t *theory, clingo_control_t* control);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_prepare(clingolpx_theory_t *theory, clingo_control_t *control);
 
 //! destroys the theory, currently no way to unregister a theory
 CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_destroy(clingolpx_theory_t *theory);
@@ -109,18 +112,19 @@ CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_destroy(clingolpx_theory_t *theory);
 CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_configure(clingolpx_theory_t *theory, char const *key, char const *value);
 
 //! add options for your theory
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_options_t* options);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_register_options(clingolpx_theory_t *theory, clingo_options_t *options);
 
 //! validate options for your theory
 CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_validate_options(clingolpx_theory_t *theory);
 
 //! callback on every model
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_on_model(clingolpx_theory_t *theory, clingo_model_t* model);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_on_model(clingolpx_theory_t *theory, clingo_model_t *model);
 
 //! obtain a symbol index which can be used to get the value of a symbol
 //! returns true if the symbol exists
 //! does not throw
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_lookup_symbol(clingolpx_theory_t *theory, clingo_symbol_t symbol, size_t *index);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_lookup_symbol(clingolpx_theory_t *theory, clingo_symbol_t symbol,
+                                                          size_t *index);
 
 //! obtain the symbol at the given index
 //! does not throw
@@ -128,24 +132,31 @@ CLINGOLPX_VISIBILITY_DEFAULT clingo_symbol_t clingolpx_get_symbol(clingolpx_theo
 
 //! initialize index so that it can be used with clingolpx_assignment_next
 //! does not throw
-CLINGOLPX_VISIBILITY_DEFAULT void clingolpx_assignment_begin(clingolpx_theory_t *theory, uint32_t thread_id, size_t *index);
+CLINGOLPX_VISIBILITY_DEFAULT void clingolpx_assignment_begin(clingolpx_theory_t *theory, uint32_t thread_id,
+                                                             size_t *index);
 
 //! move to the next index that has a value
 //! returns true if the updated index is valid
 //! does not throw
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_assignment_next(clingolpx_theory_t *theory, uint32_t thread_id, size_t *index);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_assignment_next(clingolpx_theory_t *theory, uint32_t thread_id,
+                                                            size_t *index);
 
 //! check if the symbol at the given index has a value
 //! does not throw
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_assignment_has_value(clingolpx_theory_t *theory, uint32_t thread_id, size_t index);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_assignment_has_value(clingolpx_theory_t *theory, uint32_t thread_id,
+                                                                 size_t index);
 
 //! get the symbol and it's value at the given index
 //! does not throw
-CLINGOLPX_VISIBILITY_DEFAULT void clingolpx_assignment_get_value(clingolpx_theory_t *theory, uint32_t thread_id, size_t index, clingolpx_value_t *value);
+CLINGOLPX_VISIBILITY_DEFAULT void clingolpx_assignment_get_value(clingolpx_theory_t *theory, uint32_t thread_id,
+                                                                 size_t index, clingolpx_value_t *value);
 
 //! callback on statistic updates
 /// please add a subkey with the name of your theory
-CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_on_statistics(clingolpx_theory_t *theory, clingo_statistics_t* step, clingo_statistics_t* accu);
+CLINGOLPX_VISIBILITY_DEFAULT bool clingolpx_on_statistics(clingolpx_theory_t *theory, clingo_statistics_t *step,
+                                                          clingo_statistics_t *accu);
+
+// NOLINTEND(modernize-use-using,modernize-use-trailing-return-type)
 
 #ifdef __cplusplus
 }

@@ -1,15 +1,14 @@
 #pragma once
 
+#include <algorithm>
 #include <iterator>
 #include <type_traits>
 #include <vector>
-#include <algorithm>
 
 #include "number.hh"
 
 //! Type used for array indices.
 using index_t = uint32_t;
-
 
 //! A sparse tableau with efficient access to both rows and columns.
 //!
@@ -28,11 +27,11 @@ using index_t = uint32_t;
 //! - A_ij is the element at row i and column j, and
 //! - A^T is the transposed tableau.
 class Tableau {
-public:
+  public:
     //! Return a const reference to A_ij.
     //!
     //! Runs in O(log(n)).
-    [[nodiscard]] Rational get(index_t i, index_t j) const;
+    [[nodiscard]] auto get(index_t i, index_t j) const -> Rational;
 
     //! Return a mutable reference to A_ij assuming that A_ij != 0.
     //!
@@ -55,8 +54,7 @@ public:
     //! not required by a simplex algorithm.
     //!
     //! Runs in O(n).
-    template <typename F>
-    void update_row(index_t i, F &&f) {
+    template <typename F> void update_row(index_t i, F &&f) {
         if (i < rows_.size()) {
             auto &row = rows_[i];
             for (auto &[col, val] : row.cells) {
@@ -70,8 +68,7 @@ public:
     //! The same remark as for update_row() applies.
     //!
     //! Runs in O(m*log(n)).
-    template <typename F>
-    void update_col(index_t j, F &&f) {
+    template <typename F> void update_col(index_t j, F &&f) {
         if (j < cols_.size()) {
             auto &col = cols_[j];
             auto it = col.begin();
@@ -104,12 +101,12 @@ public:
     //! Get the number of non-zero elements in the tableau.
     //!
     //! Runs in O(m).
-    [[nodiscard]] size_t size() const;
+    [[nodiscard]] auto size() const -> size_t;
 
     //! Equivalent to `size() == 0`.
     //!
     //! Runs in O(m).
-    [[nodiscard]] bool empty() const;
+    [[nodiscard]] auto empty() const -> bool;
 
     //! Set all elements to zero.
     //!
@@ -119,27 +116,17 @@ public:
     //! Print tableau to stderr for debugging purposes.
     void debug(char const *indent) const;
 
-private:
+  private:
     //! Simplify the given row.
     void simplify_(index_t i);
 
     struct Cell {
-        Cell(index_t col, Integer val)
-        : col{col}
-        , val{std::move(val)} { }
+        Cell(index_t col, Integer val) : col{col}, val{std::move(val)} {}
 
-        friend bool operator==(Cell const &x, Cell const &y) {
-            return x.col == y.col && x.val == y.val;
-        }
-        friend bool operator<(Cell const &x, Cell const &y) {
-            return x.col < y.col;
-        }
-        friend bool operator<(Cell const &x, index_t col) {
-            return x.col < col;
-        }
-        friend bool operator<(index_t col, Cell const &x) {
-            return col < x.col;
-        }
+        friend auto operator==(Cell const &x, Cell const &y) -> bool { return x.col == y.col && x.val == y.val; }
+        friend auto operator<(Cell const &x, Cell const &y) -> bool { return x.col < y.col; }
+        friend auto operator<(Cell const &x, index_t col) -> bool { return x.col < col; }
+        friend auto operator<(index_t col, Cell const &x) -> bool { return col < x.col; }
 
         index_t col;
         Integer val;
@@ -149,11 +136,10 @@ private:
         std::vector<Cell> cells;
     };
 
-    Row &reserve_row_(index_t i);
-    std::vector<index_t> &reserve_col_(index_t j);
-    static Rational const &zero_();
+    auto reserve_row_(index_t i) -> Row &;
+    auto reserve_col_(index_t j) -> std::vector<index_t> &;
+    static auto zero_() -> Rational const &;
 
     std::vector<Row> rows_;
     std::vector<std::vector<index_t>> cols_;
 };
-

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "problem.hh"
 #include "parsing.hh"
-#include "util.hh"
+#include "problem.hh"
 #include "tableau.hh"
+#include "util.hh"
 
 #include <clingo.hh>
 
@@ -51,13 +51,13 @@ struct Statistics {
 };
 
 //! Helper to distribute current best objective to solver threads.
-template <typename Value>
-class ObjectiveState {
-public:
+template <typename Value> class ObjectiveState {
+  public:
     void reset();
     void update(std::pair<Value, bool> value);
-    std::optional<std::pair<Value, bool>> value(size_t &generation);
-private:
+    auto value(size_t &generation) -> std::optional<std::pair<Value, bool>>;
+
+  private:
 #ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::shared_mutex mutex_;
 #else
@@ -69,24 +69,22 @@ private:
 };
 
 //! A solver for finding an assignment satisfying a set of inequalities.
-template <typename Value>
-class Solver {
-private:
+template <typename Value> class Solver {
+  private:
     //! Helper class to prepare the inequalities for solving.
     struct Prepare;
     //! The bound type.
     enum class BoundType : uint32_t {
         Lower = 0,
         Upper = 1,
-        //Equal = 2,
+        // Equal = 2,
     };
-    enum class BoundRelation : uint32_t  {
+    enum class BoundRelation : uint32_t {
         LessEqual = 0,
         GreaterEqual = 1,
         Equal = 2,
     };
-    template<typename V>
-    friend typename Solver<V>::BoundRelation bound_rel(Relation rel);
+    template <typename V> friend auto bound_rel(Relation rel) -> typename Solver<V>::BoundRelation;
     //! The bounds associated with a Variable.
     //!
     //! In practice, there should be a lot of variables with just one bound.
@@ -97,28 +95,28 @@ private:
         BoundRelation rel{BoundRelation::LessEqual};
         //! Compare the given value with the value of the bound according to
         //! the relation of the bound.
-        [[nodiscard]] bool compare(Value const &value) const;
+        [[nodiscard]] auto compare(Value const &value) const -> bool;
         //! Check if the bound conflicts with the other one.
-        [[nodiscard]] bool conflicts(Bound const &other) const;
+        [[nodiscard]] auto conflicts(Bound const &other) const -> bool;
     };
     //! Capture the current state of a variable.
     struct Variable {
         //! Adjusts the lower bound of the variable with the value of the given bound.
-        [[nodiscard]] bool update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound);
+        [[nodiscard]] auto update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) -> bool;
         //! Adjusts the upper bound of the variable with the value of the given bound.
-        [[nodiscard]] bool update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound);
+        [[nodiscard]] auto update_upper(Solver &s, Clingo::Assignment ass, Bound const &bound) -> bool;
         //! Adjusts the bounds of the variable w.r.t. to the relation of the bound.
-        [[nodiscard]] bool update(Solver &s, Clingo::Assignment ass, Bound const &bound);
+        [[nodiscard]] auto update(Solver &s, Clingo::Assignment ass, Bound const &bound) -> bool;
         //! Check if te value of the variable conflicts with the bounds;
-        [[nodiscard]] bool has_conflict() const;
+        [[nodiscard]] auto has_conflict() const -> bool;
         //! Check if the variable has a lower bound.
-        [[nodiscard]] bool has_lower() const { return lower_bound != nullptr; }
+        [[nodiscard]] auto has_lower() const -> bool { return lower_bound != nullptr; }
         //! Check if the variable has an upper bound.
-        [[nodiscard]] bool has_upper() const { return upper_bound != nullptr; }
+        [[nodiscard]] auto has_upper() const -> bool { return upper_bound != nullptr; }
         //! Return the value of the lower bound.
-        [[nodiscard]] Value const &lower() const { return lower_bound->value; }
+        [[nodiscard]] auto lower() const -> Value const & { return lower_bound->value; }
         //! Return thevalue of the upper bound.
-        [[nodiscard]] Value const &upper() const { return upper_bound->value; }
+        [[nodiscard]] auto upper() const -> Value const & { return upper_bound->value; }
         //! Set a new value or add to the existing one.
         void set_value(Solver &s, index_t lvl, Value const &val, bool add);
 
@@ -148,16 +146,10 @@ private:
     };
     //! Captures what is know about of the satisfiability of a problem while
     //! solving.
-    enum class State {
-        Satisfiable = 0,
-        Unsatisfiable = 1,
-        Unknown = 2
-    };
+    enum class State { Satisfiable = 0, Unsatisfiable = 1, Unknown = 2 };
     //! Captures the objective function.
     struct Objective {
-        explicit operator bool() const {
-            return active;
-        }
+        explicit operator bool() const { return active; }
         //! The index of the objective variable.
         index_t var{0};
         //! The bound for global optimization.
@@ -172,63 +164,65 @@ private:
         bool bounded{true};
     };
 
-public:
+  public:
     //! Construct a new solver object.
     Solver(Options const &options);
 
     //! Prepare inequalities for solving.
-    [[nodiscard]] bool prepare(Clingo::PropagateInit &init, SymbolMap const &symbols, std::vector<Inequality> const &inequalities, std::vector<Term> const &objective, bool master);
+    [[nodiscard]] auto prepare(Clingo::PropagateInit &init, SymbolMap const &symbols,
+                               std::vector<Inequality> const &inequalities, std::vector<Term> const &objective,
+                               bool master) -> bool;
 
     //! Solve the (previously prepared) problem.
-    [[nodiscard]] bool solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits);
+    [[nodiscard]] auto solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) -> bool;
 
     //! Undo assignments on the current level.
     void undo();
 
     //! Get the currently assigned value.
-    [[nodiscard]] Value get_value(index_t i) const;
+    [[nodiscard]] auto get_value(index_t i) const -> Value;
 
     //! Get the currently assigned objective value.
-    [[nodiscard]] std::optional<std::pair<Value, bool>> get_objective() const;
+    [[nodiscard]] auto get_objective() const -> std::optional<std::pair<Value, bool>>;
 
     //! Compute the optimal value for the objective function.
     void optimize();
 
     //! Integrate the objective into this solver.
-    bool integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state);
+    auto integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state) -> bool;
 
     //! Discard bounded solutions (if necessary).
-    bool discard_bounded(Clingo::PropagateControl &ctl);
+    auto discard_bounded(Clingo::PropagateControl &ctl) -> bool;
 
     //! Ensure that the current (SAT) assignment will not be backtracked.
     void store_sat_assignment();
 
     //! Return the solve statistics.
-    [[nodiscard]] Statistics const &statistics() const;
+    [[nodiscard]] auto statistics() const -> Statistics const &;
 
     //! Adjust the sign of the given literal so that it does not conflict with
     //! the current tableau.
-    [[nodiscard]] Clingo::literal_t adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const;
+    [[nodiscard]] auto adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const -> Clingo::literal_t;
 
-private:
+  private:
     //! Check if the tableau.
-    [[nodiscard]] bool check_tableau_();
+    [[nodiscard]] auto check_tableau_() -> bool;
     //! Check if basic variables with unsatisfied bounds are enqueued.
-    [[nodiscard]] bool check_basic_();
+    [[nodiscard]] auto check_basic_() -> bool;
     //! Check if bounds of non-basic variables are satisfied.
-    [[nodiscard]] bool check_non_basic_();
+    [[nodiscard]] auto check_non_basic_() -> bool;
     //! Check if the current assignment is a solution.
-    [[nodiscard]] bool check_solution_();
+    [[nodiscard]] auto check_solution_() -> bool;
     //! Print a readable representation of the internal problem to stderr.
     void debug_();
     //! Propagate (some) bounds.
-    [[nodiscard]] bool propagate_(Clingo::PropagateControl &ctl);
+    [[nodiscard]] auto propagate_(Clingo::PropagateControl &ctl) -> bool;
 
     //! Apply the given bound.
-    [[nodiscard]] bool update_bound_(Clingo::PropagateControl &ctl, Bound const &bound);
+    [[nodiscard]] auto update_bound_(Clingo::PropagateControl &ctl, Bound const &bound) -> bool;
 
     //! Insert a new bound dynamically.
-    [[nodiscard]] bool assert_bound_(Clingo::PropagateControl &ctl, Value value);
+    [[nodiscard]] auto assert_bound_(Clingo::PropagateControl &ctl, Value value) -> bool;
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);
@@ -240,12 +234,12 @@ private:
     void pivot_(index_t level, index_t i, index_t j, Value const &v);
 
     //! Select pivot point using Bland's rule.
-    State select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v);
+    auto select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) -> State;
 
     //! Get basic variable associated with row `i`.
-    Variable &basic_(index_t i);
+    auto basic_(index_t i) -> Variable &;
     //! Get non-basic variable associated with column `j`.
-    Variable &non_basic_(index_t j);
+    auto non_basic_(index_t j) -> Variable &;
 
     //! Options configuring the algorithms.
     Options const &options_;
@@ -277,35 +271,34 @@ private:
     Objective objective_;
 };
 
-template <typename Value>
-class Propagator : public Clingo::Heuristic {
-public:
-    Propagator(Options options)
-    : options_{std::move(options)} { }
+template <typename Value> class Propagator : public Clingo::Heuristic {
+  public:
+    Propagator(Options options) : options_{std::move(options)} {}
     Propagator(Propagator const &) = default;
     Propagator(Propagator &&) noexcept = default;
-    Propagator &operator=(Propagator const &) = default;
-    Propagator &operator=(Propagator &&) noexcept = default;
+    auto operator=(Propagator const &) -> Propagator & = default;
+    auto operator=(Propagator &&) noexcept -> Propagator & = default;
     ~Propagator() override = default;
     void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
     void on_model(Clingo::Model const &model);
 
-    [[nodiscard]] std::optional<index_t> lookup_symbol(Clingo::Symbol symbol) const;
-    [[nodiscard]] Clingo::Symbol get_symbol(index_t i) const;
-    [[nodiscard]] bool has_value(index_t thread_id, index_t i) const;
-    [[nodiscard]] Value get_value(index_t thread_id, index_t i) const;
-    [[nodiscard]] std::optional<std::pair<Value, bool>> get_objective(index_t thread_id) const;
-    [[nodiscard]] index_t n_values(index_t thread_id) const;
+    [[nodiscard]] auto lookup_symbol(Clingo::Symbol symbol) const -> std::optional<index_t>;
+    [[nodiscard]] auto get_symbol(index_t i) const -> Clingo::Symbol;
+    [[nodiscard]] auto has_value(index_t thread_id, index_t i) const -> bool;
+    [[nodiscard]] auto get_value(index_t thread_id, index_t i) const -> Value;
+    [[nodiscard]] auto get_objective(index_t thread_id) const -> std::optional<std::pair<Value, bool>>;
+    [[nodiscard]] auto n_values(index_t thread_id) const -> index_t;
 
     void init(Clingo::PropagateInit &init) override;
     void check(Clingo::PropagateControl &ctl) override;
     void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
     void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
 
-    Clingo::literal_t decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback) override;
+    auto decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback)
+        -> Clingo::literal_t override;
 
-private:
+  private:
     VarMap aux_map_;
     SymbolMap var_map_;
     SymbolVec var_vec_;
