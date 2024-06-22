@@ -76,7 +76,7 @@ When option `--strict` is passed to the solver, then also strict constraints are
 ```
 The assignment will then contain an epsilon component for each variable.
 For example, with the above program, `x>=1+e` will appear in the output.
-This feature could also be used to support constraints in rule body and the `!=` relation;
+This feature could also be used to support constraints in rule bodies and the `!=` relation;
 neither is implemented at the moment.
 
 Finally, the solver supports `&minimize` and `&maxmize` objectives where the former is a shortcut for the latter negating coefficients.
