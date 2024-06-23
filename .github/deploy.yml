@@ -139,7 +139,6 @@ ppa:
         - 'third_party'
         - 'CMakeLists.txt'
         - 'README.md'
-        - 'INSTALL.md'
         - 'LICENSE'
         - 'CHANGES.md'
     distributions:
