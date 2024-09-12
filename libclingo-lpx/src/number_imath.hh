@@ -7,8 +7,10 @@
 
 #include <ios>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -253,7 +255,7 @@ inline auto Integer::neg() -> Integer & {
 }
 
 inline auto Integer::as_int() const -> std::optional<int> {
-    mp_small = res;
+    auto res = mp_small{};
     if (mp_int_to_int(&num_, &res) == MP_OK) {
         if (std::numeric_limits<int>::min() <= res && res <= std::numeric_limits<int>::max()) {
             return res;

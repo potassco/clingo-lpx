@@ -7,8 +7,10 @@
 
 #include <ios>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 

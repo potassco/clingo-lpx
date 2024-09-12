@@ -5,11 +5,11 @@
 
 #include <algorithm>
 #include <iterator>
-#include <map>
 #include <optional>
 #include <regex>
 #include <stdexcept>
 #include <unordered_map>
+#include <variant>
 
 namespace {
 
