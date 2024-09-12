@@ -7,40 +7,50 @@
 constexpr char const *THEORY = R"(
 #theory lp {
     sum_term {
-    -  : 3, unary;
-    *  : 1, binary, left;
-    /  : 1, binary, left
+    +  : 1, binary, left;
+    -  : 1, binary, left;
+    *  : 2, binary, left;
+    /  : 2, binary, left;
+    -  : 3, unary
     };
     dom_term {
     .. : 0, binary, left;
-    *  : 1, binary, left;
-    /  : 1, binary, left;
+    +  : 1, binary, left;
+    -  : 1, binary, left;
+    *  : 2, binary, left;
+    /  : 2, binary, left;
     -  : 3, unary
     };
     &minimize/0 : sum_term, directive;
     &maximize/0 : sum_term, directive;
-    &sum/0 : sum_term, {<=,=,>=}, sum_term, head;
-    &dom/0 : dom_term, {=}, sum_term, head
+    &sum/0      : sum_term, {<=,=,>=}, sum_term, head;
+    &diff/0     : sum_term, {<=,=,>=}, diff_term, head;
+    &dom/0      : dom_term, {=}, dom_term, head
 }.
 )";
 
 constexpr char const *THEORY_Q = R"(
 #theory lp {
     sum_term {
-    -  : 3, unary;
-    *  : 1, binary, left;
-    /  : 1, binary, left
+    +  : 1, binary, left;
+    -  : 1, binary, left;
+    *  : 2, binary, left;
+    /  : 2, binary, left;
+    -  : 3, unary
     };
     dom_term {
     .. : 0, binary, left;
-    *  : 1, binary, left;
-    /  : 1, binary, left;
+    +  : 1, binary, left;
+    -  : 1, binary, left;
+    *  : 2, binary, left;
+    /  : 2, binary, left;
     -  : 3, unary
     };
     &minimize/0 : sum_term, directive;
     &maximize/0 : sum_term, directive;
-    &sum/0 : sum_term, {<=,=,>=,<,>}, sum_term, head;
-    &dom/0 : dom_term, {=}, sum_term, head
+    &sum/0      : sum_term, {<=,=,>=,<,>}, sum_term, head;
+    &diff/0     : sum_term, {<=,=,>=,<,>}, diff_term, head;
+    &dom/0      : dom_term, {=}, dom_term, head
 }.
 )";
 

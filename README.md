@@ -45,17 +45,25 @@ Note that packages from the [conda-forge] channel offer better performance than 
 ## Input format
 
 The system supports `&sum` constraints over rationals with relations among `<=`, `>=`, and `=`.
-The elements of the sum constraints must have form `x`, `-x`, `n*x`, `-n*x`, or `-n/d*x`
-where `x` is a function symbol or tuple, and `n` and `d` are numbers.
-A number has to be either a non negative integer or decimal number in quotes.
+The elements of the sum constraints and terms of guards must be linear expressions.
+Quoted strings can be used to represent decimal numbers of arbitrary precision.
+Terms can be nested using operators `+`, `-`, `*`, `/`.
+Usage of multiplication and division is limited.
+Only expressions of form `c * t`, `t * c`, and `t / c` are accepted
+where `c` must not refer to variables and must be non-zero in the latter case.
+If functions are used as variable names, operators `+`, `-`, `*`, `/` are evaluated as well.
+There is no special handling of strings though.
 
 For example, the following program is accepted:
 ```
 { x }.
-&sum { x; -y; 2*x; -3*y; 2/3*x; -3/4*y, "0.75"*z } >= 100 :- x.
+&sum { 2*var(1+2) } = "0.3".
+&sum { var(3) } <= 3 * ("0.75"*z) :- x.
+&sum { var(3); (100*y)/2 } <= 0 :- not x.
 ```
 
 Furthermore, `&dom` constraints are supported, which are shortcuts for `&sum` constraints.
+Terms in braces must be numbers and the right-hand-side must be a variable.
 The program
 ```
 { x }.
@@ -66,6 +74,19 @@ is equivalent to
 { x }.
 &sum { x } >= 1.
 &sum { x } <= 2.
+```
+
+Another shortcut (for compatibility with [clingo-dl]) are `&diff` constraints.
+Terms in braces must be variables and the right-hand-side must be a number.
+The same relations as for &sum constraints are accepted. 
+```
+{ x }.
+&diff { a-b } <= 5.
+```
+is equivalent to
+```
+{ x }.
+&sum { a-b } <= 5.
 ```
 
 When option `--strict` is passed to the solver, then also strict constraints are supported:
@@ -140,6 +161,7 @@ Furthermore, note that [IMath] uses the MIT and [FLINT] the LGPL license.
 [IMath]: https://github.com/creachadair/imath
 [cmake]: https://cmake.org
 [clingo]: https://github.com/potassco/clingo
+[clingo-dl]: https://github.com/potassco/clingo-dl
 [conda-forge]: https://conda-forge.org/
 [gperftools]: https://gperftools.github.io/gperftools/cpuprofile.html
 [miniconda]: https://docs.conda.io/en/latest/miniconda.html
