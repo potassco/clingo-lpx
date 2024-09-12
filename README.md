@@ -51,8 +51,8 @@ Terms can be nested using operators `+`, `-`, `*`, `/`.
 Usage of multiplication and division is limited.
 Only expressions of form `c * t`, `t * c`, and `t / c` are accepted
 where `c` must not refer to variables and must be non-zero in the latter case.
-If functions are used as variable names, operators `+`, `-`, `*`, `/` are evaluated as well.
-There is no special handling of strings though.
+If functions are used as variable names, operators `+`, `-`, `*`, `/` in their arguments are evaluated as well.
+There is no special handling of strings for function arguments though.
 
 For example, the following program is accepted:
 ```
