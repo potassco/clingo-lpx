@@ -7,8 +7,10 @@
 
 #include <ios>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -83,6 +85,7 @@ class Integer {
     auto add_mul(Integer const &a, Integer const &b) && -> Integer;
     auto neg() -> Integer &;
     [[nodiscard]] auto impl() const -> fmpz &;
+    [[nodiscard]] auto as_int() const -> std::optional<int>;
 
   private:
     mutable fmpz num_;
@@ -237,6 +240,16 @@ inline auto Integer::add_mul(Integer const &a, Integer const &b) && -> Integer {
 inline auto Integer::neg() -> Integer & {
     fmpz_neg(&num_, &num_);
     return *this;
+}
+
+inline auto Integer::as_int() const -> std::optional<int> {
+    if (fmpz_fits_si(&num_)) {
+        if (auto res = fmpz_get_si(&num_);
+            std::numeric_limits<int>::min() <= res && res <= std::numeric_limits<int>::max()) {
+            return res;
+        }
+    }
+    return std::nullopt;
 }
 
 inline auto Integer::impl() const -> fmpz & { return num_; }

@@ -1,12 +1,14 @@
 BUILD_TYPE:=debug
 CLINGO_DIR:=${HOME}/.local/opt/potassco/$(BUILD_TYPE)/lib/cmake/Clingo
-CXXFLAGS=-Wall -Wextra -Wpedantic -Werror
+CXX=clang++
+CXXFLAGS=-Wall -Wextra -Wpedantic -Werror -stdlib=libc++
 define cmake_options
 -G Ninja \
 -S . \
 -B "build/$(BUILD_TYPE)" \
 -DCMAKE_INSTALL_PREFIX=${HOME}/.local/opt/potassco/$(BUILD_TYPE) \
 -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" \
+-DCMAKE_CXX_COMPILER="$(CXX)" \
 -DClingo_DIR="$(CLINGO_DIR)" \
 -DCLINGOLPX_BUILD_TESTS=On \
 -DCMAKE_EXPORT_COMPILE_COMMANDS=On

@@ -11,7 +11,8 @@ clingo:
 pin_run_as_build:
     clingo: x.x
 
-# from https://github.com/phracker/MacOSX-SDKs
-CONDA_BUILD_SYSROOT:
-    - /opt/MacOSX10.9.sdk # [osx and not arm64]
-    - /opt/MacOSX11.3.sdk # [osx and arm64]
+MACOSX_DEPLOYMENT_TARGET: 10.15  # [osx and not arm64]
+MACOSX_DEPLOYMENT_TARGET: 11.3   # [osx and arm64]
+CONDA_BUILD_SYSROOT:             # [osx]
+    - /opt/MacOSX10.15.sdk       # [osx and not arm64]
+    - /opt/MacOSX11.3.sdk        # [osx and arm64]

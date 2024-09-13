@@ -58,7 +58,7 @@ TEST_CASE("parsing") {
         REQUIRE(str(eqs.front()) == "-x + 2/3*y = -1");
     }
 
-    SECTION("example 3") {
+    SECTION("example 4") {
         ctl.add("base", {}, "&minimize { 3*x }. &maximize { -y }.");
         ctl.ground({{"base", {}}});
 
@@ -71,5 +71,31 @@ TEST_CASE("parsing") {
         std::sort(objective.begin(), objective.end(),
                   [](auto &a, auto &b) { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
         REQUIRE(str(Inequality{objective, 0, Relation::Equal, 0}) == "-3*x + -y = 0");
+    }
+
+    SECTION("example 5") {
+        ctl.add("base", {}, "&sum { 2*(x+3*y)/7; 10 } = x*3-z.\n");
+        ctl.ground({{"base", {}}});
+
+        VarMap vars;
+        std::vector<Inequality> eqs;
+        std::vector<Term> objective;
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs, objective);
+        REQUIRE(eqs.size() == 1);
+        REQUIRE(objective.empty());
+        REQUIRE(str(eqs.front()) == "-19/7*x + 6/7*y + z = -10");
+    }
+
+    SECTION("example 5") {
+        ctl.add("base", {}, R"(&sum { x } = "123.0".)");
+        ctl.ground({{"base", {}}});
+
+        VarMap vars;
+        std::vector<Inequality> eqs;
+        std::vector<Term> objective;
+        evaluate_theory(ctl.theory_atoms(), mapper, vars, eqs, objective);
+        REQUIRE(eqs.size() == 1);
+        REQUIRE(objective.empty());
+        REQUIRE(str(eqs.front()) == "x = 123");
     }
 }
