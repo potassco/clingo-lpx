@@ -18,7 +18,6 @@ conda:
         - 'macos-latest'
         - 'windows-2019'
     macosx-sdk:
-        - 'MacOSX10.13.sdk.tar.xz'
         - 'MacOSX11.3.sdk.tar.xz'
     channels_release:
         - 'potassco'
@@ -112,14 +111,10 @@ conda:
         pin_run_as_build:
             clingo: x.x
 
-        c_stdlib_version: # [osx]
-            - 10.13     # [osx and not arm64]
-            - 11.3.sdk  # [osx and arm64]
-
-        # from https://github.com/phracker/MacOSX-SDKs
-        CONDA_BUILD_SYSROOT:
-            - /opt/MacOSX10.13.sdk # [osx and not arm64]
-            - /opt/MacOSX11.3.sdk  # [osx and arm64]
+        c_stdlib_version:          # [osx]
+            - 11.3                 # [osx]
+        CONDA_BUILD_SYSROOT:       # [osx]
+            - /opt/MacOSX11.3.sdk  # [osx]
 
 ppa:
     package_name:
