@@ -11,6 +11,6 @@ clingo:
 pin_run_as_build:
     clingo: x.x
 
-MACOSX_DEPLOYMENT_TARGET: 11.3  # [osx]
-CONDA_BUILD_SYSROOT:            # [osx]
-    - /opt/MacOSX11.3.sdk       # [osx]
+MACOSX_DEPLOYMENT_TARGET: 10.15  # [osx]
+CONDA_BUILD_SYSROOT:             # [osx]
+    - /opt/MacOSX10.15.sdk       # [osx]
