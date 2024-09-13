@@ -77,8 +77,9 @@ is equivalent to
 ```
 
 Another shortcut (for compatibility with [clingo-dl]) are `&diff` constraints.
-Terms in braces must be variables and the right-hand-side must be a number.
-The same relations as for &sum constraints are accepted. 
+The same relations as for &sum constraints are accepted.
+Terms in braces must should be variables and the right-hand-side should be a number.
+The program
 ```
 { x }.
 &diff { a-b } <= 5.

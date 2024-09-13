@@ -242,7 +242,8 @@ struct EvaluateNum {
     return std::visit(EvaluateNum{}, evaluate(true, term));
 }
 
-void parse_diff_elem(Clingo::TheoryTerm const &term, std::vector<Term> &res) {
+auto parse_diff_elem(Clingo::TheoryTerm const &term) -> std::vector<Term> {
+    std::vector<Term> res;
     if (match(term, "-", 2)) {
         auto args = term.arguments();
         std::visit(
@@ -268,6 +269,7 @@ void parse_diff_elem(Clingo::TheoryTerm const &term, std::vector<Term> &res) {
     } else {
         throw_syntax_error("Invalid Syntax: invalid difference constraint");
     }
+    return res;
 }
 
 void parse_sum_elem(Clingo::TheoryTerm const &term, std::vector<Term> &res) {
@@ -396,9 +398,12 @@ void parse_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, Va
             check_syntax(atom.has_guard() && atom.elements().size() == 1 &&
                              atom.elements().front().tuple().size() == 1 && atom.elements().front().condition().empty(),
                          "&diff invalid difference constraint");
-            auto lhs = std::vector<Term>{};
-            auto &&elem = *atom.elements().begin();
-            parse_diff_elem(elem.tuple().front(), lhs);
+            auto lhs = parse_diff_elem(atom.elements().begin()->tuple().front());
+            size_t n = lhs.size();
+            parse_sum_elem(atom.guard().second, lhs);
+            for (auto it = lhs.begin() + n, ie = lhs.end(); it != ie; ++it) {
+                it->co.neg();
+            }
             auto rhs = simplify(cos, lhs);
             auto lit = mapper(atom.literal());
             iqs.emplace_back(Inequality{std::move(lhs), std::move(rhs), evaluate_cmp(atom.guard().first), lit});

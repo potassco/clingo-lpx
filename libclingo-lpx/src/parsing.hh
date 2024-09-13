@@ -24,7 +24,7 @@ constexpr char const *THEORY = R"(
     &minimize/0 : sum_term, directive;
     &maximize/0 : sum_term, directive;
     &sum/0      : sum_term, {<=,=,>=}, sum_term, head;
-    &diff/0     : sum_term, {<=,=,>=}, diff_term, head;
+    &diff/0     : sum_term, {<=,=,>=}, sum_term, head;
     &dom/0      : dom_term, {=}, dom_term, head
 }.
 )";
@@ -49,7 +49,7 @@ constexpr char const *THEORY_Q = R"(
     &minimize/0 : sum_term, directive;
     &maximize/0 : sum_term, directive;
     &sum/0      : sum_term, {<=,=,>=,<,>}, sum_term, head;
-    &diff/0     : sum_term, {<=,=,>=,<,>}, diff_term, head;
+    &diff/0     : sum_term, {<=,=,>=,<,>}, sum_term, head;
     &dom/0      : dom_term, {=}, dom_term, head
 }.
 )";
