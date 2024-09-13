@@ -82,11 +82,11 @@ jobs:
           - os: macos-13
             name: "*-macos_x86_64"
             env:
-              MACOSX_DEPLOYMENT_TARGET: "10.13"
+              MACOSX_DEPLOYMENT_TARGET: "10.15"
           - os: macos-14
             name: "*-macos_arm64"
             env:
-              MACOSX_DEPLOYMENT_TARGET: "10.14"
+              MACOSX_DEPLOYMENT_TARGET: "10.15"
 
     steps:
       - uses: actions/checkout@v4
