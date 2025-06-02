@@ -39,7 +39,7 @@ if (PYCLINGOLPX_ENABLE STREQUAL "pip")
 else()
     add_library(pyclingo-lpx MODULE ${source})
 endif()
-target_link_libraries(pyclingo-lpx PRIVATE libclingo-lpx Python::Module)
+target_link_libraries(pyclingo-lpx PRIVATE clingo-lpx Python::Module)
 target_compile_definitions(pyclingo-lpx PRIVATE _CFFI_NO_LIMITED_API)
 set_target_properties(pyclingo-lpx PROPERTIES
     FOLDER lib
@@ -76,7 +76,7 @@ if (PYCLINGOLPX_INSTALL_DIR)
             ${CMAKE_CURRENT_BINARY_DIR}/METADATA
             DESTINATION ${_PYCLINGOLPX_INSTALL_DIR}/clingolpx-${CLINGOLPX_VERSION}.dist-info)
     else()
-        install(FILES ${CMAKE_SOURCE_DIR}/libclingo-lpx/clingo-lpx.h
+        install(FILES ${CMAKE_SOURCE_DIR}/lib/solver/include/clingo-lpx.h
             DESTINATION ${_PYCLINGOLPX_INSTALL_DIR}/clingolpx)
     endif()
 endif()

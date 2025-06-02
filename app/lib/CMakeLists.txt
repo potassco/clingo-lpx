@@ -18,11 +18,10 @@ set(source
 add_library(libclingo-lpx-app STATIC)
 target_sources(libclingo-lpx-app PRIVATE ${header} ${source})
 target_include_directories(libclingo-lpx-app PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>")
-
 if (NOT CLINGOLPX_BUILD_STATIC AND CLINGOLPX_BUILD_SHARED AND NOT clingolpx_build_interface)
     set_target_properties(libclingo-lpx-app PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
-target_link_libraries(libclingo-lpx-app PUBLIC libclingo-lpx)
+target_link_libraries(libclingo-lpx-app PUBLIC clingo-lpx)
 
 set_target_properties(libclingo-lpx-app PROPERTIES
     OUTPUT_NAME clingo-lpx-app
@@ -32,7 +31,7 @@ set_target_properties(libclingo-lpx-app PROPERTIES
 if (CLINGOLPX_BUILD_TESTS)
     add_library(libclingo-lpx-app_t STATIC ${header} ${source})
     target_include_directories(libclingo-lpx-app_t PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>")
-    target_link_libraries(libclingo-lpx-app_t PUBLIC libclingo-lpx_t)
+    target_link_libraries(libclingo-lpx-app_t PUBLIC clingo-lpx_t)
     set_target_properties(libclingo-lpx-app_t PROPERTIES
         OUTPUT_NAME clingo-lpx-app_t
         LIBRARY_OUTPUT_NAME clingo-lpx-app_t

@@ -1,5 +1,5 @@
 BUILD_TYPE:=debug
-CLINGO_DIR:=${HOME}/.local/opt/potassco/$(BUILD_TYPE)/lib/cmake/Clingo
+#CLINGO_DIR:=${HOME}/.local/opt/potassco/$(BUILD_TYPE)/lib/cmake/Clingo
 CXX=clang++
 CXXFLAGS=-Wall -Wextra -Wpedantic -Werror -stdlib=libc++
 define cmake_options

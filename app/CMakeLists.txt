@@ -9,11 +9,13 @@ set(source
 
 add_subdirectory(lib)
 
-add_executable(clingo-lpx ${source})
-target_link_libraries(clingo-lpx PRIVATE libclingo libclingo-lpx-app)
-set_target_properties(clingo-lpx PROPERTIES FOLDER exe)
+add_executable(clingo-lpx-bin ${source})
+target_link_libraries(clingo-lpx-bin PRIVATE libclingo libclingo-lpx-app)
+set_target_properties(clingo-lpx-bin PROPERTIES
+    OUTPUT_NAME clingo-lpx
+    FOLDER exe)
 
-install(TARGETS clingo-lpx
+install(TARGETS clingo-lpx-bin
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
