@@ -8,6 +8,8 @@
 #include "number_flint.hh"
 #include "number_imath.hh"
 
+namespace ClingoLPX {
+
 class RationalQ {
   private:
     friend auto operator+(RationalQ const &a, fixed_int b) -> RationalQ;
@@ -401,3 +403,5 @@ inline auto operator<<(std::ostream &out, RationalQ const &q) -> std::ostream & 
     }
     return out;
 }
+
+} // namespace ClingoLPX

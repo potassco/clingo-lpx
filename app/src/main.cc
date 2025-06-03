@@ -22,13 +22,9 @@
 
 // }}}
 
-#include <clingo-lpx-app/app.hh>
 #include <clingo-lpx.h>
 #include <clingo.hh>
-#include <fstream>
-#include <limits>
 #include <optional>
-#include <sstream>
 #ifdef CLINGOLPX_PROFILE
 #include <gperftools/profiler.h>
 #endif
@@ -50,6 +46,39 @@ class Profiler {
 #endif
 
 using Clingo::Detail::handle_error;
+
+//! Helper class to rewrite logic programs to use with the clingo DL theory.
+class Rewriter {
+  public:
+    Rewriter(clingolpx_theory_t *theory, clingo_program_builder_t *builder) : theory_{theory}, builder_{builder} {}
+
+    //! Rewrite the given files.
+    void rewrite(Clingo::Control &control, Clingo::StringSpan files) {
+        Clingo::Detail::handle_error(
+            clingo_ast_parse_files(files.begin(), files.size(), rewrite_, this, control.to_c(), nullptr, nullptr, 0));
+    }
+
+    //! Rewrite the given program.
+    void rewrite(Clingo::Control &control, char const *str) {
+        Clingo::Detail::handle_error(clingo_ast_parse_string(str, rewrite_, this, control.to_c(), nullptr, nullptr, 0));
+    }
+
+  private:
+    //! C callback to add a statement using the builder.
+    static auto add_(clingo_ast_t *stm, void *data) -> bool {
+        auto *self = static_cast<Rewriter *>(data);
+        return clingo_program_builder_add(self->builder_, stm);
+    }
+
+    //! C callback to rewrite a statement and add it via the builder.
+    static auto rewrite_(clingo_ast_t *stm, void *data) -> bool {
+        auto *self = static_cast<Rewriter *>(data);
+        return clingolpx_rewrite_ast(self->theory_, stm, add_, self);
+    }
+
+    clingolpx_theory_t *theory_;        //!< A theory handle to rewrite statements.
+    clingo_program_builder_t *builder_; //!< The builder to add rewritten statements to.
+};
 
 //! Application class to run clingo-lpx.
 class App : public Clingo::Application, private Clingo::SolveEventHandler {

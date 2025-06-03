@@ -1,8 +1,10 @@
-#include "tableau.hh"
+#include <clingo-lpx/tableau.hh>
 
 #include <cassert>
 #include <iostream>
 #include <numeric>
+
+namespace ClingoLPX {
 
 auto Tableau::get(index_t i, index_t j) const -> Rational {
     if (i < rows_.size()) {
@@ -229,3 +231,5 @@ auto Tableau::zero_() -> Rational const & {
     static Rational zero{0};
     return zero;
 }
+
+} // namespace ClingoLPX

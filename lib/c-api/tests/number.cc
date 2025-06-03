@@ -1,9 +1,7 @@
-#include <clingo-lpx/number.hh>
+#include "number.hh"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers.hpp>
-
-namespace ClingoLPX::Test {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 TEST_CASE("number") {
@@ -33,5 +31,3 @@ TEST_CASE("number") {
 
     REQUIRE_THROWS(Rational{"xxx", 10});
 }
-
-} // namespace ClingoLPX::Test

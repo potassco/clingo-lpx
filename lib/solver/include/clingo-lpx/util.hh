@@ -10,7 +10,9 @@
 #define assert_extra(X) // NOLINT
 #endif
 
-namespace detail {
+namespace ClingoLPX {
+
+namespace Detail {
 
 template <int X> using int_type = std::integral_constant<int, X>;
 template <class T, class S> inline void sc_check(S s, int_type<0> t) { // same sign
@@ -32,12 +34,14 @@ template <class T, class S> inline void sc_check(S s, int_type<1> t) { // Unsign
     }
 }
 
-} // namespace detail
+} // namespace Detail
 
 //! A safe numeric cast raising an exception if the target type cannot hold the value.
 template <class T, class S> inline auto safe_cast(S s) -> T {
     constexpr int sv =
         static_cast<int>(std::numeric_limits<T>::is_signed) - static_cast<int>(std::numeric_limits<S>::is_signed);
-    detail::sc_check<T>(s, detail::int_type<sv>());
+    Detail::sc_check<T>(s, Detail::int_type<sv>());
     return static_cast<T>(s);
 }
+
+} // namespace ClingoLPX

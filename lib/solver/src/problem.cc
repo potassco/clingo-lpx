@@ -1,4 +1,6 @@
-#include "problem.hh"
+#include <clingo-lpx/problem.hh>
+
+namespace ClingoLPX {
 
 auto invert(Relation rel) -> Relation {
     switch (rel) {
@@ -73,3 +75,5 @@ auto operator<<(std::ostream &out, Inequality const &x) -> std::ostream & {
     out << " " << x.rel << " " << x.rhs;
     return out;
 }
+
+} // namespace ClingoLPX

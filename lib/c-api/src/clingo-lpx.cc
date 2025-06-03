@@ -22,9 +22,10 @@
 //
 // }}}
 
-#include "clingo-lpx.h"
-#include "parsing.hh"
-#include "solving.hh"
+#include <clingo-lpx.h>
+
+#include <clingo-lpx/parsing.hh>
+#include <clingo-lpx/solving.hh>
 
 #include <clingo.h>
 #include <clingo.hh>
@@ -40,6 +41,8 @@
         return false;                                                                                                  \
     }                                                                                                                  \
     return true // NOLINT
+
+using namespace ClingoLPX;
 
 namespace {
 

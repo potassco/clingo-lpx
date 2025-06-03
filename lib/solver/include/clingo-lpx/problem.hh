@@ -4,6 +4,8 @@
 
 #include "number.hh"
 
+namespace ClingoLPX {
+
 enum class Relation {
     LessEqual = 0,
     GreaterEqual = 1,
@@ -31,3 +33,5 @@ struct Inequality {
 };
 
 auto operator<<(std::ostream &out, Inequality const &x) -> std::ostream &;
+
+} // namespace ClingoLPX

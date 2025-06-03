@@ -1,13 +1,11 @@
-#include <clingo-lpx/parsing.hh>
-#include <clingo-lpx/solving.hh>
+#include "solving.hh"
+#include "parsing.hh"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <clingo.hh>
 #include <iterator>
 #include <optional>
-
-namespace ClingoLPX::Test {
 
 namespace {
 
@@ -212,5 +210,3 @@ TEST_CASE("solving") {
         REQUIRE(run_o<RationalQ>(knapsack, true, 0, 1) == std::make_pair(RationalQ{Rational{180}}, true));
     }
 }
-
-} // namespace ClingoLPX::Test

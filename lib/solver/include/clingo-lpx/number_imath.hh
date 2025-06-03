@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <string>
 
+namespace ClingoLPX {
+
 constexpr int BASE = 10;
 
 using fixed_int = mp_small;
@@ -711,5 +713,7 @@ inline auto operator<<(std::ostream &out, Rational const &a) -> std::ostream & {
 [[nodiscard]] inline auto compare(Rational const &a, Rational const &b) -> int {
     return mp_rat_compare(&a.num_, &b.num_);
 }
+
+} // namespace ClingoLPX
 
 #endif

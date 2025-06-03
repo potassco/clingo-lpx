@@ -1,10 +1,8 @@
-#include <clingo-lpx/parsing.hh>
+#include "parsing.hh"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <sstream>
-
-namespace ClingoLPX::Test {
 
 template <typename T> auto str(T &&x) -> std::string {
     std::ostringstream oss;
@@ -101,5 +99,3 @@ TEST_CASE("parsing") {
         REQUIRE(str(eqs.front()) == "x = 123");
     }
 }
-
-} // namespace ClingoLPX::Test

@@ -1,5 +1,5 @@
-#include "parsing.hh"
-#include "util.hh"
+#include <clingo-lpx/parsing.hh>
+#include <clingo-lpx/util.hh>
 
 #include <clingo.hh>
 
@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <variant>
+
+namespace ClingoLPX {
 
 namespace {
 
@@ -438,3 +440,5 @@ void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper,
                      std::vector<Inequality> &iqs, std::vector<Term> &objective) {
     parse_theory(theory, mapper, var_map, iqs, objective);
 }
+
+} // namespace ClingoLPX

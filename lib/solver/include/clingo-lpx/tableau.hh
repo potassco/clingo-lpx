@@ -7,6 +7,8 @@
 
 #include "number.hh"
 
+namespace ClingoLPX {
+
 //! Type used for array indices.
 using index_t = uint32_t;
 
@@ -143,3 +145,5 @@ class Tableau {
     std::vector<Row> rows_;
     std::vector<std::vector<index_t>> cols_;
 };
+
+} // namespace ClingoLPX

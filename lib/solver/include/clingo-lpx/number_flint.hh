@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <string>
 
+namespace ClingoLPX {
+
 constexpr int BASE = 10;
 
 using fixed_int = slong;
@@ -785,5 +787,7 @@ inline auto operator<<(std::ostream &out, Rational const &a) -> std::ostream & {
 }
 
 [[nodiscard]] inline auto compare(Rational const &a, Rational const &b) -> int { return fmpq_cmp(&a.num_, &b.num_); }
+
+} // namespace ClingoLPX
 
 #endif

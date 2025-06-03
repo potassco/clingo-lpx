@@ -1,23 +1,25 @@
 # [[[header: include
 set(ide_header_group "Header Files")
-set(header)
+set(header-group-include-clingo-lpx
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/number.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/number_flint.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/number_imath.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/parsing.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/problem.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/solving.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/tableau.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/util.hh")
+source_group("${ide_header_group}\\include\\clingo-lpx" FILES ${header-group-include-clingo-lpx})
+set(header
+    ${header-group-include-clingo-lpx})
 # ]]]
 # [[[source: src
 set(ide_source_group "Source Files")
 set(source-group
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/clingo-lpx.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/number.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/number_flint.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/number_imath.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tableau.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tableau.hh"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/util.hh")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tableau.cc")
 source_group("${ide_source_group}" FILES ${source-group})
 set(source
     ${source-group})
@@ -35,41 +37,27 @@ set(test
     ${test-group-tests})
 # ]]]
 
-if (CLINGOLPX_BUILD_SHARED)
-    set(lib_type SHARED)
-else()
-    set(lib_type STATIC)
+add_library(clingo-lpx-solver STATIC)
+clingolpx_target_properties(TARGETS clingo-lpx-solver FOLDER "lib" TYPE "extra")
+target_sources(clingo-lpx-solver PRIVATE ${header} ${source})
+target_include_directories(clingo-lpx-solver PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(clingo-lpx-solver PUBLIC libclingo math::math)
+if(CLINGOLPX_PROFILE)
+    target_compile_definitions(clingo-lpx-solver PUBLIC CLINGOLPX_PROFILE)
+    target_link_libraries(clingo-lpx-solver PUBLIC Gperftools::Profiler)
 endif()
 
-add_library(clingo-lpx "${lib_type}")
-clingolpx_target_properties(TARGETS clingo-lpx FOLDER "lib" TYPE default)
-target_sources(clingo-lpx PRIVATE ${header} ${source})
-target_include_directories(clingo-lpx PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_compile_definitions(clingo-lpx PRIVATE "$<BUILD_INTERFACE:CLINGOLPX_BUILD_LIBRARY>")
-target_link_libraries(clingo-lpx PRIVATE libclingo math::math)
-if (CLINGOLPX_USE_VISIBILITY)
-    target_compile_definitions(clingo-lpx PRIVATE "$<BUILD_INTERFACE:CLINGOLPX_BUILD_LIBRARY>")
-else()
-    target_compile_definitions(clingo-lpx PUBLIC CLINGOLPX_NO_VISIBILITY)
-endif()
-if (CLINGOLPX_PROFILE)
-    target_compile_definitions(clingo-lpx PUBLIC CLINGOLPX_PROFILE)
-    target_link_libraries(clingo-lpx PUBLIC Gperftools::Profiler)
-endif()
+if(CLINGOLPX_BUILD_TESTS)
+    add_library(clingo-lpx-solver_t STATIC)
+    clingolpx_target_properties(TARGETS clingo-lpx-solver_t FOLDER "lib")
+    target_sources(clingo-lpx-solver_t PRIVATE ${header} ${source})
+    target_link_libraries(clingo-lpx-solver_t PUBLIC libclingo math::math)
+    target_include_directories(clingo-lpx-solver_t PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_compile_definitions(clingo-lpx-solver_t PUBLIC CLINGOLPX_CROSSCHECK)
 
-if (CLINGOLPX_BUILD_TESTS)
-    add_library(clingo-lpx_t STATIC)
-    clingolpx_target_properties(TARGETS clingo-lpx_t FOLDER "lib")
-    target_sources(clingo-lpx_t PRIVATE ${header} ${source})
-    target_link_libraries(clingo-lpx_t PUBLIC libclingo math::math)
-    target_include_directories(clingo-lpx_t PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-    target_include_directories(clingo-lpx_t PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>")
-    target_compile_definitions(clingo-lpx_t PUBLIC "$<BUILD_INTERFACE:CLINGOLPX_NO_VISIBILITY>")
-    target_compile_definitions(clingo-lpx_t PUBLIC CLINGOLPX_CROSSCHECK)
-
-    add_executable(test_solver)
-    clingolpx_target_properties(TARGETS test_solver FOLDER "test" SUBDIR "tests")
-    target_sources(test_solver PRIVATE ${test})
-    target_link_libraries(test_solver PRIVATE clingo-lpx_t Catch2::Catch2WithMain)
-    catch_discover_tests(test_solver DL_PATH "$<TARGET_FILE_DIR:libclingo>")
+    add_executable(test_clingo-lpx-solver)
+    clingolpx_target_properties(TARGETS test_clingo-lpx-solver FOLDER "test" SUBDIR "tests")
+    target_sources(test_clingo-lpx-solver PRIVATE ${test})
+    target_link_libraries(test_clingo-lpx-solver PRIVATE clingo-lpx-solver_t Catch2::Catch2WithMain)
+    catch_discover_tests(test_clingo-lpx-solver DL_PATH "$<TARGET_FILE_DIR:libclingo>")
 endif()

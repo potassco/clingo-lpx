@@ -14,6 +14,8 @@
 #include <shared_mutex>
 #include <unordered_map>
 
+namespace ClingoLPX {
+
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
 
@@ -310,3 +312,5 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     ObjectiveState<Value> objective_state_;
     Options options_;
 };
+
+} // namespace ClingoLPX

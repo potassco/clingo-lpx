@@ -1,5 +1,5 @@
-#include "solving.hh"
-#include "parsing.hh"
+#include <clingo-lpx/parsing.hh>
+#include <clingo-lpx/solving.hh>
 
 #include <clingo.hh>
 
@@ -16,6 +16,8 @@
 #include <tuple>
 #include <unordered_set>
 #include <utility>
+
+namespace ClingoLPX {
 
 namespace {
 
@@ -1200,3 +1202,5 @@ template class Solver<Rational>;
 template class Solver<RationalQ>;
 template class Propagator<Rational>;
 template class Propagator<RationalQ>;
+
+} // namespace ClingoLPX

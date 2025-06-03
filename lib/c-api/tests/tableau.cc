@@ -1,8 +1,6 @@
-#include <clingo-lpx/tableau.hh>
+#include "tableau.hh"
 
 #include <catch2/catch_test_macros.hpp>
-
-namespace ClingoLPX::Test {
 
 namespace {
 
@@ -160,7 +158,4 @@ TEST_CASE("matrix") {
         REQUIRE(int_ret == int_sol);
     }
 }
-
-} // namespace ClingoLPX::Test
-
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)

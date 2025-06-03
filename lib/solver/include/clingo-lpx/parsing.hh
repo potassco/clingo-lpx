@@ -4,6 +4,8 @@
 
 #include <map>
 
+namespace ClingoLPX {
+
 constexpr char const *THEORY = R"(
 #theory lp {
     sum_term {
@@ -59,3 +61,5 @@ using LitMapper = std::function<Clingo::literal_t(Clingo::literal_t)>;
 
 void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map,
                      std::vector<Inequality> &iqs, std::vector<Term> &objective);
+
+} // namespace ClingoLPX
