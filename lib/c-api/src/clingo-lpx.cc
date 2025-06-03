@@ -28,7 +28,6 @@
 #include <clingo-lpx/solving.hh>
 
 #include <clingo.h>
-#include <clingo.hh>
 
 #include <optional>
 #include <sstream>

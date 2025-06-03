@@ -19,7 +19,8 @@ set(source-group
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/tableau.cc")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/tableau.cc"
+    )
 source_group("${ide_source_group}" FILES ${source-group})
 set(source
     ${source-group})
@@ -41,7 +42,7 @@ add_library(clingo-lpx-solver STATIC)
 clingolpx_target_properties(TARGETS clingo-lpx-solver FOLDER "lib" TYPE "extra")
 target_sources(clingo-lpx-solver PRIVATE ${header} ${source})
 target_include_directories(clingo-lpx-solver PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(clingo-lpx-solver PUBLIC libclingo math::math)
+target_link_libraries(clingo-lpx-solver PUBLIC clingo::clingo math::math)
 if(CLINGOLPX_PROFILE)
     target_compile_definitions(clingo-lpx-solver PUBLIC CLINGOLPX_PROFILE)
     target_link_libraries(clingo-lpx-solver PUBLIC Gperftools::Profiler)
@@ -51,7 +52,7 @@ if(CLINGOLPX_BUILD_TESTS)
     add_library(clingo-lpx-solver_t STATIC)
     clingolpx_target_properties(TARGETS clingo-lpx-solver_t FOLDER "lib")
     target_sources(clingo-lpx-solver_t PRIVATE ${header} ${source})
-    target_link_libraries(clingo-lpx-solver_t PUBLIC libclingo math::math)
+    target_link_libraries(clingo-lpx-solver_t PUBLIC clingo::clingo math::math)
     target_include_directories(clingo-lpx-solver_t PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_compile_definitions(clingo-lpx-solver_t PUBLIC CLINGOLPX_CROSSCHECK)
 
@@ -59,5 +60,5 @@ if(CLINGOLPX_BUILD_TESTS)
     clingolpx_target_properties(TARGETS test_clingo-lpx-solver FOLDER "test" SUBDIR "tests")
     target_sources(test_clingo-lpx-solver PRIVATE ${test})
     target_link_libraries(test_clingo-lpx-solver PRIVATE clingo-lpx-solver_t Catch2::Catch2WithMain)
-    catch_discover_tests(test_clingo-lpx-solver DL_PATH "$<TARGET_FILE_DIR:libclingo>")
+    catch_discover_tests(test_clingo-lpx-solver DL_PATH "$<TARGET_FILE_DIR:clingo::clingo>")
 endif()

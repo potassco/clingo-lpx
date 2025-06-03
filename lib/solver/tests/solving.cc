@@ -3,8 +3,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <clingo.hh>
+#include <clingo/control.hh>
+#include <clingo/core.hh>
 #include <iterator>
+#include <memory>
 #include <optional>
 
 namespace ClingoLPX::Test {
@@ -14,14 +16,16 @@ namespace {
 template <typename V> class SHM : public Clingo::SolveEventHandler {
   public:
     SHM(Propagator<V> &prp) : prp_{prp} {}
-    auto on_model(Clingo::Model &model) -> bool override {
+
+    auto get_objective() const -> std::optional<std::pair<V, bool>> const & { return val_; }
+
+  private:
+    auto do_model(Clingo::Model model) -> bool override {
         prp_.on_model(model);
         val_ = prp_.get_objective(model.thread_id());
         return true;
     }
-    auto get_objective() const -> std::optional<std::pair<V, bool>> const & { return val_; }
 
-  private:
     std::optional<std::pair<V, bool>> val_;
     Propagator<V> &prp_;
 };
@@ -30,14 +34,13 @@ Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial
                       true};
 
 template <typename V = Rational> auto run(char const *s) -> bool {
-    Propagator<V> prp{options};
-    Clingo::Control ctl;
+    auto lib = Clingo::Library{};
+    auto ctl = Clingo::Control{lib};
+    auto &prp = ctl.register_propagator(std::make_unique<Propagator<V>>(lib, options));
     prp.register_control(ctl);
-
-    ctl.add("base", {}, s);
-    ctl.ground({{"base", {}}});
-
-    return ctl.solve(Clingo::LiteralSpan{}, nullptr, false, false).get().is_satisfiable();
+    ctl.parse_string(s);
+    ctl.ground();
+    return ctl.solve({}, Clingo::SolveFlags::empty).get().satisfiable();
 }
 
 template <typename V = Rational>
@@ -46,36 +49,43 @@ auto run_o(char const *s, bool global = false, long c = 0, long k = 0) -> std::o
     if (global) {
         opts.global_objective = RationalQ{Rational{c}, Rational{k}};
     }
-    Propagator<V> prp{opts};
-    SHM<V> shm{prp};
-    Clingo::Control ctl;
-    if (global) {
-        ctl.configuration()["solve"]["models"] = "0";
-    }
+    auto lib = Clingo::Library{};
+    auto ctl = Clingo::Control{lib};
+    auto &prp = ctl.register_propagator(std::make_unique<Propagator<V>>(lib, opts));
     prp.register_control(ctl);
+    auto shm = SHM<V>{prp};
+    if (global) {
+        ctl.config()["solve"]["models"] = "0";
+    }
+    ctl.parse_string(s);
+    ctl.ground();
 
-    ctl.add("base", {}, s);
-    ctl.ground({{"base", {}}});
-
-    if (!ctl.solve(Clingo::LiteralSpan{}, &shm, false, false).get().is_satisfiable()) {
+    printf("run_o\n");
+    if (!ctl.solve(shm).get().satisfiable()) {
+        printf("  not satisfiable\n");
         return std::nullopt;
     }
+    printf("  get objective\n");
     return shm.get_objective();
 }
 
-auto run_m(std::initializer_list<char const *> m) -> size_t {
-    Propagator<Rational> prp{options};
-    Clingo::Control ctl{{"0"}};
+auto run_m(std::initializer_list<std::string_view> m) -> size_t {
+    auto lib = Clingo::Library{};
+    auto ctl = Clingo::Control{lib, {"0"}};
+    auto &prp = ctl.register_propagator(std::make_unique<Propagator<Rational>>(lib, options));
     prp.register_control(ctl);
 
     int i = 0;
     int l = 0;
-    for (auto const *s : m) {
-        std::string n = "base" + std::to_string(i++);
-        ctl.add(n.c_str(), {}, s);
-        ctl.ground({{n.c_str(), {}}});
-        auto h = ctl.solve();
-        l += static_cast<int>(std::distance(begin(h), end(h)));
+    for (auto s : m) {
+        auto part = "base" + std::to_string(i++);
+        auto n = "#program " + part + ".\n";
+        n.append(s.begin(), s.end());
+        ctl.parse_string(n);
+        ctl.ground({{part, {}}});
+        for (auto h = ctl.solve(); [[maybe_unused]] auto m : h) {
+            ++l;
+        }
     }
     return l;
 }

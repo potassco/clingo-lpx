@@ -23,7 +23,6 @@
 // }}}
 
 #include <clingo-lpx.h>
-#include <clingo.hh>
 #include <optional>
 #ifdef CLINGOLPX_PROFILE
 #include <gperftools/profiler.h>

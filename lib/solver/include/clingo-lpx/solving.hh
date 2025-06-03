@@ -5,7 +5,8 @@
 #include "tableau.hh"
 #include "util.hh"
 
-#include <clingo.hh>
+#include <clingo/control.hh>
+#include <clingo/core.hh>
 
 #include <deque>
 #include <mutex>
@@ -93,7 +94,7 @@ template <typename Value> class Solver {
     struct Bound {
         Value value;
         index_t variable{0};
-        Clingo::literal_t lit{0};
+        Clingo::SolverLiteral lit{0};
         BoundRelation rel{BoundRelation::LessEqual};
         //! Compare the given value with the value of the bound according to
         //! the relation of the bound.
@@ -176,7 +177,7 @@ template <typename Value> class Solver {
                                bool master) -> bool;
 
     //! Solve the (previously prepared) problem.
-    [[nodiscard]] auto solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) -> bool;
+    [[nodiscard]] auto solve(Clingo::PropagateControl &ctl, Clingo::SolverLiteralSpan lits) -> bool;
 
     //! Undo assignments on the current level.
     void undo();
@@ -204,7 +205,8 @@ template <typename Value> class Solver {
 
     //! Adjust the sign of the given literal so that it does not conflict with
     //! the current tableau.
-    [[nodiscard]] auto adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const -> Clingo::literal_t;
+    [[nodiscard]] auto adjust(Clingo::Assignment const &assign, Clingo::SolverLiteral lit) const
+        -> Clingo::SolverLiteral;
 
   private:
     //! Check if the tableau.
@@ -246,7 +248,7 @@ template <typename Value> class Solver {
     //! Options configuring the algorithms.
     Options const &options_;
     //! Mapping from literals to bounds.
-    std::unordered_multimap<Clingo::literal_t, Bound> bounds_;
+    std::unordered_multimap<Clingo::SolverLiteral, Bound> bounds_;
     //! Trail of bound assignments (variable, relation, Value).
     std::vector<std::tuple<index_t, BoundRelation, Bound const *>> bound_trail_;
     //! Trail for assignments (level, variable, Value).
@@ -260,7 +262,7 @@ template <typename Value> class Solver {
     //! The set of conflicting variables.
     std::priority_queue<index_t, std::vector<index_t>, std::greater<>> conflicts_;
     //! The conflict clause.
-    std::vector<Clingo::literal_t> conflict_clause_;
+    std::vector<Clingo::SolverLiteral> conflict_clause_;
     //! The vector of non-basic variables to propagate.
     std::deque<index_t> propagate_queue_;
     //! Problem and solving statistics.
@@ -275,14 +277,9 @@ template <typename Value> class Solver {
 
 template <typename Value> class Propagator : public Clingo::Heuristic {
   public:
-    Propagator(Options options) : options_{std::move(options)} {}
-    Propagator(Propagator const &) = default;
-    Propagator(Propagator &&) noexcept = default;
-    auto operator=(Propagator const &) -> Propagator & = default;
-    auto operator=(Propagator &&) noexcept -> Propagator & = default;
-    ~Propagator() override = default;
+    Propagator(Clingo::Library const &lib, Options options) : lib_{&lib}, options_{std::move(options)} {}
     void register_control(Clingo::Control &ctl);
-    void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu);
+    void on_statistics(Clingo::Stats step, Clingo::Stats accu);
     void on_model(Clingo::Model const &model);
 
     [[nodiscard]] auto lookup_symbol(Clingo::Symbol symbol) const -> std::optional<index_t>;
@@ -292,22 +289,22 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     [[nodiscard]] auto get_objective(index_t thread_id) const -> std::optional<std::pair<Value, bool>>;
     [[nodiscard]] auto n_values(index_t thread_id) const -> index_t;
 
-    void init(Clingo::PropagateInit &init) override;
-    void check(Clingo::PropagateControl &ctl) override;
-    void propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) override;
-    void undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept override;
-
-    auto decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback)
-        -> Clingo::literal_t override;
-
   private:
+    void do_init(Clingo::PropagateInit init) override;
+    void do_check(Clingo::PropagateControl ctl) override;
+    void do_propagate(Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan changes) override;
+    void do_undo(uint32_t thread_id, Clingo::Assignment assignment, Clingo::SolverLiteralSpan changes) override;
+    auto do_decide(Clingo::ProgramId thread_id, Clingo::Assignment assignment, Clingo::SolverLiteral literal)
+        -> Clingo::SolverLiteral override;
+
+    Clingo::Library const *lib_;
     VarMap aux_map_;
     SymbolMap var_map_;
     SymbolVec var_vec_;
     std::vector<Term> objective_;
     std::vector<Inequality> iqs_;
     size_t facts_offset_{0};
-    std::vector<Clingo::literal_t> facts_;
+    std::vector<Clingo::SolverLiteral> facts_;
     std::vector<std::pair<size_t, Solver<Value>>> slvs_;
     ObjectiveState<Value> objective_state_;
     Options options_;

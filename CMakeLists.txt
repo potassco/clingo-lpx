@@ -81,7 +81,7 @@ else()
     if(CLINGODL_BUILD_PYTHON)
         find_package(Python COMPONENTS Interpreter Development Development.Module)
     endif()
-    find_package(Clingo REQUIRED)
+    find_package(clingo 6.0.0 REQUIRED)
 endif()
 
 if(CLINGOLPX_BUILD_TESTS)
@@ -95,10 +95,11 @@ endif()
 add_subdirectory(third_party)
 add_subdirectory(lib libclingo-lpx)
 if(CLINGOLPX_BUILD_APP)
-    add_subdirectory(app)
+    #add_subdirectory(app)
 endif()
 
-if(CLINGOLPX_INSTALL_DEFAULT)
+#if(CLINGOLPX_INSTALL_DEFAULT)
+if(OFF)
     configure_package_config_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/clingo-lpx-config.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/clingo-lpx-config.cmake"

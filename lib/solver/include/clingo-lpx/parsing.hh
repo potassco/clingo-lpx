@@ -1,6 +1,9 @@
 #pragma once
 
-#include "problem.hh"
+#include <clingo-lpx/problem.hh>
+
+#include <clingo/base.hh>
+#include <clingo/core.hh>
 
 #include <map>
 
@@ -56,10 +59,10 @@ constexpr char const *THEORY_Q = R"(
 }.
 )";
 
-using VarMap = std::map<std::pair<Clingo::Symbol, Clingo::literal_t>, Clingo::Symbol>;
-using LitMapper = std::function<Clingo::literal_t(Clingo::literal_t)>;
+using VarMap = std::map<std::pair<Clingo::Symbol, Clingo::ProgramLiteral>, Clingo::Symbol>;
+using LitMapper = std::function<Clingo::ProgramLiteral(Clingo::ProgramLiteral)>;
 
-void evaluate_theory(Clingo::TheoryAtoms const &theory, LitMapper const &mapper, VarMap &var_map,
-                     std::vector<Inequality> &iqs, std::vector<Term> &objective);
+void evaluate_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, LitMapper const &mapper,
+                     VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective);
 
 } // namespace ClingoLPX

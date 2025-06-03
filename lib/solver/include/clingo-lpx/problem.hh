@@ -1,8 +1,8 @@
 #pragma once
 
-#include <clingo.hh>
+#include <clingo-lpx/number.hh>
 
-#include "number.hh"
+#include <clingo/symbol.hh>
 
 namespace ClingoLPX {
 
@@ -29,7 +29,7 @@ struct Inequality {
     std::vector<Term> lhs;
     Rational rhs;
     Relation rel;
-    Clingo::literal_t lit;
+    Clingo::ProgramLiteral lit;
 };
 
 auto operator<<(std::ostream &out, Inequality const &x) -> std::ostream &;

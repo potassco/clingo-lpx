@@ -1,9 +1,9 @@
 #include <clingo-lpx/parsing.hh>
 #include <clingo-lpx/solving.hh>
 
-#include <clingo.hh>
-
 #include <climits>
+#include <clingo/core.hh>
+#include <clingo/stats.hh>
 #include <cmath>
 #include <cstddef>
 #include <exception>
@@ -603,7 +603,7 @@ template <typename Value> auto Solver<Value>::update_bound_(Clingo::PropagateCon
         conflict_clause_.clear();
         conflict_clause_.emplace_back(-x.upper_bound->lit);
         conflict_clause_.emplace_back(-x.lower_bound->lit);
-        ctl.add_clause(conflict_clause_);
+        std::ignore = ctl.add_clause(conflict_clause_);
         return false;
     }
     if (x.reverse_index < n_non_basic_) {
@@ -664,7 +664,8 @@ template <typename Value> auto Solver<Value>::discard_bounded(Clingo::PropagateC
     return assert_bound_(ctl, variables_[objective_.var].value + 1);
 }
 
-template <typename Value> auto Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::LiteralSpan lits) -> bool {
+template <typename Value>
+auto Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::SolverLiteralSpan lits) -> bool {
     index_t i{0};
     index_t j{0};
     Value const *v{nullptr};
@@ -700,7 +701,7 @@ template <typename Value> auto Solver<Value>::solve(Clingo::PropagateControl &ct
                 return propagate_(ctl);
             }
             case State::Unsatisfiable: {
-                ctl.add_clause(conflict_clause_);
+                std::ignore = ctl.add_clause(conflict_clause_);
                 return false;
             }
             case State::Unknown: {
@@ -726,8 +727,8 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateContro
         return true;
     }
     auto ass = ctl.assignment();
-    std::vector<Clingo::literal_t> lower_clause;
-    std::vector<Clingo::literal_t> upper_clause;
+    std::vector<Clingo::SolverLiteral> lower_clause;
+    std::vector<Clingo::SolverLiteral> upper_clause;
     auto propagate_row = [&](index_t i) {
         variables_[i].propagate = false;
         std::optional<Value> lower = Value{0};
@@ -751,13 +752,13 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateContro
         // compute the bound
         tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) {
             auto &x_j = non_basic_(j);
-            auto update_lower = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) {
+            auto update_lower = [&](std::vector<Clingo::SolverLiteral> &clause, std::optional<Value> &bound) {
                 if (bound.has_value() && x_j.has_lower()) {
                     *bound += x_j.lower() * a_ij / d_i;
                     clause.emplace_back(-x_j.lower_bound->lit);
                 }
             };
-            auto update_upper = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) {
+            auto update_upper = [&](std::vector<Clingo::SolverLiteral> &clause, std::optional<Value> &bound) {
                 if (bound.has_value() && x_j.has_upper()) {
                     *bound += x_j.upper() * a_ij / d_i;
                     clause.emplace_back(-x_j.upper_bound->lit);
@@ -772,7 +773,7 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateContro
             }
         });
         auto &y_i = basic_(i);
-        auto propagate = [&, this](std::vector<Clingo::literal_t> &clause, Bound const &bound) {
+        auto propagate = [&, this](std::vector<Clingo::SolverLiteral> &clause, Bound const &bound) {
             clause.emplace_back(-bound.lit);
             bool ret = ctl.add_clause(clause) && ctl.propagate();
             clause.pop_back();
@@ -1021,7 +1022,7 @@ auto Solver<Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v)
 }
 
 template <typename Value>
-auto Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo::literal_t lit) const -> Clingo::literal_t {
+auto Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral {
     static_cast<void>(assign);
     if (options_.select == SelectionHeuristic::None) {
         return lit;
@@ -1045,15 +1046,15 @@ auto Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo::literal_t l
     return lit;
 }
 
-template <typename Value> void Propagator<Value>::init(Clingo::PropagateInit &init) {
+template <typename Value> void Propagator<Value>::do_init(Clingo::PropagateInit init) {
     facts_offset_ = facts_.size();
     if (facts_offset_ > 0 || options_.global_objective.has_value()) {
-        init.set_check_mode(Clingo::PropagatorCheckMode::Both);
+        init.check_mode(Clingo::PropagatorCheckMode::both);
     }
 
     evaluate_theory(
-        init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_,
-        objective_);
+        *lib_, init.base().theory(), [&](Clingo::SolverLiteral lit) { return init.solver_literal(lit); }, aux_map_,
+        iqs_, objective_);
 
     auto gather_vars = [this](std::vector<Term> const &terms) {
         for (auto const &term : terms) {
@@ -1081,33 +1082,35 @@ template <typename Value> void Propagator<Value>::init(Clingo::PropagateInit &in
 }
 
 template <typename Value> void Propagator<Value>::register_control(Clingo::Control &ctl) {
-    ctl.register_propagator(*this);
     if constexpr (std::is_same_v<Value, RationalQ>) {
-        ctl.add("base", {}, THEORY_Q);
+        ctl.parse_string(THEORY_Q);
     } else {
-        ctl.add("base", {}, THEORY);
+        ctl.parse_string(THEORY);
     }
 }
 
-template <typename Value>
-void Propagator<Value>::on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) {
-    auto step_simplex = step.add_subkey("Simplex", Clingo::StatisticsType::Map);
-    auto step_pivots = step_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
-    auto step_propagated_bounds = step_simplex.add_subkey("Bounds propagated", Clingo::StatisticsType::Value);
-    auto accu_simplex = accu.add_subkey("Simplex", Clingo::StatisticsType::Map);
-    auto accu_pivots = accu_simplex.add_subkey("Pivots", Clingo::StatisticsType::Value);
-    auto accu_propagated_bounds = accu_simplex.add_subkey("Bounds propagated", Clingo::StatisticsType::Value);
+template <typename Value> void Propagator<Value>::on_statistics(Clingo::Stats step, Clingo::Stats accu) {
+    auto step_simplex = step.map().insert("Simplex", Clingo::StatsType::map);
+    auto step_pivots = step_simplex.map().insert("Pivots", Clingo::StatsType::value);
+    auto step_propagated_bounds = step_simplex.map().insert("Bounds propagated", Clingo::StatsType::value);
+    auto accu_simplex = accu.map().insert("Simplex", Clingo::StatsType::map);
+    auto accu_pivots = accu_simplex.map().insert("Pivots", Clingo::StatsType::value);
+    auto accu_propagated_bounds = accu_simplex.map().insert("Bounds propagated", Clingo::StatsType::value);
+    double pivots = 0;
+    double bounds = 0;
     for (auto const &[offset, slv] : slvs_) {
-        step_pivots.set_value(slv.statistics().pivots);
-        accu_pivots.set_value(accu_pivots.value() + slv.statistics().pivots);
-        step_propagated_bounds.set_value(slv.statistics().propagated_bounds);
-        accu_propagated_bounds.set_value(accu_propagated_bounds.value() + slv.statistics().propagated_bounds);
+        pivots += slv.statistics().pivots;
+        bounds += slv.statistics().propagated_bounds;
     }
+    step_pivots.value(pivots);
+    accu_pivots.value(accu_pivots.value() + pivots);
+    step_propagated_bounds.value(bounds);
+    accu_propagated_bounds.value(accu_propagated_bounds.value() + bounds);
 }
 
 template <typename Value>
-auto Propagator<Value>::decide(Clingo::id_t thread_id, Clingo::Assignment const &assign, Clingo::literal_t fallback)
-    -> Clingo::literal_t {
+auto Propagator<Value>::do_decide(Clingo::ProgramId thread_id, Clingo::Assignment assign,
+                                  Clingo::SolverLiteral fallback) -> Clingo::SolverLiteral {
     return slvs_[thread_id].second.adjust(assign, fallback);
 }
 
@@ -1123,11 +1126,11 @@ template <typename Value> void Propagator<Value>::on_model(Clingo::Model const &
     objective_state_.update(*std::move(objective));
 }
 
-template <typename Value> void Propagator<Value>::check(Clingo::PropagateControl &ctl) {
+template <typename Value> void Propagator<Value>::do_check(Clingo::PropagateControl ctl) {
     auto ass = ctl.assignment();
     auto &[offset, slv] = slvs_[ctl.thread_id()];
     if (ass.decision_level() == 0 && offset < facts_offset_) {
-        auto res = slv.solve(ctl, Clingo::LiteralSpan{facts_.data() + offset, facts_offset_}); // NOLINT
+        auto res = slv.solve(ctl, Clingo::SolverLiteralSpan{facts_.data() + offset, facts_offset_}); // NOLINT
         offset = facts_offset_;
         // can happen in case of a top-level conflict
         if (!res) {
@@ -1154,7 +1157,7 @@ template <typename Value> void Propagator<Value>::check(Clingo::PropagateControl
 }
 
 template <typename Value>
-void Propagator<Value>::propagate(Clingo::PropagateControl &ctl, Clingo::LiteralSpan changes) {
+void Propagator<Value>::do_propagate(Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan changes) {
     auto ass = ctl.assignment();
     if (ass.decision_level() == 0 && ctl.thread_id() == 0) {
         // Note to self: auxiliary variables introduced during solving cannot become facts
@@ -1165,9 +1168,9 @@ void Propagator<Value>::propagate(Clingo::PropagateControl &ctl, Clingo::Literal
 }
 
 template <typename Value>
-void Propagator<Value>::undo(Clingo::PropagateControl const &ctl, Clingo::LiteralSpan changes) noexcept {
-    static_cast<void>(changes);
-    slvs_[ctl.thread_id()].second.undo();
+void Propagator<Value>::do_undo(uint32_t thread_id, [[maybe_unused]] Clingo::Assignment assignment,
+                                [[maybe_unused]] Clingo::SolverLiteralSpan changes) {
+    slvs_[thread_id].second.undo();
 }
 
 template <typename Value> auto Propagator<Value>::lookup_symbol(Clingo::Symbol symbol) const -> std::optional<index_t> {
