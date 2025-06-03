@@ -8,7 +8,7 @@ set(source
 # ]]]
 
 add_executable(clingo-lpx-app ${source})
-target_link_libraries(clingo-lpx-app PRIVATE libclingo clingo-lpx)
+target_link_libraries(clingo-lpx-app PRIVATE clingo::clingo clingo-lpx)
 set_target_properties(clingo-lpx-app PROPERTIES
     OUTPUT_NAME clingo-lpx
     FOLDER exe)
