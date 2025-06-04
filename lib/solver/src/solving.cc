@@ -97,7 +97,7 @@ template <> auto bound_val<RationalQ>(Rational x, Relation rel) -> RationalQ {
 template <typename Value> struct Solver<Value>::Prepare {
     Prepare(Solver &slv, SymbolMap const &map) : slv{slv}, map{map} {
         slv.variables_.resize(map.size());
-        slv.n_non_basic_ = map.size();
+        slv.n_non_basic_ = static_cast<index_t>(map.size());
         for (index_t i = 0; i != slv.n_non_basic_; ++i) {
             slv.variables_[i].index = i;
             slv.variables_[i].reverse_index = i;
@@ -111,7 +111,7 @@ template <typename Value> struct Solver<Value>::Prepare {
     }
 
     auto add_basic() -> index_t {
-        auto index = slv.variables_.size();
+        auto index = static_cast<index_t>(slv.variables_.size());
         slv.variables_.emplace_back();
         slv.variables_.back().index = index;
         slv.variables_.back().reverse_index = index;
@@ -211,7 +211,7 @@ template <typename Value> void Solver<Value>::Variable::set_value(Solver &s, ind
     // We can always assume that the assignment on a previous level was satisfying.
     // Thus, we simply store the old values to be able to restore them when backtracking.
     if (lvl != level) {
-        s.assignment_trail_.emplace_back(level, this - s.variables_.data(), value);
+        s.assignment_trail_.emplace_back(level, static_cast<index_t>(this - s.variables_.data()), value);
         level = lvl;
     }
     if (add) {
@@ -344,7 +344,7 @@ auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
             for (auto const &[j, v] : row) {
                 tableau_.set(i, j, v);
             }
-            return variables_.size() - 1;
+            return static_cast<index_t>(variables_.size()) - 1;
         };
         if (options_.global_objective.has_value()) {
             objective_.bound_var = add_row();
@@ -352,7 +352,7 @@ auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
         objective_.var = add_row();
     }
 
-    for (size_t i = 0; i < n_basic_; ++i) {
+    for (index_t i = 0; i < n_basic_; ++i) {
         enqueue_(i);
     }
 
@@ -497,9 +497,9 @@ template <typename Value> void Solver<Value>::optimize() {
         auto z = variables_[objective_.var].reverse_index - n_non_basic_;
 
         // select entering variable x_e
-        index_t ee = variables_.size();
+        index_t ee = static_cast<index_t>(variables_.size());
         bool pos_a_ze = false;
-        tableau_.update_row(z, [&, this](int j, Integer const &a_zj, Integer const &d_z) {
+        tableau_.update_row(z, [&, this](index_t j, Integer const &a_zj, Integer const &d_z) {
             auto jj = variables_[j].index;
             if (jj < ee) {
                 auto &x_j = variables_[jj];
@@ -521,10 +521,10 @@ template <typename Value> void Solver<Value>::optimize() {
 
         // select leaving variable y_l
         auto &x_e = variables_[ee];
-        Value v_e;
+        auto v_e = Value{};
         auto e = x_e.reverse_index;
         assert(ee == variables_[e].index);
-        index_t ll = variables_.size();
+        index_t ll = static_cast<index_t>(variables_.size());
         Value const *bound_l = nullptr;
 
         tableau_.update_col(e, [&, this](index_t i, Integer const &a_ie, Integer const &d_i) {
@@ -973,7 +973,7 @@ auto Solver<Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v)
         if (lower || (xi.has_upper() && xi.value > xi.upper())) {
             conflict_clause_.clear();
             conflict_clause_.emplace_back(lower ? -xi.lower_bound->lit : -xi.upper_bound->lit);
-            index_t kk = variables_.size();
+            index_t kk = static_cast<index_t>(variables_.size());
             tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
                 auto jj = variables_[j].index;
                 // skip over the variable if we already have a better one
@@ -1045,7 +1045,7 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::PropagateInit 
 
     auto gather_vars = [this](std::vector<Term> const &terms) {
         for (auto const &term : terms) {
-            if (var_map_.emplace(term.var, var_map_.size()).second) {
+            if (var_map_.emplace(term.var, static_cast<index_t>(var_map_.size())).second) {
                 var_vec_.emplace_back(term.var);
             }
         }
@@ -1185,7 +1185,7 @@ auto Propagator<Value>::get_objective(index_t thread_id) const -> std::optional<
 
 template <typename Value> auto Propagator<Value>::n_values(index_t thread_id) const -> index_t {
     static_cast<void>(thread_id);
-    return var_vec_.size();
+    return static_cast<index_t>(var_vec_.size());
 }
 
 template class Solver<Rational>;

@@ -1,12 +1,12 @@
 #include <clingo-lpx/parsing.hh>
 #include <clingo-lpx/util.hh>
 
-#include <algorithm>
 #include <clingo/core.hh>
 #include <clingo/symbol.hh>
+
+#include <algorithm>
 #include <iterator>
 #include <optional>
-#include <regex>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -101,25 +101,30 @@ struct AS {
 
 [[nodiscard]] auto as_num(std::string_view name) -> std::optional<Rational> {
     assert(is_string(name));
-    auto const rgx = std::regex{"(-)?([0-9]+)(\\.([0-9]+))?"};
-    auto match = std::cmatch{};
-    if (!std::regex_match(name.begin() + 1, name.end() - 1, match, rgx)) {
+    name = name.substr(1, name.size() - 2);
+    bool negative = name.starts_with('-');
+    if (negative) {
+        name = name.substr(1);
+    }
+    auto dot = name.find('.');
+    auto lhs = (dot != std::string_view::npos) ? name.substr(0, dot) : name;
+    auto rhs = (dot != std::string_view::npos) ? name.substr(dot + 1) : "0";
+    auto is_digit = [](char c) { return c >= '0' && c <= '9'; };
+    if (lhs.empty() || rhs.empty() || !std::ranges::all_of(lhs, is_digit) || !std::ranges::all_of(rhs, is_digit)) {
         return std::nullopt;
     }
-    auto a = match[2].str();
-    if (match[4].matched) {
-        auto view = std::string_view{match[4].first, match[4].second};
-        auto ib = view.begin();
-        auto it = view.end();
-        for (; it != ib && *(it - 1) == '0'; --it) {
-        }
-        a.append(ib, it);
-        a.append("/1");
-        a.append(it - ib, '0');
+    std::string a = {lhs.begin(), lhs.end()};
+    if (auto dot = rhs.find_last_not_of('0'); dot != std::string_view::npos) {
+        rhs = rhs.substr(0, dot + 1);
+    }
+    if (!rhs.empty()) {
+        a.append(rhs.begin(), rhs.end());
+        a += "/1";
+        a.append(rhs.size(), '0');
     }
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
     Rational n{a, 10};
-    if (match[1].matched) {
+    if (negative) {
         n.neg();
     }
     n.canonicalize();

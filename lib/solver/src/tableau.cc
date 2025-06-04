@@ -185,12 +185,12 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
 }
 
 void Tableau::debug(char const *indent) const {
-    size_t m = rows_.size();
-    size_t n = cols_.size();
-    for (size_t i = 0; i < m; ++i) {
+    auto m = static_cast<index_t>(rows_.size());
+    auto n = static_cast<index_t>(cols_.size());
+    for (index_t i = 0; i < m; ++i) {
         std::cerr << indent;
         std::cerr << "y_" << i << " = ";
-        for (size_t j = 0; j < n; ++j) {
+        for (index_t j = 0; j < n; ++j) {
             if (j > 0) {
                 std::cerr << " + ";
             }

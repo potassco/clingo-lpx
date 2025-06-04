@@ -138,22 +138,22 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
         return false;
     }
 
-    auto get_symbol(size_t index) -> Clingo::Symbol override { return prop_.get_symbol(index - 1); }
+    auto get_symbol(size_t index) -> Clingo::Symbol override { return prop_.get_symbol(static_cast<index_t>(index - 1)); }
 
     auto has_value(uint32_t thread_id, size_t index) -> bool override {
-        return index > 0 && prop_.has_value(thread_id, index - 1);
+        return index > 0 && prop_.has_value(thread_id, static_cast<index_t>(index - 1));
     }
 
     auto get_value(Clingo::Library const &lib, uint32_t thread_id, size_t index) -> Clingo::Symbol override {
         ss_.str("");
-        ss_ << prop_.get_value(thread_id, index - 1);
+        ss_ << prop_.get_value(thread_id, static_cast<index_t>(index - 1));
         return Clingo::String(lib, ss_.view());
     }
 
     auto next(uint32_t thread_id, size_t &current) -> bool override {
         while (current < prop_.n_values(thread_id)) {
             ++current;
-            if (prop_.get_symbol(current - 1).type() != Clingo::SymbolType::number) {
+            if (prop_.get_symbol(static_cast<index_t>(current - 1)).type() != Clingo::SymbolType::number) {
                 return true;
             }
         }
@@ -166,9 +166,9 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
 
         for (size_t i = 0; next(thread_id, i);) {
             ss_.str("");
-            ss_ << prop_.get_value(thread_id, i - 1);
+            ss_ << prop_.get_value(thread_id, static_cast<index_t>(i - 1));
             symbols.emplace_back(
-                Clingo::Function(lib, "__lpx", {prop_.get_symbol(i - 1), Clingo::String(lib, ss_.view())}));
+                Clingo::Function(lib, "__lpx", {prop_.get_symbol(static_cast<index_t>(i - 1)), Clingo::String(lib, ss_.view())}));
         }
         auto objective = prop_.get_objective(thread_id);
         if (objective.has_value()) {
