@@ -95,7 +95,7 @@ endif()
 add_subdirectory(third_party)
 add_subdirectory(lib libclingo-lpx)
 if(CLINGOLPX_BUILD_APP)
-    #add_subdirectory(app)
+    add_subdirectory(app)
 endif()
 
 if(CLINGOLPX_INSTALL_DEFAULT)

@@ -23,10 +23,16 @@
 // }}}
 
 #include <clingo-lpx.h>
-#include <optional>
+
+#include <clingo/app.hh>
+#include <clingo/theory.hh>
+
 #ifdef CLINGOLPX_PROFILE
 #include <gperftools/profiler.h>
 #endif
+
+#include <iostream>
+#include <optional>
 
 namespace ClingoLPX {
 
@@ -44,134 +50,93 @@ class Profiler {
 
 #endif
 
-using Clingo::Detail::handle_error;
-
-//! Helper class to rewrite logic programs to use with the clingo DL theory.
-class Rewriter {
+//! Application class to run clingo-dl.
+class App : public Clingo::App, private Clingo::SolveEventHandler {
   public:
-    Rewriter(clingolpx_theory_t *theory, clingo_program_builder_t *builder) : theory_{theory}, builder_{builder} {}
-
-    //! Rewrite the given files.
-    void rewrite(Clingo::Control &control, Clingo::StringSpan files) {
-        Clingo::Detail::handle_error(
-            clingo_ast_parse_files(files.begin(), files.size(), rewrite_, this, control.to_c(), nullptr, nullptr, 0));
-    }
-
-    //! Rewrite the given program.
-    void rewrite(Clingo::Control &control, char const *str) {
-        Clingo::Detail::handle_error(clingo_ast_parse_string(str, rewrite_, this, control.to_c(), nullptr, nullptr, 0));
-    }
-
-  private:
-    //! C callback to add a statement using the builder.
-    static auto add_(clingo_ast_t *stm, void *data) -> bool {
-        auto *self = static_cast<Rewriter *>(data);
-        return clingo_program_builder_add(self->builder_, stm);
-    }
-
-    //! C callback to rewrite a statement and add it via the builder.
-    static auto rewrite_(clingo_ast_t *stm, void *data) -> bool {
-        auto *self = static_cast<Rewriter *>(data);
-        return clingolpx_rewrite_ast(self->theory_, stm, add_, self);
-    }
-
-    clingolpx_theory_t *theory_;        //!< A theory handle to rewrite statements.
-    clingo_program_builder_t *builder_; //!< The builder to add rewritten statements to.
-};
-
-//! Application class to run clingo-lpx.
-class App : public Clingo::Application, private Clingo::SolveEventHandler {
-  public:
-    App() { handle_error(clingolpx_create(&theory_)); }
-    App(App const &) = default;
-    App(App &&) = default;
-    auto operator=(App const &) -> App & = default;
-    auto operator=(App &&) -> App & = default;
-    ~App() override { clingolpx_destroy(theory_); }
-    //! Set program name to clingo-lpx.
-    [[nodiscard]] auto program_name() const noexcept -> char const * override { return "clingo-lpx"; }
+    App(Clingo::Library const &lib) : lib_{lib} {}
+    App(App &&other) = delete;
+    //! Set program name to clingo-dl.
+    auto do_program_name() noexcept -> std::string_view override { return "clingo-dl"; }
     //! Set the version.
-    [[nodiscard]] auto version() const noexcept -> char const * override { return CLINGOLPX_VERSION; }
-    void print_model(Clingo::Model const &model, std::function<void()> default_printer) noexcept override {
-        static_cast<void>(default_printer);
-        try {
-            auto symbols = model.symbols();
-            std::sort(symbols.begin(), symbols.end());
-            bool comma = false;
-            for (auto const &sym : symbols) {
-                if (comma) {
-                    std::cout << " ";
-                }
-                std::cout << sym;
-                comma = true;
-            }
-            std::cout << "\nAssignment:\n";
-            symbols = model.symbols(Clingo::ShowType::Theory);
-            std::sort(symbols.begin(), symbols.end());
-            comma = false;
-            std::optional<std::pair<Clingo::Symbol, bool>> objective;
-            for (auto const &sym : symbols) {
-                if (sym.match("__lpx", 2) && sym.arguments().back().type() == Clingo::SymbolType::String) {
-                    if (comma) {
-                        std::cout << " ";
-                    }
-                    auto args = sym.arguments();
-                    std::cout << args.front() << "=" << args.back().string();
-                    comma = true;
-                } else if (sym.match("__lpx_objective", 2) &&
-                           sym.arguments().front().type() == Clingo::SymbolType::String &&
-                           sym.arguments().back().type() == Clingo::SymbolType::Number) {
-                    auto args = sym.arguments();
-                    objective = std::make_pair(args.front(), args.back() == Clingo::Number(1));
-                }
-            }
-            if (objective.has_value()) {
-                std::cout << "\nOptimization: " << objective->first.string() << " ["
-                          << (objective->second ? "bounded" : "unbounded") << "]";
-            }
-            std::cout << std::endl;
-        } catch (...) {
-        }
-    }
+    auto do_version() noexcept -> std::string_view override { return CLINGOLPX_VERSION; }
     //! Pass models to the theory.
-    auto on_model(Clingo::Model &model) -> bool override {
-        handle_error(clingolpx_on_model(theory_, model.to_c()));
+    auto do_model(Clingo::Model model) -> bool override {
+        theory_.model(model);
         return true;
     }
     //! Pass statistics to the theory.
-    void on_statistics(Clingo::UserStatistics step, Clingo::UserStatistics accu) override {
-        handle_error(clingolpx_on_statistics(theory_, step.to_c(), accu.to_c()));
-    }
+    void do_stats(Clingo::Stats step, Clingo::Stats accu) override { theory_.stats(step, accu); }
+
     //! Run main solving function.
-    void main(Clingo::Control &ctl, Clingo::StringSpan files) override { // NOLINT(bugprone-exception-escape)
-        handle_error(clingolpx_register(theory_, ctl.to_c()));
-
-        Clingo::AST::with_builder(ctl, [&](Clingo::AST::ProgramBuilder &builder) {
-            Rewriter rewriter{theory_, builder.to_c()};
-            rewriter.rewrite(ctl, files);
-        });
-
-        ctl.ground({{"base", {}}});
+    void do_main(Clingo::Control const &ctl, Clingo::StringSpan files) override { // NOLINT
+        theory_.register_theory(ctl);
+        theory_.rewrite(lib_, ctl, files);
+        ctl.ground();
+        theory_.prepare(ctl);
 #ifdef CLINGOLPX_PROFILE
         Profiler prof{"clingo-lpx-solve.prof"};
 #endif
-        ctl.solve(Clingo::SymbolicLiteralSpan{}, this, false, false).get();
+        std::ignore = ctl.solve(*this).get();
     }
+
     //! Register options of the theory and optimization related options.
-    void register_options(Clingo::ClingoOptions &options) override {
-        handle_error(clingolpx_register_options(theory_, options.to_c()));
+    void do_register_options(Clingo::Options options) override {
+        using namespace std::string_view_literals;
+        theory_.register_options(options);
     }
     //! Validate options of the theory.
-    void validate_options() override { handle_error(clingolpx_validate_options(theory_)); }
+    void do_validate_options() override { theory_.validate_options(); }
+
+    //! Print models with their assignments.
+    void do_print_model(Clingo::ConstModel model, [[maybe_unused]] Clingo::ModelPrinter const &printer) override {
+        auto symbols = model.symbols();
+        std::sort(symbols.begin(), symbols.end());
+        bool comma = false;
+        for (auto const &sym : symbols) {
+            if (comma) {
+                std::cout << " ";
+            }
+            std::cout << sym;
+            comma = true;
+        }
+        std::cout << "\nAssignment:\n";
+        symbols = model.symbols(Clingo::ShowFlags::theory);
+        std::sort(symbols.begin(), symbols.end());
+        comma = false;
+        std::optional<std::pair<Clingo::Symbol, bool>> objective;
+        for (auto const &sym : symbols) {
+            if (sym.match("__lpx", 2) && sym.arguments().back().type() == Clingo::SymbolType::string) {
+                if (comma) {
+                    std::cout << " ";
+                }
+                auto args = sym.arguments();
+                std::cout << args.front() << "=" << args.back().string();
+                comma = true;
+            } else if (sym.match("__lpx_objective", 2) &&
+                       sym.arguments().front().type() == Clingo::SymbolType::string &&
+                       sym.arguments().back().type() == Clingo::SymbolType::number) {
+                auto args = sym.arguments();
+                objective = std::make_pair(args.front(), args.back() == Clingo::Number(1));
+            }
+        }
+        if (objective.has_value()) {
+            std::cout << "\nOptimization: " << objective->first.string() << " ["
+                      << (objective->second ? "bounded" : "unbounded") << "]";
+        }
+        std::cout << std::endl;
+    }
 
   private:
-    clingolpx_theory_t *theory_{nullptr}; //!< The underlying DL theory.
+    Clingo::Library lib_;
+    Clingo::Theory theory_{lib_, clingolpx_create};
 };
 
 } // namespace ClingoLPX
 
-//! Run the clingo-lpx application.
+//! Run the clingo-dl application.
 auto main(int argc, char *argv[]) -> int { // NOLINT(bugprone-exception-escape)
-    ClingoLPX::App app;
-    return Clingo::clingo_main(app, {argv + 1, static_cast<size_t>(argc - 1)});
+    Clingo::Library lib;
+    ClingoLPX::App app{lib};
+    auto args = std::vector<std::string_view>{argv + 1, argv + argc};
+    return Clingo::main(lib, args, &app);
 }
