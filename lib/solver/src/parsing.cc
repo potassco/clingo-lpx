@@ -435,7 +435,6 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
             }
             auto rhs = simplify(cos, lhs);
             auto lit = mapper(atom.literal());
-            printf("  guard: %.*s\n", (int)guard->first.size(), guard->first.data());
             iqs.emplace_back(Inequality{std::move(lhs), std::move(rhs), evaluate_cmp(guard->first), lit});
         } else if (match(name, "minimize", 0) || match(name, "maximize", 0)) {
             auto lhs = parse_sum_elems(lib, mapper, var_map, iqs, atom.elements());

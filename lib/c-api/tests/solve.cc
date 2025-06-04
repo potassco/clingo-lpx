@@ -187,7 +187,7 @@ bound(104).
         return result;
     }
 
-    void print(RV const &result) {
+    [[maybe_unused]] void print(RV const &result) {
         for (auto const &[ass, syms] : result) {
             std::cerr << "solution:\n";
             std::cerr << "  symbols:";
@@ -298,7 +298,6 @@ TEST_CASE_METHOD(Fixture, "solving sat") {
     theory.rewrite(lib, ctl, "&sum{5} " + guard + ".\n");
     ctl.ground();
     auto result = solve(ctl);
-    print(result);
     REQUIRE(result == RV{{{}, {}}});
     REQUIRE(ctl.stats()["solving"]["solvers"]["choices"].value() == 0);
 }

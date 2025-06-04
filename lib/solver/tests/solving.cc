@@ -60,12 +60,9 @@ auto run_o(char const *s, bool global = false, long c = 0, long k = 0) -> std::o
     ctl.parse_string(s);
     ctl.ground();
 
-    printf("run_o\n");
     if (!ctl.solve(shm).get().satisfiable()) {
-        printf("  not satisfiable\n");
         return std::nullopt;
     }
-    printf("  get objective\n");
     return shm.get_objective();
 }
 

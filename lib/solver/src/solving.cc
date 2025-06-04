@@ -280,7 +280,6 @@ auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
 
         // check bound against 0
         if (row.empty()) {
-            printf("empty row?????????????????????\n");
             if (!master) {
                 continue;
             }
