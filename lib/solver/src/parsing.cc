@@ -108,7 +108,7 @@ struct AS {
     }
     auto a = match[2].str();
     if (match[4].matched) {
-        auto view = std::string_view{};
+        auto view = std::string_view{match[4].first, match[4].second};
         auto ib = view.begin();
         auto it = view.end();
         for (; it != ib && *(it - 1) == '0'; --it) {
@@ -322,7 +322,6 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
             res.emplace_back(Term{std::move(co) / rhs, var});
         }
     } else if (is_string(term)) {
-        printf("got here!!!\n");
         if (auto num = as_num(term.name())) {
             res.emplace_back(Term{*num, Clingo::Number(0)});
         } else {
@@ -431,6 +430,7 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
             }
             auto rhs = simplify(cos, lhs);
             auto lit = mapper(atom.literal());
+            printf("  guard: %.*s\n", (int)guard->first.size(), guard->first.data());
             iqs.emplace_back(Inequality{std::move(lhs), std::move(rhs), evaluate_cmp(guard->first), lit});
         } else if (match(name, "minimize", 0) || match(name, "maximize", 0)) {
             auto lhs = parse_sum_elems(lib, mapper, var_map, iqs, atom.elements());

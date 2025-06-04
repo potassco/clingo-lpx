@@ -9,7 +9,6 @@
 #include <clingo/core.hh>
 
 #include <deque>
-#include <mutex>
 #include <optional>
 #include <queue>
 #include <shared_mutex>
@@ -61,11 +60,7 @@ template <typename Value> class ObjectiveState {
     auto value(size_t &generation) -> std::optional<std::pair<Value, bool>>;
 
   private:
-#ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::shared_mutex mutex_;
-#else
-    std::mutex mutex_;
-#endif
     Value value_;
     size_t generation_ = 0;
     bool bounded_{true};

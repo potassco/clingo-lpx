@@ -98,8 +98,7 @@ if(CLINGOLPX_BUILD_APP)
     #add_subdirectory(app)
 endif()
 
-#if(CLINGOLPX_INSTALL_DEFAULT)
-if(OFF)
+if(CLINGOLPX_INSTALL_DEFAULT)
     configure_package_config_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/clingo-lpx-config.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/clingo-lpx-config.cmake"

@@ -27,7 +27,7 @@ all: configure
 	@TERM=dumb MAKEFLAGS= MFLAGS= cmake --build "build/$(BUILD_TYPE)" --target all
 
 test: all
-	@TERM=dumb MAKEFLAGS= MFLAGS= cmake --build "build/$(BUILD_TYPE)" --target "test"
+	ctest --test-dir "build/$(BUILD_TYPE)" --output-on-failure
 
 %: configure
 	@TERM=dumb MAKEFLAGS= MFLAGS= cmake --build "build/$(BUILD_TYPE)" --target "$@"

@@ -1,20 +1,13 @@
 #include <clingo-lpx/parsing.hh>
 #include <clingo-lpx/solving.hh>
 
-#include <climits>
 #include <clingo/core.hh>
 #include <clingo/stats.hh>
-#include <cmath>
 #include <cstddef>
 #include <exception>
-#include <functional>
-#include <memory>
 #include <optional>
 #include <ostream>
-#include <sstream>
-#include <stdexcept>
 #include <tuple>
-#include <unordered_set>
 #include <utility>
 
 namespace ClingoLPX {
@@ -40,11 +33,7 @@ template <typename Value> void ObjectiveState<Value>::reset() {
 }
 
 template <typename Value> void ObjectiveState<Value>::update(std::pair<Value, bool> value) {
-#ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::unique_lock<std::shared_mutex> lock{mutex_};
-#else
-    std::unique_lock<std::mutex> lock{mutex_};
-#endif
     if (bounded_ && (!value.second || generation_ == 0 || value.first > value_)) {
         ++generation_;
         value_ = std::move(value.first);
@@ -54,11 +43,7 @@ template <typename Value> void ObjectiveState<Value>::update(std::pair<Value, bo
 
 template <typename Value>
 auto ObjectiveState<Value>::value(size_t &generation) -> std::optional<std::pair<Value, bool>> {
-#ifndef CLINGOLPX_NO_SHARED_MUTEX
     std::shared_lock<std::shared_mutex> lock{mutex_};
-#else
-    std::unique_lock<std::mutex> lock{mutex_};
-#endif
     if (generation != generation_) {
         generation = generation_;
         return std::make_pair(value_, bounded_);
@@ -294,30 +279,31 @@ auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
 
         // check bound against 0
         if (row.empty()) {
+            printf("empty row?????????????????????\n");
             if (!master) {
                 continue;
             }
             switch (x.rel) {
                 case Relation::Less: {
-                    if (x.rhs >= 0 && !init.add_clause({-x.lit})) {
-                        return false;
-                    }
-                    break;
-                }
-                case Relation::LessEqual: {
-                    if (x.rhs > 0 && !init.add_clause({-x.lit})) {
-                        return false;
-                    }
-                    break;
-                }
-                case Relation::Greater: {
                     if (x.rhs <= 0 && !init.add_clause({-x.lit})) {
                         return false;
                     }
                     break;
                 }
-                case Relation::GreaterEqual: {
+                case Relation::LessEqual: {
                     if (x.rhs < 0 && !init.add_clause({-x.lit})) {
+                        return false;
+                    }
+                    break;
+                }
+                case Relation::Greater: {
+                    if (x.rhs >= 0 && !init.add_clause({-x.lit})) {
+                        return false;
+                    }
+                    break;
+                }
+                case Relation::GreaterEqual: {
+                    if (x.rhs > 0 && !init.add_clause({-x.lit})) {
                         return false;
                     }
                     break;
