@@ -35,7 +35,7 @@ target_sources(clingo-lpx PRIVATE ${header} ${source})
 target_include_directories(clingo-lpx PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-target_link_libraries(clingo-lpx PRIVATE clingo-lpx-solver)
+target_link_libraries(clingo-lpx PUBLIC clingo::clingo PRIVATE clingo-lpx-solver)
 if(CLINGOLPX_USE_VISIBILITY)
     target_compile_definitions(clingo-lpx PRIVATE "$<BUILD_INTERFACE:CLINGOLPX_BUILD_LIBRARY>")
 else()

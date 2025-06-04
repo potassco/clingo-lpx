@@ -1,15 +1,11 @@
 BUILD_TYPE:=debug
-#CLINGO_DIR:=${HOME}/.local/opt/potassco/$(BUILD_TYPE)/lib/cmake/Clingo
-CXX=clang++
-CXXFLAGS=-Wall -Wextra -Wpedantic -Werror -stdlib=libc++
+POTASSCO_PREFIX:=${HOME}/.local/opt/potassco/$(BUILD_TYPE)
+CXXFLAGS=-Wall -Wextra -Wpedantic -Werror
 define cmake_options
--G Ninja \
 -S . \
 -B "build/$(BUILD_TYPE)" \
--DCMAKE_INSTALL_PREFIX=${HOME}/.local/opt/potassco/$(BUILD_TYPE) \
+-DCMAKE_INSTALL_PREFIX="$(POTASSCO_PREFIX)" \
 -DCMAKE_CXX_FLAGS="$(CXXFLAGS)" \
--DCMAKE_CXX_COMPILER="$(CXX)" \
--DClingo_DIR="$(CLINGO_DIR)" \
 -DCLINGOLPX_BUILD_TESTS=On \
 -DCMAKE_EXPORT_COMPILE_COMMANDS=On
 endef
@@ -24,21 +20,20 @@ endif
 .PHONY: all configure compdb
 
 all: configure
-	@TERM=dumb MAKEFLAGS= MFLAGS= cmake --build "build/$(BUILD_TYPE)" --target all
+	$(MAKE) -C "build/$(BUILD_TYPE)"
 
 test: all
 	ctest --test-dir "build/$(BUILD_TYPE)" --output-on-failure
 
 %: configure
-	@TERM=dumb MAKEFLAGS= MFLAGS= cmake --build "build/$(BUILD_TYPE)" --target "$@"
+	$(MAKE) -C "build/$(BUILD_TYPE)" "$@"
 
-# compdb can be installed with pip
 compdb: configure
 	compdb -p "build/$(BUILD_TYPE)" list -1 > compile_commands.json
 
-configure: build/$(BUILD_TYPE)/build.ninja
+configure: build/$(BUILD_TYPE)/Makefile
 
-build/$(BUILD_TYPE)/build.ninja:
+build/$(BUILD_TYPE)/Makefile:
 	cmake $(cmake_options)
 
 Makefile:

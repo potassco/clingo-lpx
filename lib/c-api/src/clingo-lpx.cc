@@ -267,11 +267,11 @@ auto parse_store(char const *value, size_t size, void *data, bool *result) -> bo
         auto str = std::string_view{value, size};
         auto &options = *static_cast<Options *>(data);
         *result = true;
-        if (iequals(value, "no")) {
+        if (iequals(str, "no")) {
             options.store_sat_assignment = StoreSATAssignments::No;
-        } else if (iequals(value, "partial")) {
+        } else if (iequals(str, "partial")) {
             options.store_sat_assignment = StoreSATAssignments::Partial;
-        } else if (iequals(value, "total")) {
+        } else if (iequals(str, "total")) {
             options.store_sat_assignment = StoreSATAssignments::Total;
         } else {
             *result = false;

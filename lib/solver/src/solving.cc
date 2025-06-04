@@ -5,6 +5,7 @@
 #include <clingo/stats.hh>
 #include <cstddef>
 #include <exception>
+#include <mutex>
 #include <optional>
 #include <ostream>
 #include <tuple>

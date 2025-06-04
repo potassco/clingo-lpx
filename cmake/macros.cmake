@@ -17,8 +17,6 @@ function(clingolpx_target_properties)
         set(library_subdir "${library_subdir}/$<CONFIG>")
     endif()
 
-    message(STATUS "folder: ${clingolpx_TARGETS}, targets: ${clingolpx_TARGETS}")
-
     if(clingolpx_FOLDER)
         set_target_properties(${clingolpx_TARGETS} PROPERTIES
             FOLDER "${clingolpx_FOLDER}"

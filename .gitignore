@@ -11,5 +11,6 @@ doc/*.synctex.gz
 *.so
 *.prof
 .cache
+.venv
 __pycache__
 _skbuild
