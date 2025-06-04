@@ -36,9 +36,9 @@ jobs:
         with:
           miniforge-version: latest
           channel-priority: strict
-          use-mamba: true
           environment-file: .github/test-environment.yml
           activate-environment: test-env
+          auto-update-conda: true
 
       - name: Configure
         run: |
