@@ -14,3 +14,4 @@ doc/*.synctex.gz
 .venv
 __pycache__
 _skbuild
+dist
