@@ -1,58 +1,61 @@
-name: tests
+name: CI
 
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+      - wip
+      - master-20
+  pull_request:
 
 jobs:
-  build:
-    name: clingo-lpx ${{ matrix.python-version }} ${{ matrix.os }}
+  build-test:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ['ubuntu-latest', 'macos-latest', 'windows-latest']
-        python-version: ['3.10']
         include:
-          - os: 'ubuntu-latest'
-            generator: 'Ninja'
-            build_type: 'Debug'
-            env_file: '.github/linux-env.yml'
-          - os: 'macos-latest'
-            generator: 'Ninja'
-            build_type: 'Debug'
-            env_file: '.github/macos-env.yml'
-          - os: 'windows-latest'
-            generator: 'Visual Studio 17 2022'
-            build_type: 'Release'
-            env_file: '.github/windows-env.yml'
+          - os: ubuntu-latest
+            generator: "Ninja Multi-Config"
+          - os: macos-latest
+            generator: "Ninja Multi-Config"
+          - os: windows-latest
+            generator: "Visual Studio 17 2022"
+    defaults:
+      run:
+        shell: bash -l {0}
 
     steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: recursive
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: setup miniconda
-      uses: conda-incubator/setup-miniconda@v3
-      with:
-        auto-update-conda: true
-        activate-environment: clingo-lpx
-        python-version: ${{ matrix.python-version }}
-        environment-file: ${{ matrix.env_file }}
+      - name: Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          channel-priority: strict
+          use-mamba: true
+          environment-file: .github/test-environment.yml
+          activate-environment: test-env
 
-    - name: print info
-      shell: bash -l {0}
-      run: |
-        env
-        conda info
-        conda list
+      - name: Configure
+        run: |
+          cmake -S . -B build -G "${{ matrix.generator }}" \
+            -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" \
+            -DCLINGOLPX_BUILD_TESTS=On \
+            -DCLINGOLPX_BUILD_APP=On
 
-    - name: build and test
-      shell: bash -l {0}
-      run: >
-        ctest
-        --build-config "${{ matrix.build_type }}"
-        --build-generator "${{ matrix.generator }}"
-        --build-and-test . build
-        --build-options -DCLINGOLPX_BUILD_TESTS=On
-        --test-command ctest -V --build-config "${{ matrix.build_type }}"
+      - name: Build
+        run: |
+          cmake --build build --config Release
+
+      - name: Test
+        run: |
+          ctest --test-dir build -C Release --output-on-failure
+
+      - name: Install
+        run: |
+          cmake --install build --config Release
+          clingo-dl --version
