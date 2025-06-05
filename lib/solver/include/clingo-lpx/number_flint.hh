@@ -248,7 +248,7 @@ inline auto Integer::as_int() const -> std::optional<int> {
     if (fmpz_fits_si(&num_)) {
         if (auto res = fmpz_get_si(&num_);
             std::numeric_limits<int>::min() <= res && res <= std::numeric_limits<int>::max()) {
-            return res;
+            return static_cast<int>(res);
         }
     }
     return std::nullopt;
