@@ -8,11 +8,11 @@ import os
 import sys
 import argparse
 
-REPO = "clingo-dl"
+REPO = "clingo-lpx"
 OWNER = "potassco"
 API_URL = f"https://api.github.com/repos/{OWNER}/{REPO}"
 TOKEN_FILE = os.path.expanduser("~/.tokens")
-WORKFLOW_ID_CONDA = "165699066"
+WORKFLOW_ID_CONDA = "166422611"
 
 
 def get_token():
@@ -72,7 +72,7 @@ def main():
     Run the script.
     """
     parser = argparse.ArgumentParser(
-        description="Trigger GitHub Actions workflows for clingo-dl."
+        description=f"Trigger GitHub Actions workflows for {REPO}."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
