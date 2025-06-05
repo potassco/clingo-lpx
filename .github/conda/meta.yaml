@@ -18,9 +18,11 @@ requirements:
   - pytest
   - python
   - clingo>=6
+  - libflint
   run:
   - python
   - {{ pin_compatible('clingo', max_pin='x.x') }}
+  - libflint
 
 build:
   number: {{ build }}
