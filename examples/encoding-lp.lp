@@ -9,7 +9,16 @@ seq((T2,ST2),(T1,ST1),Time2) :- assign(T1,ST1,M), assign(T2,ST2,M), T1<T2, execu
 
 &sum { T1; -T2 } <= -Time :- seq(T1,T2,Time).
 
-&sum { (T,M) } >= 0 :- task(T), machine(M), bound(B).
+&sum { (T,M) } >= 0 :- task(T), machine(M).
+
+#program bound.
+
 &sum { (T,M) } <= B :- task(T), machine(M), bound(B).
 
+#program objective.
+
+&sum { (T,M) } <= bound :- task(T), machine(M).
+&minimize { bound }.
+
+#parts base, bound.
 #show seq/3.

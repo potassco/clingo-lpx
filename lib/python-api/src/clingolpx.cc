@@ -1,5 +1,6 @@
 #include <clingo-lpx.h>
 
+#include <pybind11/eval.h>
 #include <pybind11/pybind11.h>
 
 namespace PyClingoLPX {
@@ -10,11 +11,130 @@ auto create_theory() -> pybind11::object {
     return pybind11::capsule{reinterpret_cast<void *>(&clingolpx_create), "clingo_theory_create"};
 }
 
+auto main() {
+    pybind11::exec(
+        R"py(
+import sys
+from sys import stdout
+from typing import Callable, Sequence
+
+from clingo.app import App, AppOptions, clingo_main
+from clingo.core import Library
+from clingo.control import Control, ControlMode
+from clingo.symbol import SymbolType
+from clingo.theory import Theory
+from clingo.solve import Model
+from clingo.stats import Stats
+from clingo import ast
+
+from clingolpx import create_theory
+
+
+class ClingoLPXApp(App):
+    def __init__(self, lib: Library):
+        theory = Theory(lib, create_theory())
+        major, minor, revision = theory.version
+        super().__init__(theory.name, f"{major}.{minor}.{revision}")
+        self._lib = lib
+        self._theory = theory
+
+    def main(self, control: Control, files: Sequence[str]) -> None:
+        """
+        Run the main execution flow of the application.
+        """
+        self._theory.register(control)
+        self._theory.rewrite_files(self._lib, control, files)
+        if control.mode == ControlMode.Solve:
+            control.ground()
+            theory.prepare(control)
+            with control.solve(on_model=self._on_model, on_stats=self._on_stats) as hnd:
+                hnd.get()
+        else:
+            control.main()
+
+    def print_model(self, model: Model, default_printer: Callable[[], None]) -> None:
+        """
+        Print the given model in a custom format.
+        """
+        syms = sorted(model.symbols(shown=True))
+        cost = None
+
+        # print symbols
+        comma = False
+        for sym in syms:
+            if not sym.match("__lpx", 2) and not sym.match("__lpx_objective", 2):
+                if comma:
+                    stdout.write(" ")
+                else:
+                    comma = True
+                stdout.write(str(sym))
+
+        # print assignment
+        stdout.write("\nAssignment:\n")
+        comma = False
+        for sym in syms:
+            if sym.match("__lpx", 2):
+                key, val = sym.arguments
+                if comma:
+                    stdout.write(" ")
+                else:
+                    comma = True
+                stdout.write(str(key))
+                stdout.write("=")
+                stdout.write(str(val))
+            if sym.match("__lpx_objective", 2):
+                cost = sym.arguments
+        stdout.write("\n")
+
+        # print costs
+        if cost is not None:
+            val, typ = cost
+            stdout.write("Cost: ")
+            if val.type == SymbolType.String:
+                stdout.write(val.string)
+            else:
+                stdout.write(str(val))
+            bounded = typ.type == SymbolType.Number and typ.number == 1
+            stdout.write(f" [{'bounded' if bounded else 'unbounded'}]")
+            stdout.write("\n")
+
+        stdout.flush()
+
+    def register_options(self, options: AppOptions) -> None:
+        """
+        Register command-line options for the application.
+        """
+        self._theory.register_options(options)
+
+    def validate_options(self) -> None:
+        """
+        Validate the options passed to the application.
+        """
+        self._theory.validate_options()
+
+    def _on_model(self, model: Model):
+        self._theory.on_model(model)
+
+    def _on_stats(self, step: Stats, accu: Stats):
+        self._theory.on_stats(step, accu)
+
+
+def run():
+    lib = Library()
+    app = ClingoLPXApp(lib)
+    clingo_main(lib, sys.argv[1:], app)
+
+
+run()
+)py");
+}
+
 } // namespace
 
 void register_clingolpx(pybind11::module &m) {
-    m.doc() = R"doc(TODO)doc";
-    m.def("create_theory", create_theory, R"(TODO)");
+    m.doc() = R"doc(The clingo-lpx python module.)doc";
+    m.def("create_theory", create_theory, R"(Get the theory constructor.)");
+    m.def("main", main, R"(Run clingo-lpx.)");
 }
 
 } // namespace PyClingoLPX

@@ -50,13 +50,13 @@ class Profiler {
 
 #endif
 
-//! Application class to run clingo-dl.
+//! Application class to run clingo-lpx.
 class App : public Clingo::App, private Clingo::SolveEventHandler {
   public:
     App(Clingo::Library const &lib) : lib_{lib} {}
     App(App &&other) = delete;
     //! Set program name to clingo-dl.
-    auto do_program_name() noexcept -> std::string_view override { return "clingo-dl"; }
+    auto do_program_name() noexcept -> std::string_view override { return "clingo-lpx"; }
     //! Set the version.
     auto do_version() noexcept -> std::string_view override { return CLINGOLPX_VERSION; }
     //! Pass models to the theory.
@@ -71,12 +71,16 @@ class App : public Clingo::App, private Clingo::SolveEventHandler {
     void do_main(Clingo::Control const &ctl, Clingo::StringSpan files) override { // NOLINT
         theory_.register_theory(ctl);
         theory_.rewrite(lib_, ctl, files);
-        ctl.ground();
-        theory_.prepare(ctl);
+        if (ctl.mode() == Clingo::ControlMode::solve) {
+            ctl.ground();
+            theory_.prepare(ctl);
 #ifdef CLINGOLPX_PROFILE
-        Profiler prof{"clingo-lpx-solve.prof"};
+            Profiler prof{"clingo-lpx-solve.prof"};
 #endif
-        std::ignore = ctl.solve(*this).get();
+            std::ignore = ctl.solve(*this).get();
+        } else {
+            ctl.main();
+        }
     }
 
     //! Register options of the theory and optimization related options.
@@ -93,15 +97,15 @@ class App : public Clingo::App, private Clingo::SolveEventHandler {
         std::sort(symbols.begin(), symbols.end());
         bool comma = false;
         for (auto const &sym : symbols) {
-            if (comma) {
-                std::cout << " ";
+            if (!sym.match("__lpx", 2) && !sym.match("__lpx_objective", 2)) {
+                if (comma) {
+                    std::cout << " ";
+                }
+                std::cout << sym;
+                comma = true;
             }
-            std::cout << sym;
-            comma = true;
         }
         std::cout << "\nAssignment:\n";
-        symbols = model.symbols(Clingo::ShowFlags::theory);
-        std::sort(symbols.begin(), symbols.end());
         comma = false;
         std::optional<std::pair<Clingo::Symbol, bool>> objective;
         for (auto const &sym : symbols) {

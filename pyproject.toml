@@ -3,8 +3,8 @@ name = "clingo-lpx"
 version = "1.3.0"
 dependencies = ["clingo"]
 
-# [project.scripts]
-# pyclingo = "clingo.app:_pyclingodl"
+[project.scripts]
+pyclingo-lpx = "clingolpx.main"
 
 [build-system]
 requires = ["scikit-build-core", "pybind11", "clingo"]
