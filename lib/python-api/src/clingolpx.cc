@@ -18,15 +18,14 @@ import sys
 from sys import stdout
 from typing import Callable, Sequence
 
+from clingo import ast
 from clingo.app import App, AppOptions, clingo_main
-from clingo.core import Library
 from clingo.control import Control, ControlMode
+from clingo.core import Library
+from clingo.script import enable_python
+from clingo.solve import Model
 from clingo.symbol import SymbolType
 from clingo.theory import Theory
-from clingo.solve import Model
-from clingo.stats import Stats
-from clingo import ast
-
 from clingolpx import create_theory
 
 
@@ -37,6 +36,7 @@ class ClingoLPXApp(App):
         super().__init__(theory.name, f"{major}.{minor}.{revision}")
         self._lib = lib
         self._theory = theory
+        globals()["THEORY"] = theory
 
     def main(self, control: Control, files: Sequence[str]) -> None:
         """
@@ -44,13 +44,16 @@ class ClingoLPXApp(App):
         """
         self._theory.register(control)
         self._theory.rewrite_files(self._lib, control, files)
-        if control.mode == ControlMode.Solve:
-            control.ground()
-            theory.prepare(control)
-            with control.solve(on_model=self._on_model, on_stats=self._on_stats) as hnd:
-                hnd.get()
-        else:
+
+        if control.mode != ControlMode.Solve or "main" in globals():
             control.main()
+        else:
+            control.ground()
+            self._theory.prepare(control)
+            with control.solve(
+                on_model=self._theory.on_model, on_stats=self._theory.on_stats
+            ) as hnd:
+                hnd.get()
 
     def print_model(self, model: Model, default_printer: Callable[[], None]) -> None:
         """
@@ -112,15 +115,10 @@ class ClingoLPXApp(App):
         """
         self._theory.validate_options()
 
-    def _on_model(self, model: Model):
-        self._theory.on_model(model)
-
-    def _on_stats(self, step: Stats, accu: Stats):
-        self._theory.on_stats(step, accu)
-
 
 def run():
     lib = Library()
+    enable_python(lib)
     app = ClingoLPXApp(lib)
     clingo_main(lib, sys.argv[1:], app)
 
