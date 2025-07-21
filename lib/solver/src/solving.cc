@@ -1,5 +1,6 @@
 #include <clingo-lpx/parsing.hh>
 #include <clingo-lpx/solving.hh>
+#include <clingo-lpx/util.hh>
 
 #include <clingo/core.hh>
 #include <clingo/stats.hh>
@@ -264,11 +265,9 @@ template <typename Value> auto Solver<Value>::get_objective() const -> std::opti
 }
 
 template <typename Value>
-auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbols,
+auto Solver<Value>::prepare(Clingo::Assignment ass, Clingo::PropagateInit init, SymbolMap const &symbols,
                             std::vector<Inequality> const &inequalities, std::vector<Term> const &objective,
                             bool master) -> bool {
-    auto ass = init.assignment();
-
     Prepare prep{*this, symbols};
     for (auto const &x : inequalities) {
         if (ass.is_false(x.lit)) {
@@ -582,8 +581,8 @@ template <typename Value> void Solver<Value>::store_sat_assignment() {
     assignment_trail_.clear();
 }
 
-template <typename Value> auto Solver<Value>::update_bound_(Clingo::PropagateControl &ctl, Bound const &bound) -> bool {
-    auto ass = ctl.assignment();
+template <typename Value>
+auto Solver<Value>::update_bound_(Clingo::Assignment ass, Clingo::PropagateControl ctl, Bound const &bound) -> bool {
     auto &x = variables_[bound.variable];
     if (!x.update(*this, ass, bound)) {
         conflict_clause_.clear();
@@ -604,7 +603,7 @@ template <typename Value> auto Solver<Value>::update_bound_(Clingo::PropagateCon
     return true;
 }
 
-template <typename Value> auto Solver<Value>::assert_bound_(Clingo::PropagateControl &ctl, Value value) -> bool {
+template <typename Value> auto Solver<Value>::assert_bound_(Clingo::PropagateControl ctl, Value value) -> bool {
     // Adds a new bound associated with a new literal that is made true by a
     // unit clause. This ensures that the solver takes care of backtracking and
     // reasserting the literal.
@@ -617,7 +616,7 @@ template <typename Value> auto Solver<Value>::assert_bound_(Clingo::PropagateCon
 }
 
 template <typename Value>
-auto Solver<Value>::integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state) -> bool {
+auto Solver<Value>::integrate_objective(Clingo::PropagateControl ctl, ObjectiveState<Value> &state) -> bool {
     // Here we discard bounded solutions by asserting that the objective value
     // is greater than the current bound + an epsilon value taken from the
     // configuration.
@@ -641,7 +640,7 @@ auto Solver<Value>::integrate_objective(Clingo::PropagateControl &ctl, Objective
                          std::move(value->first) + as_value(*options_.global_objective, static_cast<Value *>(nullptr)));
 }
 
-template <typename Value> auto Solver<Value>::discard_bounded(Clingo::PropagateControl &ctl) -> bool {
+template <typename Value> auto Solver<Value>::discard_bounded(Clingo::PropagateControl ctl) -> bool {
     // Here we discard bounded solutions by asserting that the objective
     // is greater than the current optimal objective.
     if (!objective_ || !options_.global_objective.has_value() || !objective_.bounded || !objective_.discard_bounded) {
@@ -651,12 +650,12 @@ template <typename Value> auto Solver<Value>::discard_bounded(Clingo::PropagateC
 }
 
 template <typename Value>
-auto Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::SolverLiteralSpan lits) -> bool {
+auto Solver<Value>::solve(Clingo::Assignment ass, Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan lits)
+    -> bool {
     index_t i{0};
     index_t j{0};
     Value const *v{nullptr};
 
-    auto ass = ctl.assignment();
     auto level = ass.decision_level();
 
     if (trail_offset_.empty() || trail_offset_.back().level < level) {
@@ -668,7 +667,7 @@ auto Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::SolverLiteralSp
         for (auto it = bounds_.find(lit), ie = bounds_.end(); it != ie && it->first == lit; ++it) {
             auto const &[lit_a, bound_a] = *it;
             assert(lit == lit_a);
-            if (!update_bound_(ctl, bound_a)) {
+            if (!update_bound_(ass, ctl, bound_a)) {
                 return false;
             }
         }
@@ -684,7 +683,7 @@ auto Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::SolverLiteralSp
                 if (options_.store_sat_assignment == StoreSATAssignments::Partial) {
                     store_sat_assignment();
                 }
-                return propagate_(ctl);
+                return propagate_(ass, ctl);
             }
             case State::Unsatisfiable: {
                 std::ignore = ctl.add_clause(conflict_clause_);
@@ -698,7 +697,7 @@ auto Solver<Value>::solve(Clingo::PropagateControl &ctl, Clingo::SolverLiteralSp
     }
 }
 
-template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateControl &ctl) -> bool {
+template <typename Value> auto Solver<Value>::propagate_(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool {
     // In principle we could also propgate more bounds (see clingcon). This
     // would very likely be too expensive.
     //
@@ -712,7 +711,6 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateContro
     if (options_.propagate_mode == PropagateMode::None) {
         return true;
     }
-    auto ass = ctl.assignment();
     std::vector<Clingo::SolverLiteral> lower_clause;
     std::vector<Clingo::SolverLiteral> upper_clause;
     auto propagate_row = [&](index_t i) {
@@ -1007,9 +1005,7 @@ auto Solver<Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v)
     return State::Satisfiable;
 }
 
-template <typename Value>
-auto Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral {
-    static_cast<void>(assign);
+template <typename Value> auto Solver<Value>::adjust(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral {
     if (options_.select == SelectionHeuristic::None) {
         return lit;
     }
@@ -1032,7 +1028,7 @@ auto Solver<Value>::adjust(Clingo::Assignment const &assign, Clingo::SolverLiter
     return lit;
 }
 
-template <typename Value> void Propagator<Value>::do_init(Clingo::PropagateInit init) {
+template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass, Clingo::PropagateInit init) {
     facts_offset_ = facts_.size();
     if (facts_offset_ > 0 || options_.global_objective.has_value()) {
         init.check_mode(Clingo::PropagatorCheckMode::both);
@@ -1061,7 +1057,7 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::PropagateInit 
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
         slvs_.emplace_back(std::piecewise_construct, std::forward_as_tuple(0), std::forward_as_tuple(options_));
-        if (!slvs_.back().second.prepare(init, var_map_, iqs_, objective_, i == 0)) {
+        if (!slvs_.back().second.prepare(ass, init, var_map_, iqs_, objective_, i == 0)) {
             return;
         }
     }
@@ -1095,9 +1091,8 @@ template <typename Value> void Propagator<Value>::on_statistics(Clingo::Stats st
 }
 
 template <typename Value>
-auto Propagator<Value>::do_decide(Clingo::ProgramId thread_id, Clingo::Assignment assign,
-                                  Clingo::SolverLiteral fallback) -> Clingo::SolverLiteral {
-    return slvs_[thread_id].second.adjust(assign, fallback);
+auto Propagator<Value>::do_decide(Clingo::Assignment ass, Clingo::SolverLiteral fallback) -> Clingo::SolverLiteral {
+    return slvs_[ass.thread_id()].second.adjust(fallback);
 }
 
 template <typename Value> void Propagator<Value>::on_model(Clingo::Model const &model) {
@@ -1112,11 +1107,10 @@ template <typename Value> void Propagator<Value>::on_model(Clingo::Model const &
     objective_state_.update(*std::move(objective));
 }
 
-template <typename Value> void Propagator<Value>::do_check(Clingo::PropagateControl ctl) {
-    auto ass = ctl.assignment();
-    auto &[offset, slv] = slvs_[ctl.thread_id()];
+template <typename Value> void Propagator<Value>::do_check(Clingo::Assignment ass, Clingo::PropagateControl ctl) {
+    auto &[offset, slv] = slvs_[ass.thread_id()];
     if (ass.decision_level() == 0 && offset < facts_offset_) {
-        auto res = slv.solve(ctl, Clingo::SolverLiteralSpan{facts_.data() + offset, facts_offset_}); // NOLINT
+        auto res = slv.solve(ass, ctl, Clingo::SolverLiteralSpan{facts_.data() + offset, facts_offset_}); // NOLINT
         offset = facts_offset_;
         // can happen in case of a top-level conflict
         if (!res) {
@@ -1143,20 +1137,19 @@ template <typename Value> void Propagator<Value>::do_check(Clingo::PropagateCont
 }
 
 template <typename Value>
-void Propagator<Value>::do_propagate(Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan changes) {
-    auto ass = ctl.assignment();
-    if (ass.decision_level() == 0 && ctl.thread_id() == 0) {
+void Propagator<Value>::do_propagate(Clingo::Assignment ass, Clingo::PropagateControl ctl,
+                                     Clingo::SolverLiteralSpan changes) {
+    if (ass.decision_level() == 0 && ass.thread_id() == 0) {
         // Note to self: auxiliary variables introduced during solving cannot become facts
         facts_.insert(facts_.end(), changes.begin(), changes.end());
     }
-    auto &[offset, slv] = slvs_[ctl.thread_id()];
-    static_cast<void>(slv.solve(ctl, changes));
+    auto &[offset, slv] = slvs_[ass.thread_id()];
+    static_cast<void>(slv.solve(ass, ctl, changes));
 }
 
 template <typename Value>
-void Propagator<Value>::do_undo(uint32_t thread_id, [[maybe_unused]] Clingo::Assignment assignment,
-                                [[maybe_unused]] Clingo::SolverLiteralSpan changes) {
-    slvs_[thread_id].second.undo();
+void Propagator<Value>::do_undo(Clingo::Assignment ass, [[maybe_unused]] Clingo::SolverLiteralSpan changes) {
+    slvs_[ass.thread_id()].second.undo();
 }
 
 template <typename Value> auto Propagator<Value>::lookup_symbol(Clingo::Symbol symbol) const -> std::optional<index_t> {

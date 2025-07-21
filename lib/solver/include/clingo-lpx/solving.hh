@@ -3,7 +3,6 @@
 #include "parsing.hh"
 #include "problem.hh"
 #include "tableau.hh"
-#include "util.hh"
 
 #include <clingo/control.hh>
 #include <clingo/core.hh>
@@ -167,12 +166,13 @@ template <typename Value> class Solver {
     Solver(Options const &options);
 
     //! Prepare inequalities for solving.
-    [[nodiscard]] auto prepare(Clingo::PropagateInit &init, SymbolMap const &symbols,
+    [[nodiscard]] auto prepare(Clingo::Assignment ass, Clingo::PropagateInit init, SymbolMap const &symbols,
                                std::vector<Inequality> const &inequalities, std::vector<Term> const &objective,
                                bool master) -> bool;
 
     //! Solve the (previously prepared) problem.
-    [[nodiscard]] auto solve(Clingo::PropagateControl &ctl, Clingo::SolverLiteralSpan lits) -> bool;
+    [[nodiscard]] auto solve(Clingo::Assignment ass, Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan lits)
+        -> bool;
 
     //! Undo assignments on the current level.
     void undo();
@@ -187,10 +187,10 @@ template <typename Value> class Solver {
     void optimize();
 
     //! Integrate the objective into this solver.
-    auto integrate_objective(Clingo::PropagateControl &ctl, ObjectiveState<Value> &state) -> bool;
+    auto integrate_objective(Clingo::PropagateControl ctl, ObjectiveState<Value> &state) -> bool;
 
     //! Discard bounded solutions (if necessary).
-    auto discard_bounded(Clingo::PropagateControl &ctl) -> bool;
+    auto discard_bounded(Clingo::PropagateControl ctl) -> bool;
 
     //! Ensure that the current (SAT) assignment will not be backtracked.
     void store_sat_assignment();
@@ -200,8 +200,7 @@ template <typename Value> class Solver {
 
     //! Adjust the sign of the given literal so that it does not conflict with
     //! the current tableau.
-    [[nodiscard]] auto adjust(Clingo::Assignment const &assign, Clingo::SolverLiteral lit) const
-        -> Clingo::SolverLiteral;
+    [[nodiscard]] auto adjust(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral;
 
   private:
     //! Check if the tableau.
@@ -215,13 +214,13 @@ template <typename Value> class Solver {
     //! Print a readable representation of the internal problem to stderr.
     void debug_();
     //! Propagate (some) bounds.
-    [[nodiscard]] auto propagate_(Clingo::PropagateControl &ctl) -> bool;
+    [[nodiscard]] auto propagate_(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool;
 
     //! Apply the given bound.
-    [[nodiscard]] auto update_bound_(Clingo::PropagateControl &ctl, Bound const &bound) -> bool;
+    [[nodiscard]] auto update_bound_(Clingo::Assignment ass, Clingo::PropagateControl ctl, Bound const &bound) -> bool;
 
     //! Insert a new bound dynamically.
-    [[nodiscard]] auto assert_bound_(Clingo::PropagateControl &ctl, Value value) -> bool;
+    [[nodiscard]] auto assert_bound_(Clingo::PropagateControl ctl, Value value) -> bool;
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);
@@ -285,12 +284,11 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     [[nodiscard]] auto n_values(index_t thread_id) const -> index_t;
 
   private:
-    void do_init(Clingo::PropagateInit init) override;
-    void do_check(Clingo::PropagateControl ctl) override;
-    void do_propagate(Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan changes) override;
-    void do_undo(uint32_t thread_id, Clingo::Assignment assignment, Clingo::SolverLiteralSpan changes) override;
-    auto do_decide(Clingo::ProgramId thread_id, Clingo::Assignment assignment, Clingo::SolverLiteral literal)
-        -> Clingo::SolverLiteral override;
+    void do_init(Clingo::Assignment ass, Clingo::PropagateInit init) override;
+    void do_check(Clingo::Assignment ass, Clingo::PropagateControl ctl) override;
+    void do_propagate(Clingo::Assignment ass, Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan changes) override;
+    void do_undo(Clingo::Assignment ass, Clingo::SolverLiteralSpan changes) override;
+    auto do_decide(Clingo::Assignment ass, Clingo::SolverLiteral literal) -> Clingo::SolverLiteral override;
 
     Clingo::Library const *lib_;
     VarMap aux_map_;
