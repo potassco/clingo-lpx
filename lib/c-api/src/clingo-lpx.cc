@@ -41,47 +41,42 @@ namespace {
 using Clingo::Detail::handle_error;
 
 //! C initialization callback for the LPX propagator.
-template <typename Value> auto init(clingo_propagate_init_t *i, void *data) -> bool {
-    CLINGO_TRY {
-        Clingo::PropagateInit in(i);
-        static_cast<Propagator<Value> *>(data)->init(in);
-    }
+template <typename Value> auto init(clingo_assignment_t const *ass, clingo_propagate_init_t *init, void *data) -> bool {
+    CLINGO_TRY { static_cast<Propagator<Value> *>(data)->init(Clingo::Assignment{ass}, Clingo::PropagateInit{init}); }
     CLINGO_CATCH;
 }
 
 //! C propagation callback for the LPX propagator.
 template <typename Value>
-auto propagate(clingo_propagate_control_t *i, clingo_literal_t const *changes, size_t size, void *data) -> bool {
+auto propagate(clingo_assignment_t const *ass, clingo_propagate_control_t *ctl, clingo_literal_t const *changes,
+               size_t size, void *data) -> bool {
     CLINGO_TRY {
-        Clingo::PropagateControl in(i);
-        static_cast<Propagator<Value> *>(data)->propagate(in, {changes, size});
+        static_cast<Propagator<Value> *>(data)->propagate(Clingo::Assignment{ass}, Clingo::PropagateControl{ctl},
+                                                          {changes, size});
     }
     CLINGO_CATCH;
 }
 
 //! C undo callback for the LPX propagator.
 template <typename Value>
-void undo(clingo_propagate_control_t const *i, clingo_literal_t const *changes, size_t size, void *data) {
-    clingo_assignment_t const *assignment = nullptr;
-    handle_error(clingo_propagate_control_assignment(i, &assignment));
-    clingo_id_t thread_id = 0;
-    handle_error(clingo_propagate_control_thread_id(i, &thread_id));
-    static_cast<Propagator<Value> *>(data)->undo(thread_id, Clingo::Assignment{assignment}, {changes, size});
+void undo(clingo_assignment_t const *ass, clingo_literal_t const *changes, size_t size, void *data) {
+    static_cast<Propagator<Value> *>(data)->undo(Clingo::Assignment{ass}, {changes, size});
 }
 
 //! C check callback for the LPX propagator.
-template <typename Value> auto check(clingo_propagate_control_t *init, void *data) -> bool {
-    CLINGO_TRY { static_cast<Propagator<Value> *>(data)->check(Clingo::PropagateControl{init}); }
+template <typename Value>
+auto check(clingo_assignment_t const *ass, clingo_propagate_control_t *init, void *data) -> bool {
+    CLINGO_TRY {
+        static_cast<Propagator<Value> *>(data)->check(Clingo::Assignment{ass}, Clingo::PropagateControl{init});
+    }
     CLINGO_CATCH;
 }
 
 //! C decide callback for the LPX propagator.
 template <typename Value>
-auto decide(clingo_id_t thread_id, clingo_assignment_t const *assignment, clingo_literal_t fallback, void *data,
-            clingo_literal_t *decision) -> bool {
-    CLINGO_TRY {
-        *decision = static_cast<Propagator<Value> *>(data)->decide(thread_id, Clingo::Assignment{assignment}, fallback);
-    }
+auto decide(clingo_assignment_t const *assignment, clingo_literal_t fallback, void *data, clingo_literal_t *decision)
+    -> bool {
+    CLINGO_TRY { *decision = static_cast<Propagator<Value> *>(data)->decide(Clingo::Assignment{assignment}, fallback); }
     CLINGO_CATCH;
 }
 
@@ -121,10 +116,10 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
         : prop_{lib, options} {
         handle_error(clingo_control_parse_string(control, theory.data(), theory.size()));
         static clingo_propagator_t prp = {
-            init<Value>, propagate<Value>, undo<Value>, check<Value>, decide<Value>, nullptr,
+            init<Value>, nullptr, propagate<Value>, undo<Value>, check<Value>, decide<Value>, nullptr,
         };
         static clingo_propagator_t heu = {
-            init<Value>, propagate<Value>, undo<Value>, check<Value>, nullptr, nullptr,
+            init<Value>, nullptr, propagate<Value>, undo<Value>, check<Value>, nullptr, nullptr,
         };
         handle_error(clingo_control_register_propagator(
             control, options.select != SelectionHeuristic::None ? &prp : &heu, &prop_));
@@ -138,7 +133,9 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
         return false;
     }
 
-    auto get_symbol(size_t index) -> Clingo::Symbol override { return prop_.get_symbol(static_cast<index_t>(index - 1)); }
+    auto get_symbol(size_t index) -> Clingo::Symbol override {
+        return prop_.get_symbol(static_cast<index_t>(index - 1));
+    }
 
     auto has_value(uint32_t thread_id, size_t index) -> bool override {
         return index > 0 && prop_.has_value(thread_id, static_cast<index_t>(index - 1));
@@ -167,8 +164,8 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
         for (size_t i = 0; next(thread_id, i);) {
             ss_.str("");
             ss_ << prop_.get_value(thread_id, static_cast<index_t>(i - 1));
-            symbols.emplace_back(
-                Clingo::Function(lib, "__lpx", {prop_.get_symbol(static_cast<index_t>(i - 1)), Clingo::String(lib, ss_.view())}));
+            symbols.emplace_back(Clingo::Function(
+                lib, "__lpx", {prop_.get_symbol(static_cast<index_t>(i - 1)), Clingo::String(lib, ss_.view())}));
         }
         auto objective = prop_.get_objective(thread_id);
         if (objective.has_value()) {
