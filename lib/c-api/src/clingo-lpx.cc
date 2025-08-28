@@ -30,6 +30,7 @@
 #include <clingo.h>
 #include <clingo/propagate.hh>
 
+#include <array>
 #include <cstring>
 #include <optional>
 #include <sstream>
