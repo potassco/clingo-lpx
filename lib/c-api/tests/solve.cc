@@ -101,6 +101,8 @@ assign(3,4,4).
 bound(104).
 )";
 
+    Fixture() { theory.register_theory(ctl); }
+
     //! Create a symbol for sequence atoms of task/machine pairs.
     auto seq(int a, int b, int c, int d, int e) -> Clingo::Symbol {
         return Clingo::Function(lib, "seq",
@@ -235,6 +237,7 @@ bound(104).
     Clingo::Library lib;
     Clingo::Theory theory{lib, clingolpx_create};
     Clingo::Control ctl{lib, {"0"}};
+    Clingo::Config cfg = ctl.config();
     Clingo::Symbol sym_a = Function(lib, "a");
     Clingo::Symbol sym_b = Function(lib, "b");
     Clingo::Symbol sym_c = Function(lib, "c");
@@ -246,7 +249,6 @@ bound(104).
 } // namespace
 
 TEST_CASE_METHOD(Fixture, "solving base") { // NOLINT
-    theory.register_theory(ctl);
     theory.rewrite(lib, ctl,
                    "1 { a; b } 1. &diff { a - b } <= 3.\n"
                    "&diff { 0 - a } <= -5 :- a.\n"
@@ -265,8 +267,7 @@ TEST_CASE_METHOD(Fixture, "solving base") { // NOLINT
 }
 
 TEST_CASE_METHOD(Fixture, "solving strict") {
-    theory.configure("strict", "on");
-    theory.register_theory(ctl);
+    cfg["lpx.strict"] = "on";
     theory.rewrite(lib, ctl, "{ a }.  &sum { b } > 5 :- not a.\n");
     ctl.ground();
     auto result = solve(ctl);
@@ -274,7 +275,6 @@ TEST_CASE_METHOD(Fixture, "solving strict") {
 }
 
 TEST_CASE_METHOD(Fixture, "solving rat") {
-    theory.register_theory(ctl);
     theory.rewrite(lib, ctl, "&sum { a } >= \"0.5\" * 3.\n");
     ctl.ground();
     auto result = solve(ctl);
@@ -282,7 +282,6 @@ TEST_CASE_METHOD(Fixture, "solving rat") {
 }
 
 TEST_CASE_METHOD(Fixture, "solving parse") {
-    theory.register_theory(ctl);
     theory.rewrite(lib, ctl, "&diff { p( 1 + 2 ) - q( 3 * 4 - 7 ) } <= 3 - 9.\n");
     ctl.ground();
     auto result = solve(ctl);
@@ -292,9 +291,8 @@ TEST_CASE_METHOD(Fixture, "solving parse") {
 }
 
 TEST_CASE_METHOD(Fixture, "solving sat") {
-    theory.configure("strict", "on");
+    cfg["lpx.strict"] = "on";
     std::string guard = GENERATE(">= 0", "> 0", "= 5", "<= 10", "< 10");
-    theory.register_theory(ctl);
     theory.rewrite(lib, ctl, "&sum{5} " + guard + ".\n");
     ctl.ground();
     auto result = solve(ctl);
@@ -303,9 +301,8 @@ TEST_CASE_METHOD(Fixture, "solving sat") {
 }
 
 TEST_CASE_METHOD(Fixture, "solving unsat") {
-    theory.configure("strict", "on");
+    cfg["lpx.strict"] = "on";
     std::string guard = GENERATE(">= 10", "> 10", "= 0", "<= 0", "< 0");
-    theory.register_theory(ctl);
     theory.rewrite(lib, ctl, "&sum{5} " + guard + ".\n");
     ctl.ground();
     auto result = solve(ctl);
@@ -314,8 +311,7 @@ TEST_CASE_METHOD(Fixture, "solving unsat") {
 }
 
 TEST_CASE_METHOD(Fixture, "solving normalize") {
-    theory.configure("strict", "on");
-    theory.register_theory(ctl);
+    cfg["lpx.strict"] = "on";
     theory.rewrite(lib, ctl,
                    "&sum { a } = b.\n"
                    //"&sum { 5 } >= 0.\n"
@@ -334,7 +330,6 @@ TEST_CASE_METHOD(Fixture, "solving normalize") {
 }
 
 TEST_CASE_METHOD(Fixture, "solving symbols") {
-    theory.register_theory(ctl);
     theory.rewrite(lib, ctl,
                    "#program base.\n"
                    "&diff{ (\"foo\\\\\\nbar\\\"foo\",123) - 0 } <= 17.\n");
@@ -344,21 +339,43 @@ TEST_CASE_METHOD(Fixture, "solving symbols") {
 }
 
 TEST_CASE_METHOD(Fixture, "solving task-assignment") {
-    auto strict = GENERATE("on", "off");
-    auto propagate_conflicts = GENERATE("on", "off");
-    auto propagate_bounds = GENERATE("none", "changed", "full");
-    auto select = GENERATE("none", "match", "conflict");
-    auto store = GENERATE("no", "partial", "total");
-    theory.configure("strict", strict);
-    theory.configure("propagate-conflicts", propagate_conflicts);
-    theory.configure("propagate-bounds", propagate_bounds);
-    theory.configure("select", select);
-    theory.configure("store", store);
-    theory.register_theory(ctl);
+    cfg["lpx.strict"] = GENERATE("on", "off");
+    cfg["lpx.propagate_conflicts"] = GENERATE("on", "off");
+    cfg["lpx.propagate_bounds"] = GENERATE("none", "changed", "full");
+    cfg["lpx.select"] = GENERATE("none", "match", "conflict");
+    cfg["lpx.store"] = GENERATE("no", "partial", "total");
     theory.rewrite(lib, ctl, ENC);
     ctl.ground();
     auto result = solve(ctl);
     REQUIRE(result == sols());
+}
+
+TEST_CASE_METHOD(Fixture, "config") {
+    using namespace std::string_view_literals;
+    for (auto val : std::array{"yes"sv, "no"sv}) {
+        cfg["lpx.strict"] = val;
+        REQUIRE(cfg["lpx.strict"].value() == val);
+    }
+    for (auto val : std::array{"yes"sv, "no"sv}) {
+        cfg["lpx.propagate_conflicts"] = val;
+        REQUIRE(cfg["lpx.propagate_conflicts"].value() == val);
+    }
+    for (auto val : std::array{"none"sv, "changed"sv, "full"sv}) {
+        cfg["lpx.propagate_bounds"] = val;
+        REQUIRE(cfg["lpx.propagate_bounds"].value() == val);
+    }
+    for (auto val : std::array{"none"sv, "match"sv, "conflict"sv}) {
+        cfg["lpx.select"] = val;
+        REQUIRE(cfg["lpx.select"].value() == val);
+    }
+    for (auto val : std::array{"no"sv, "partial"sv, "total"sv}) {
+        cfg["lpx.store"] = val;
+        REQUIRE(cfg["lpx.store"].value() == val);
+    }
+    for (auto val : std::array{"local"sv, "global"sv, "global,e"sv, "global,1"sv}) {
+        cfg["lpx.objective"] = val;
+        REQUIRE(cfg["lpx.objective"].value() == val);
+    }
 }
 
 } // namespace ClingoDL

@@ -38,6 +38,8 @@ using namespace ClingoLPX;
 
 namespace {
 
+using namespace std::string_view_literals;
+
 using Clingo::Detail::handle_error;
 
 //! C initialization callback for the LPX propagator.
@@ -111,10 +113,8 @@ class PropagatorFacade {
 //! High level interface to use the LPX propagator.
 template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
   public:
-    LPXPropagatorFacade(Clingo::Library const &lib, clingo_control_t *control, std::string_view theory,
-                        Options const &options)
+    LPXPropagatorFacade(Clingo::Library const &lib, clingo_control_t *control, Options const &options)
         : prop_{lib, options} {
-        handle_error(clingo_control_parse_string(control, theory.data(), theory.size()));
         static clingo_propagator_t prp = {
             init<Value>, nullptr, propagate<Value>, undo<Value>, check<Value>, decide<Value>, nullptr,
         };
@@ -204,107 +204,179 @@ auto iequals(std::string_view a, std::string_view b) -> bool {
     return res && res->empty();
 }
 
-auto parse_bool(char const *value, size_t size, void *data, bool *result) -> bool {
+template <class T> auto c_parse(const char *value, size_t size, void *data, bool *result) -> bool {
     CLINGO_TRY {
-        auto str = std::string_view{value, size};
-        auto &target = *static_cast<bool *>(data);
+        T{*static_cast<Options *>(data)}.set({value, size});
         *result = true;
-        if (iequals(str, "no") || iequals(str, "off") || iequals(str, "0")) {
-            target = false;
-        } else if (iequals(str, "yes") || iequals(str, "on") || iequals(str, "1")) {
-            target = true;
-        } else {
-            *result = false;
-        }
+    }
+    catch (std::invalid_argument const &e) {
+        std::ignore = e;
+        *result = false;
     }
     CLINGO_CATCH;
 }
 
-//! Parse value for phase selection heuristic.
-auto parse_select(char const *value, size_t size, void *data, bool *result) -> bool {
-    CLINGO_TRY {
-        auto str = std::string_view{value, size};
-        auto &options = *static_cast<Options *>(data);
-        *result = true;
-        if (iequals(str, "none")) {
-            options.select = SelectionHeuristic::None;
-        } else if (iequals(str, "match")) {
-            options.select = SelectionHeuristic::Match;
-        } else if (iequals(str, "conflict")) {
-            options.select = SelectionHeuristic::Conflict;
-        } else {
-            *result = false;
+template <typename Enum, size_t N> class EnumStringMap {
+  public:
+    constexpr EnumStringMap(const std::array<std::pair<std::string_view, Enum>, N> &map) : map_{map} {}
+
+    Enum from_string(std::string_view value) const {
+        for (const auto &[name, mode] : map_) {
+            if (iequals(value, name)) {
+                return mode;
+            }
         }
+        throw std::invalid_argument("invalid enum string");
     }
-    CLINGO_CATCH;
+
+    std::string_view to_string(Enum mode) const {
+        for (const auto &[name, m] : map_) {
+            if (mode == m) {
+                return name;
+            }
+        }
+        throw std::invalid_argument("invalid enum value");
+    }
+
+  private:
+    std::array<std::pair<std::string_view, Enum>, N> map_;
+};
+
+template <typename Enum, size_t N>
+constexpr auto make_enum_string_map(std::array<std::pair<std::string_view, Enum>, N> const &map) {
+    return EnumStringMap<Enum, N>(map);
 }
 
-//! Parse value for propagate mode.
-auto parse_propagate(char const *value, size_t size, void *data, bool *result) -> bool {
-    CLINGO_TRY {
-        auto str = std::string_view{value, size};
-        auto &options = *static_cast<Options *>(data);
-        *result = true;
-        if (iequals(str, "none")) {
-            options.propagate_mode = PropagateMode::None;
-        } else if (iequals(str, "changed")) {
-            options.propagate_mode = PropagateMode::Changed;
-        } else if (iequals(str, "full")) {
-            options.propagate_mode = PropagateMode::Full;
-        } else {
-            *result = false;
-        }
-    }
-    CLINGO_CATCH;
-}
+class ConfigPropagate {
+  public:
+    ConfigPropagate(Options &opts) : opts_{&opts} {}
 
-//! Parse value for store SAT assignment configuration.
-auto parse_store(char const *value, size_t size, void *data, bool *result) -> bool {
-    CLINGO_TRY {
-        auto str = std::string_view{value, size};
-        auto &options = *static_cast<Options *>(data);
-        *result = true;
-        if (iequals(str, "no")) {
-            options.store_sat_assignment = StoreSATAssignments::No;
-        } else if (iequals(str, "partial")) {
-            options.store_sat_assignment = StoreSATAssignments::Partial;
-        } else if (iequals(str, "total")) {
-            options.store_sat_assignment = StoreSATAssignments::Total;
-        } else {
-            *result = false;
-        }
-    }
-    CLINGO_CATCH;
-}
+    void set(std::string_view value) { opts_->propagate_mode = map_.from_string(value); }
 
-//! Parse how objective function is treated.
-auto parse_objective(char const *value, size_t size, void *data, bool *result) -> bool {
-    CLINGO_TRY {
-        auto str = std::string_view{value, size};
-        auto &options = *static_cast<Options *>(data);
-        *result = true;
-        if (iequals(str, "local")) {
-            options.global_objective = std::nullopt;
-        } else if (auto res = iequals_pre(str, "global")) {
-            auto str = *res;
-            if (str.empty()) {
-                options.global_objective = RationalQ{0};
-            } else if (auto res = iequals_pre(str, ",")) {
-                str = *res;
-                if (iequals(str, "e")) {
-                    options.global_objective = RationalQ{Rational{0}, Rational{1}};
+    auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->propagate_mode); }
+
+    static constexpr auto desc = //
+        "Configure bound propagation"sv;
+
+  private:
+    static constexpr auto map_ = make_enum_string_map(std::array{
+        std::pair{"none"sv, PropagateMode::None},
+        std::pair{"changed"sv, PropagateMode::Changed},
+        std::pair{"full"sv, PropagateMode::Full},
+    });
+
+    Options *opts_;
+};
+
+class ConfigSelect {
+  public:
+    ConfigSelect(Options &opts) : opts_{&opts} {}
+
+    void set(std::string_view value) { opts_->select = map_.from_string(value); }
+
+    auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->select); }
+
+    static constexpr auto desc = //
+        "Choose phase selection heuristic"sv;
+
+  private:
+    static constexpr auto map_ = make_enum_string_map(std::array{
+        std::pair{"none"sv, SelectionHeuristic::None},
+        std::pair{"match"sv, SelectionHeuristic::Match},
+        std::pair{"conflict"sv, SelectionHeuristic::Conflict},
+    });
+
+    Options *opts_;
+};
+
+class ConfigStore {
+  public:
+    ConfigStore(Options &opts) : opts_{&opts} {}
+
+    void set(std::string_view value) { opts_->store_sat_assignment = map_.from_string(value); }
+
+    auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->store_sat_assignment); }
+
+    static constexpr auto desc = //
+        "Whether to store SAT assignments"sv;
+
+  private:
+    static constexpr auto map_ = make_enum_string_map(std::array{
+        std::pair{"no"sv, StoreSATAssignments::No},
+        std::pair{"partial"sv, StoreSATAssignments::Partial},
+        std::pair{"total"sv, StoreSATAssignments::Total},
+    });
+
+    Options *opts_;
+};
+
+class ConfigObjective {
+  public:
+    ConfigObjective(Options &opts) : opts_{&opts} {}
+
+    void set(std::string_view value) {
+        if (iequals(value, "local")) {
+            opts_->global_objective = std::nullopt;
+        } else if (auto res = iequals_pre(value, "global")) {
+            value = *res;
+            if (value.empty()) {
+                opts_->global_objective = RationalQ{0};
+            } else if (auto res = iequals_pre(value, ",")) {
+                value = *res;
+                if (iequals(value, "e")) {
+                    opts_->global_objective = RationalQ{Rational{0}, Rational{1}};
                 } else {
-                    options.global_objective = RationalQ{Rational{value, 10}};
+                    opts_->global_objective = RationalQ{Rational{std::string{value}, 10}};
                 }
             } else {
-                *result = false;
+                throw std::invalid_argument{"invalid global objective"};
             }
         } else {
-            *result = false;
+            throw std::invalid_argument{"invalid objective"};
         }
     }
-    CLINGO_CATCH;
-}
+
+    auto get() const -> std::optional<std::string> {
+        if (opts_->global_objective) {
+            std::ostringstream oss;
+            oss << "global";
+            if (opts_->global_objective != 0) {
+                oss << "," << *opts_->global_objective;
+            }
+            return std::move(oss).str();
+        }
+        return "local";
+    }
+
+    static constexpr auto desc = //
+        "Choose how to treat objective function"sv;
+
+  private:
+    Options *opts_;
+};
+
+class ConfigBool {
+  public:
+    ConfigBool(bool &target) : target_{&target} {}
+
+    void set(std::string_view value) {
+        if (iequals(value, "no") || iequals(value, "off") || iequals(value, "0")) {
+            *target_ = false;
+        } else if (iequals(value, "yes") || iequals(value, "on") || iequals(value, "1")) {
+            *target_ = true;
+        } else {
+            throw std::invalid_argument("invalid boolean value");
+        }
+    }
+
+    auto get() const -> std::optional<std::string_view> { return *target_ ? "yes" : "no"; }
+
+  private:
+    bool *target_;
+};
+
+static constexpr auto desc_strict = "Enable support for strict constraints"sv;
+static constexpr auto desc_conflicts = "Propagate conflicting bounds"sv;
 
 //! Set the given error message if the Boolean is false.
 //!
@@ -354,14 +426,17 @@ struct clingolpx_theory {
     static auto register_(void *self, clingo_control_t *control) -> bool {
         CLINGO_TRY {
             auto *theory = static_cast<clingolpx_theory *>(self);
-            if (!theory->strict) {
-                theory->clingolpx =
-                    std::make_unique<LPXPropagatorFacade<Rational>>(theory->lib, control, THEORY, theory->options);
-            } else {
-                theory->clingolpx =
-                    std::make_unique<LPXPropagatorFacade<RationalQ>>(theory->lib, control, THEORY_Q, theory->options);
-            }
+            handle_error(clingo_control_parse_string(control, THEORY, std::strlen(THEORY)));
+            auto cfg = Clingo::Control{control, true}.config();
+            cfg.add("lpx", "Clingo.LPX configuration");
+            cfg.add("lpx.strict", desc_strict, ConfigBool{theory->strict});
+            cfg.add("lpx.propagate_conflicts", desc_conflicts, ConfigBool{theory->options.propagate_conflicts});
+            cfg.add("lpx.objective", ConfigObjective::desc, ConfigObjective{theory->options});
+            cfg.add("lpx.propagate_bounds", ConfigPropagate::desc, ConfigPropagate{theory->options});
+            cfg.add("lpx.select", ConfigSelect::desc, ConfigSelect{theory->options});
+            cfg.add("lpx.store", ConfigStore::desc, ConfigStore{theory->options});
         }
+
         CLINGO_CATCH;
     }
 
@@ -370,8 +445,20 @@ struct clingolpx_theory {
         return add(ast, data);
     }
 
-    static auto prepare([[maybe_unused]] void *self, [[maybe_unused]] clingo_control_t *control) -> bool {
-        return true;
+    static auto prepare(void *self, clingo_control_t *control) -> bool {
+        CLINGO_TRY {
+            auto *theory = static_cast<clingolpx_theory *>(self);
+            if (theory->clingolpx == nullptr) {
+                if (!theory->strict) {
+                    theory->clingolpx =
+                        std::make_unique<LPXPropagatorFacade<Rational>>(theory->lib, control, theory->options);
+                } else {
+                    theory->clingolpx =
+                        std::make_unique<LPXPropagatorFacade<RationalQ>>(theory->lib, control, theory->options);
+                }
+            }
+        }
+        CLINGO_CATCH;
     }
 
     static void destroy(void *self) {
@@ -379,29 +466,10 @@ struct clingolpx_theory {
         std::unique_ptr<clingolpx_theory>{theory};
     }
 
-    static auto configure(void *self, char const *key, size_t key_size, char const *value, size_t value_size) -> bool {
+    static auto configure([[maybe_unused]] void *self, char const *key, size_t key_size,
+                          [[maybe_unused]] char const *value, [[maybe_unused]] size_t value_size) -> bool {
         CLINGO_TRY {
-            auto theory = static_cast<clingolpx_theory *>(self);
             auto sv_key = std::string_view{key, key_size};
-            if (sv_key == "strict") {
-                return check_parse("strict", parse_bool, value, value_size, &theory->strict);
-            }
-            if (sv_key == "objective") {
-                return check_parse("objective", parse_bool, value, value_size, &theory->options.global_objective);
-            }
-            if (sv_key == "propagate-conflicts") {
-                return check_parse("propagate-conflicts", parse_bool, value, value_size,
-                                   &theory->options.propagate_conflicts);
-            }
-            if (sv_key == "propagate-bounds") {
-                return check_parse("propagate-bounds", parse_propagate, value, value_size, &theory->options);
-            }
-            if (sv_key == "select") {
-                return check_parse("select", parse_select, value, value_size, &theory->options);
-            }
-            if (sv_key == "store") {
-                return check_parse("select", parse_store, value, value_size, &theory->options);
-            }
             auto msg = std::ostringstream{};
             msg << "invalid configuration key '" << sv_key << "'";
             clingo_set_error(clingo_result_runtime, msg.view().data(), msg.view().size());
@@ -425,12 +493,13 @@ struct clingolpx_theory {
                 handle_error(clingo_options_add_flag(options, group.data(), group.size(), name.data(), name.size(),
                                                      desc.data(), desc.size(), &target));
             };
-            flag("strict", "Enable support for strict constraints", theory->strict);
-            flag("propagate-conflicts", "Propagate conflicting bounds", theory->options.propagate_conflicts);
-            opt("propagate-bounds", "Propagate bounds", parse_propagate, false, "{none,changed,full}");
-            opt("objective", "Choose how to treat objective function", parse_objective, false, "{local,global[,step]}");
-            opt("select", "Choose phase selection heuristic", parse_select, false, "{none,match,conflict}");
-            opt("store", "Whether to store SAT assignments", parse_store, false, "{no,partial,total}");
+
+            flag("strict", desc_strict, theory->strict);
+            flag("propagate-conflicts", desc_conflicts, theory->options.propagate_conflicts);
+            opt("propagate-bounds", ConfigPropagate::desc, c_parse<ConfigPropagate>, false, "{none,changed,full}");
+            opt("objective", ConfigObjective::desc, c_parse<ConfigObjective>, false, "{local,global[,step]}");
+            opt("select", ConfigSelect::desc, c_parse<ConfigSelect>, false, "{none,match,conflict}");
+            opt("store", ConfigStore::desc, c_parse<ConfigStore>, false, "{no,partial,total}");
         }
         CLINGO_CATCH;
     }
