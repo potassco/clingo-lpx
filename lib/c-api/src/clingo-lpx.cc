@@ -244,8 +244,8 @@ template <typename Enum, size_t N> class EnumStringMap {
 };
 
 template <typename Enum, size_t N>
-constexpr auto make_enum_string_map(std::array<std::pair<std::string_view, Enum>, N> const &map) {
-    return EnumStringMap<Enum, N>(map);
+constexpr auto make_enum_string_map(std::pair<std::string_view, Enum> const (&map)[N]) {
+    return EnumStringMap<Enum, N>(std::to_array(map));
 }
 
 class ConfigPropagate {
@@ -260,10 +260,10 @@ class ConfigPropagate {
         "Configure bound propagation"sv;
 
   private:
-    static constexpr auto map_ = make_enum_string_map(std::array{
-        std::pair{"none"sv, PropagateMode::None},
-        std::pair{"changed"sv, PropagateMode::Changed},
-        std::pair{"full"sv, PropagateMode::Full},
+    static constexpr auto map_ = make_enum_string_map<PropagateMode>({
+        {"none", PropagateMode::None},
+        {"changed", PropagateMode::Changed},
+        {"full", PropagateMode::Full},
     });
 
     Options *opts_;
@@ -281,10 +281,10 @@ class ConfigSelect {
         "Choose phase selection heuristic"sv;
 
   private:
-    static constexpr auto map_ = make_enum_string_map(std::array{
-        std::pair{"none"sv, SelectionHeuristic::None},
-        std::pair{"match"sv, SelectionHeuristic::Match},
-        std::pair{"conflict"sv, SelectionHeuristic::Conflict},
+    static constexpr auto map_ = make_enum_string_map<SelectionHeuristic>({
+        {"none", SelectionHeuristic::None},
+        {"match", SelectionHeuristic::Match},
+        {"conflict", SelectionHeuristic::Conflict},
     });
 
     Options *opts_;
@@ -302,10 +302,10 @@ class ConfigStore {
         "Whether to store SAT assignments"sv;
 
   private:
-    static constexpr auto map_ = make_enum_string_map(std::array{
-        std::pair{"no"sv, StoreSATAssignments::No},
-        std::pair{"partial"sv, StoreSATAssignments::Partial},
-        std::pair{"total"sv, StoreSATAssignments::Total},
+    static constexpr auto map_ = make_enum_string_map<StoreSATAssignments>({
+        {"no", StoreSATAssignments::No},
+        {"partial", StoreSATAssignments::Partial},
+        {"total", StoreSATAssignments::Total},
     });
 
     Options *opts_;
