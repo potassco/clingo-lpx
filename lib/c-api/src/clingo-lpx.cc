@@ -206,15 +206,8 @@ auto iequals(std::string_view a, std::string_view b) -> bool {
     return res && res->empty();
 }
 
-template <class T> auto c_parse(const char *value, size_t size, void *data, bool *result) -> bool {
-    CLINGO_TRY {
-        T{*static_cast<Options *>(data)}.set({value, size});
-        *result = true;
-    }
-    catch (std::invalid_argument const &e) {
-        std::ignore = e;
-        *result = false;
-    }
+template <class T> auto c_parse(const char *value, size_t size, void *data) -> bool {
+    CLINGO_TRY { T{*static_cast<Options *>(data)}.set({value, size}); }
     CLINGO_CATCH;
 }
 
