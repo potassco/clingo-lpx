@@ -461,18 +461,6 @@ struct clingolpx_theory {
         std::unique_ptr<clingolpx_theory>{theory};
     }
 
-    static auto configure([[maybe_unused]] void *self, char const *key, size_t key_size,
-                          [[maybe_unused]] char const *value, [[maybe_unused]] size_t value_size) -> bool {
-        CLINGO_TRY {
-            auto sv_key = std::string_view{key, key_size};
-            auto msg = std::ostringstream{};
-            msg << "invalid configuration key '" << sv_key << "'";
-            clingo_set_error(clingo_result_runtime, msg.view().data(), msg.view().size());
-            return false;
-        }
-        CLINGO_CATCH;
-    }
-
     static auto register_options(void *self, clingo_options_t *options) -> bool {
         CLINGO_TRY {
             using namespace std::string_view_literals;
@@ -586,7 +574,6 @@ extern "C" bool clingolpx_create(clingo_lib_t *lib, clingo_theory_t *theory) {
             clingolpx_theory::prepare,
             clingolpx_theory::register_options,
             clingolpx_theory::validate_options,
-            clingolpx_theory::configure,
             clingolpx_theory::on_model,
             clingolpx_theory::on_statistics,
             clingolpx_theory::lookup_symbol,
