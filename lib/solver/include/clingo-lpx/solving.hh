@@ -272,7 +272,6 @@ template <typename Value> class Solver {
 template <typename Value> class Propagator : public Clingo::Heuristic {
   public:
     Propagator(Clingo::Library const &lib, Options options) : lib_{&lib}, options_{std::move(options)} {}
-    void register_control(Clingo::Control &ctl);
     void on_statistics(Clingo::Stats step, Clingo::Stats accu);
     void on_model(Clingo::Model const &model);
 
@@ -302,5 +301,7 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     ObjectiveState<Value> objective_state_;
     Options options_;
 };
+
+inline void register_theory(Clingo::Control &ctl) { ctl.parse_string(THEORY); }
 
 } // namespace ClingoLPX

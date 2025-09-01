@@ -1047,6 +1047,11 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass
     };
     gather_vars(objective_);
     for (auto &x : iqs_) {
+        if constexpr (std::is_same_v<Value, Rational>) {
+            if (x.rel == Relation::Less || x.rel == Relation::Greater) {
+                throw std::invalid_argument{"strict inequalities not enabled (try option --strict)"};
+            }
+        }
         gather_vars(x.lhs);
         init.add_watch(x.lit);
     }
@@ -1060,14 +1065,6 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass
         if (!slvs_.back().second.prepare(ass, init, var_map_, iqs_, objective_, i == 0)) {
             return;
         }
-    }
-}
-
-template <typename Value> void Propagator<Value>::register_control(Clingo::Control &ctl) {
-    if constexpr (std::is_same_v<Value, RationalQ>) {
-        ctl.parse_string(THEORY_Q);
-    } else {
-        ctl.parse_string(THEORY);
     }
 }
 

@@ -5,7 +5,6 @@
 
 #include <clingo/control.hh>
 #include <clingo/core.hh>
-#include <iterator>
 #include <memory>
 #include <optional>
 
@@ -36,8 +35,8 @@ Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial
 template <typename V = Rational> auto run(char const *s) -> bool {
     auto lib = Clingo::Library{};
     auto ctl = Clingo::Control{lib};
-    auto &prp = ctl.register_propagator(std::make_unique<Propagator<V>>(lib, options));
-    prp.register_control(ctl);
+    register_theory(ctl);
+    ctl.register_propagator(std::make_unique<Propagator<V>>(lib, options));
     ctl.parse_string(s);
     ctl.ground();
     return ctl.solve({}, Clingo::SolveFlags::empty).get().satisfiable();
@@ -51,8 +50,8 @@ auto run_o(char const *s, bool global = false, long c = 0, long k = 0) -> std::o
     }
     auto lib = Clingo::Library{};
     auto ctl = Clingo::Control{lib};
+    register_theory(ctl);
     auto &prp = ctl.register_propagator(std::make_unique<Propagator<V>>(lib, opts));
-    prp.register_control(ctl);
     auto shm = SHM<V>{prp};
     if (global) {
         ctl.config()["solve"]["models"] = "0";
@@ -69,8 +68,8 @@ auto run_o(char const *s, bool global = false, long c = 0, long k = 0) -> std::o
 auto run_m(std::initializer_list<std::string_view> m) -> size_t {
     auto lib = Clingo::Library{};
     auto ctl = Clingo::Control{lib, {"0"}};
-    auto &prp = ctl.register_propagator(std::make_unique<Propagator<Rational>>(lib, options));
-    prp.register_control(ctl);
+    register_theory(ctl);
+    ctl.register_propagator(std::make_unique<Propagator<Rational>>(lib, options));
 
     int i = 0;
     int l = 0;
