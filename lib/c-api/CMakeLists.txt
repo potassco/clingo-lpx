@@ -42,6 +42,25 @@ else()
     target_compile_definitions(clingo-lpx PUBLIC CLINGOLPX_NO_VISIBILITY)
 endif()
 
+if(CLINGOLPX_INSTALL_DEFAULT)
+    install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h")
+elseif(CLINGOLPX_INSTALL_WHEEL AND CLINGOLPX_BUILD_SHARED)
+    install(
+        TARGETS clingo-lpx
+        RUNTIME DESTINATION "."
+        LIBRARY DESTINATION ".")
+    if(CLINGOLPX_BUILD_SHARED)
+        if(APPLE)
+            set_target_properties(clingo-lpx PROPERTIES
+                INSTALL_NAME_DIR "@loader_path")
+        elseif(UNIX)
+            set_target_properties(clingo-lpx
+                PROPERTIES INSTALL_RPATH "$ORIGIN"
+                BUILD_WITH_INSTALL_RPATH TRUE)
+        endif()
+    endif()
+endif()
+
 if(CLINGOLPX_BUILD_TESTS)
     if(WIN32)
         # NOTE: needed to get the test explorer working

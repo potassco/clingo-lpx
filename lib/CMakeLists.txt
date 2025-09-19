@@ -1,5 +1,5 @@
 add_subdirectory(solver)
 add_subdirectory(c-api)
-if(CLINGOLPX_BUILD_APP)
+if(CLINGOLPX_BUILD_PYTHON)
     add_subdirectory(python-api)
 endif()

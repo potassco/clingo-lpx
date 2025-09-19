@@ -19,9 +19,8 @@ if(CLINGOLPX_INSTALL_WHEEL)
         LIBRARY DESTINATION ".")
     if(CLINGOLPX_BUILD_SHARED)
         if(APPLE)
-            set_target_properties(pyclingo-lpx
-                PROPERTIES INSTALL_RPATH "@loader_path"
-                BUILD_WITH_INSTALL_RPATH TRUE)
+            set_target_properties(pyclingo-lpx PROPERTIES
+                INSTALL_NAME_DIR "@loader_path")
         elseif(UNIX)
             set_target_properties(pyclingo-lpx
                 PROPERTIES INSTALL_RPATH "$ORIGIN"
