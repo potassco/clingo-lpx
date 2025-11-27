@@ -39,7 +39,7 @@ template <typename V = Rational> auto run(char const *s) -> bool {
     ctl.register_propagator(std::make_unique<Propagator<V>>(lib, options));
     ctl.parse_string(s);
     ctl.ground();
-    return ctl.solve({}, Clingo::SolveFlags::empty).get().satisfiable();
+    return ctl.solve().satisfiable();
 }
 
 template <typename V = Rational>
@@ -59,7 +59,7 @@ auto run_o(char const *s, bool global = false, long c = 0, long k = 0) -> std::o
     ctl.parse_string(s);
     ctl.ground();
 
-    if (!ctl.solve(shm).get().satisfiable()) {
+    if (!ctl.solve({}, std::ref(shm)).satisfiable()) {
         return std::nullopt;
     }
     return shm.get_objective();
@@ -79,7 +79,7 @@ auto run_m(std::initializer_list<std::string_view> m) -> size_t {
         n.append(s.begin(), s.end());
         ctl.parse_string(n);
         ctl.ground({{part, {}}});
-        for (auto h = ctl.solve(); [[maybe_unused]] auto m : h) {
+        for (auto h = ctl.start_solve(); [[maybe_unused]] auto m : h) {
             ++l;
         }
     }

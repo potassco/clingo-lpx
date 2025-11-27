@@ -50,10 +50,7 @@ class ClingoLPXApp(App):
         else:
             control.ground()
             self._theory.prepare(control)
-            with control.solve(
-                on_model=self._theory.on_model, on_stats=self._theory.on_stats
-            ) as hnd:
-                hnd.get()
+            control.solve(on_model=self._theory.on_model, on_stats=self._theory.on_stats)
 
     def print_model(self, model: Model, default_printer: Callable[[], None]) -> None:
         """

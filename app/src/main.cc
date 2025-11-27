@@ -77,7 +77,7 @@ class App : public Clingo::App, private Clingo::SolveEventHandler {
 #ifdef CLINGOLPX_PROFILE
             Profiler prof{"clingo-lpx-solve.prof"};
 #endif
-            std::ignore = ctl.solve(*this).get();
+            std::ignore = ctl.solve({}, std::ref(*static_cast<SolveEventHandler *>(this)));
         } else {
             ctl.main();
         }

@@ -31,7 +31,7 @@
 
 #include <iostream>
 
-namespace ClingoDL {
+namespace ClingoLPX {
 
 using namespace std::string_view_literals;
 
@@ -166,9 +166,8 @@ bound(104).
     auto solve(Clingo::Control &ctl) -> RV {
         theory.prepare(ctl);
         using namespace Clingo;
-        Handler h{theory};
         RV result;
-        for (auto &&m : ctl.solve(h, {}, SolveFlags::yield)) {
+        for (auto &&m : ctl.start_solve({}, Clingo::SolveFlags::yield, Handler{theory})) {
             result.emplace_back();
             auto &sol = result.back().first;
             auto &sol_bool = result.back().second;
@@ -255,8 +254,10 @@ TEST_CASE_METHOD(Fixture, "solving base") { // NOLINT
                    "&diff { 0 - b } <= -7 :- b.\n");
     ctl.ground();
     auto result = solve(ctl);
-    REQUIRE(result ==
-            (RV{{{{sym_a, num(5)}, {sym_b, num(2)}}, {sym_a}}, {{{sym_a, num(0)}, {sym_b, num(7)}}, {sym_b}}}));
+    REQUIRE(result == (RV{
+                          {{{sym_a, num(0)}, {sym_b, num(7)}}, {sym_b}},
+                          {{{sym_a, num(5)}, {sym_b, num(2)}}, {sym_a}},
+                      }));
 
     theory.rewrite(lib, ctl,
                    "#program ext.\n"
@@ -271,7 +272,10 @@ TEST_CASE_METHOD(Fixture, "solving strict") {
     theory.rewrite(lib, ctl, "{ a }.  &sum { b } > 5 :- not a.\n");
     ctl.ground();
     auto result = solve(ctl);
-    REQUIRE(result == (RV{{{{sym_b, num(5, 1)}}, {}}, {{{sym_b, num(0)}}, {sym_a}}}));
+    REQUIRE(result == (RV{
+                          {{{sym_b, num(0)}}, {sym_a}},
+                          {{{sym_b, num(5, 1)}}, {}},
+                      }));
 }
 
 TEST_CASE_METHOD(Fixture, "solving rat") {
@@ -378,4 +382,4 @@ TEST_CASE_METHOD(Fixture, "config") {
     }
 }
 
-} // namespace ClingoDL
+} // namespace ClingoLPX
