@@ -44,9 +44,10 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: ${{ matrix.python-version }}
-          channels: conda-forge
-          channel-priority: strict
+          channels: potassco/label/dev-20,conda-forge
+          channel-priority: flexible
           activate-environment: conda-build
+          conda-remove-defaults: true
           auto-update-conda: true
 
       - name: Setup
@@ -58,7 +59,6 @@ jobs:
         shell: bash -l {0}
         run: |
           conda build .github/conda \
-            -c potassco/label/dev-20 \
             --output-folder ./artifacts \
             --python "${{ matrix.python-version }}"
           find artifacts -type f ! -name "*.conda" -delete
