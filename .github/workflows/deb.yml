@@ -8,10 +8,11 @@ on:
         required: true
         type: string
       type:
-        description: "Type: wip-20"
+        description: "Type: stable or wip-20"
         required: true
         type: choice
         options:
+          - stable
           - wip-20
 
 jobs:

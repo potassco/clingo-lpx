@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function usage {
-    echo "./$(basename "$0") --type={ppa,cloudsmith} --build-number <n> {wip-20} {noble,trixie} {create,sync,changes,build,put,clean}*"
+    echo "./$(basename "$0") --type={ppa,cloudsmith} --build-number <n> {stable,wip-20} {noble,trixie} {create,sync,changes,build,put,clean}*"
 }
 
 if [[ $# -lt 1 ]]; then
@@ -55,6 +55,7 @@ esac
 
 case "${ref}" in
 wip-20) ;;
+stable) ;;
 *)
     usage
     exit 1
@@ -86,7 +87,7 @@ for act in "${@}"; do
             apt-get install -y software-properties-common
             add-apt-repository -y "ppa:potassco/${ref}"
         else
-            apt-get install -y curl wget ca-certificates
+            apt-get install -y curl ca-certificates
             curl -1sLf "https://dl.cloudsmith.io/public/potassco/${ref}/setup.deb.sh" | bash
         fi
         apt-get update
