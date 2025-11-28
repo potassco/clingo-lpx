@@ -2,9 +2,9 @@ Source: clingo-lpx
 Section: devel
 Priority: optional
 Maintainer: Roland Kaminski <kaminski@cs.uni-potsdam.de>
-Build-Depends: debhelper-compat (= 13), dh-python, cmake, python3-dev, bison, re2c, clingo, libclingo-dev, python3-clingo, libflint-dev
+Build-Depends: debhelper-compat (= 13), dh-python, cmake, python3-dev, clingo, libclingo-dev, python3-clingo, libflint-dev
 Standards-Version: 4.4.1
-Homepage: https://potassco.org/clingo-lpx
+Homepage: https://potassco.org/
 Vcs-Browser: https://github.com/potassco/clingo-lpx
 Vcs-Git: https://github.com/potassco/clingo-lpx.git
 
@@ -21,7 +21,7 @@ Description: A solver for logic programs with linear programming constraints
 Package: libclingo-lpx
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo, libflint18t64, libflint-dev
+Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo, libflint19, libflint-dev
 Description: The shared library for the clingo-lpx package
 
 Package: libclingo-lpx-dev
