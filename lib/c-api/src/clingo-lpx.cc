@@ -174,7 +174,8 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
             ss_.str("");
             ss_ << objective->first;
             symbols.emplace_back(Clingo::Function(
-                lib, "__lpx_objective", {Clingo::String(lib, ss_.view()), Clingo::Number(objective->second ? 1 : 0)}));
+                lib, "__lpx_objective",
+                {Clingo::String(lib, ss_.view()), Clingo::String(lib, objective->second ? "bounded" : "unbounded")}));
         }
         model.extend(symbols);
         prop_.on_model(model);
@@ -476,6 +477,10 @@ struct clingolpx_theory {
                 handle_error(clingo_options_add_flag(options, group.data(), group.size(), name.data(), name.size(),
                                                      desc.data(), desc.size(), &target));
             };
+            auto def = [&](std::string_view name, std::string_view value) {
+                handle_error(
+                    clingo_options_set_default_value(options, name.data(), name.size(), value.data(), value.size()));
+            };
 
             flag("strict", desc_strict, theory->strict);
             flag("propagate-conflicts", desc_conflicts, theory->options.propagate_conflicts);
@@ -483,6 +488,9 @@ struct clingolpx_theory {
             opt("objective", ConfigObjective::desc, c_parse<ConfigObjective>, false, "{local,global[,step]}");
             opt("select", ConfigSelect::desc, c_parse<ConfigSelect>, false, "{none,match,conflict}");
             opt("store", ConfigStore::desc, c_parse<ConfigStore>, false, "{no,partial,total}");
+
+            def("out-assign", "__lpx/2");
+            def("out-cost", "Objective:,__lpx_objective/2:%0 [%1]");
         }
         CLINGO_CATCH;
     }

@@ -52,54 +52,6 @@ class ClingoLPXApp(App):
             self._theory.prepare(control)
             control.solve(on_model=self._theory.on_model, on_stats=self._theory.on_stats)
 
-    def print_model(self, model: Model, default_printer: Callable[[], None]) -> None:
-        """
-        Print the given model in a custom format.
-        """
-        syms = sorted(model.symbols(shown=True))
-        cost = None
-
-        # print symbols
-        comma = False
-        for sym in syms:
-            if not sym.match("__lpx", 2) and not sym.match("__lpx_objective", 2):
-                if comma:
-                    stdout.write(" ")
-                else:
-                    comma = True
-                stdout.write(str(sym))
-
-        # print assignment
-        stdout.write("\nAssignment:\n")
-        comma = False
-        for sym in syms:
-            if sym.match("__lpx", 2):
-                key, val = sym.arguments
-                if comma:
-                    stdout.write(" ")
-                else:
-                    comma = True
-                stdout.write(str(key))
-                stdout.write("=")
-                stdout.write(str(val))
-            if sym.match("__lpx_objective", 2):
-                cost = sym.arguments
-        stdout.write("\n")
-
-        # print costs
-        if cost is not None:
-            val, typ = cost
-            stdout.write("Cost: ")
-            if val.type == SymbolType.String:
-                stdout.write(val.string)
-            else:
-                stdout.write(str(val))
-            bounded = typ.type == SymbolType.Number and typ.number == 1
-            stdout.write(f" [{'bounded' if bounded else 'unbounded'}]")
-            stdout.write("\n")
-
-        stdout.flush()
-
     def register_options(self, options: AppOptions) -> None:
         """
         Register command-line options for the application.

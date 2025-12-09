@@ -84,51 +84,9 @@ class App : public Clingo::App, private Clingo::SolveEventHandler {
     }
 
     //! Register options of the theory and optimization related options.
-    void do_register_options(Clingo::Options options) override {
-        using namespace std::string_view_literals;
-        theory_.register_options(options);
-    }
+    void do_register_options(Clingo::Options options) override { theory_.register_options(options); }
     //! Validate options of the theory.
     void do_validate_options() override { theory_.validate_options(); }
-
-    //! Print models with their assignments.
-    void do_print_model(Clingo::ConstModel model, [[maybe_unused]] Clingo::ModelPrinter const &printer) override {
-        auto symbols = model.symbols();
-        std::sort(symbols.begin(), symbols.end());
-        bool comma = false;
-        for (auto const &sym : symbols) {
-            if (!sym.match("__lpx", 2) && !sym.match("__lpx_objective", 2)) {
-                if (comma) {
-                    std::cout << " ";
-                }
-                std::cout << sym;
-                comma = true;
-            }
-        }
-        std::cout << "\nAssignment:\n";
-        comma = false;
-        std::optional<std::pair<Clingo::Symbol, bool>> objective;
-        for (auto const &sym : symbols) {
-            if (sym.match("__lpx", 2) && sym.arguments().back().type() == Clingo::SymbolType::string) {
-                if (comma) {
-                    std::cout << " ";
-                }
-                auto args = sym.arguments();
-                std::cout << args.front() << "=" << args.back().string();
-                comma = true;
-            } else if (sym.match("__lpx_objective", 2) &&
-                       sym.arguments().front().type() == Clingo::SymbolType::string &&
-                       sym.arguments().back().type() == Clingo::SymbolType::number) {
-                auto args = sym.arguments();
-                objective = std::make_pair(args.front(), args.back() == Clingo::Number(1));
-            }
-        }
-        if (objective.has_value()) {
-            std::cout << "\nOptimization: " << objective->first.string() << " ["
-                      << (objective->second ? "bounded" : "unbounded") << "]";
-        }
-        std::cout << std::endl;
-    }
 
   private:
     Clingo::Library lib_;
