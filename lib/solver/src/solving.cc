@@ -180,12 +180,7 @@ template <typename Value>
 auto Solver<Value>::Variable::update_lower(Solver &s, Clingo::Assignment ass, Bound const &bound) -> bool {
     if (!has_lower() || bound.value > lower()) {
         if (!has_lower() || ass.level(lower_bound->lit) < ass.decision_level()) {
-            if (upper_bound != &bound) {
-                s.bound_trail_.emplace_back(bound.variable, BoundRelation::GreaterEqual, lower_bound);
-            } else {
-                // Note: this assumes that update_lower is called right after update_upper for the same bound
-                std::get<1>(s.bound_trail_.back()) = BoundRelation::Equal;
-            }
+            s.bound_trail_.emplace_back(bound.variable, BoundRelation::GreaterEqual, lower_bound);
         }
         lower_bound = &bound;
     }
@@ -822,10 +817,8 @@ template <typename Value> void Solver<Value>::undo() {
                     variables_[var].lower_bound = bound;
                     break;
                 }
-                case BoundRelation::Equal: {
-                    variables_[var].upper_bound = bound;
-                    variables_[var].lower_bound = bound;
-                    break;
+                default: {
+                    assert(false);
                 }
             }
         }
