@@ -350,14 +350,19 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
         auto term = tup.front();
         size_t n = lhs.size();
         parse_sum_elem(lib, term, lhs);
-        if (!elem.condition().empty()) {
+        if (auto cond_id = elem.condition_id(); cond_id) {
+            auto cond_lit = mapper(cond_id);
             for (auto it = lhs.begin() + n, ie = lhs.end(); it != ie; ++it) {
-                auto res = var_map.try_emplace(std::make_pair(it->var, elem.condition_id()),
+                auto res = var_map.try_emplace(std::make_pair(it->var, cond_lit),
                                                Clingo::Number(safe_cast<int>(var_map.size() + 1)));
                 if (res.second) {
-                    auto lit = mapper(elem.condition_id());
-                    iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -lit});
-                    iqs.emplace_back(Inequality{{{1, res.first->second}, {-1, it->var}}, 0, Relation::Equal, lit});
+                    iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -cond_lit});
+                    if (!is_invalid(it->var)) {
+                        iqs.emplace_back(
+                            Inequality{{{1, res.first->second}, {-1, it->var}}, 0, Relation::Equal, cond_lit});
+                    } else {
+                        iqs.emplace_back(Inequality{{{1, res.first->second}}, 1, Relation::Equal, cond_lit});
+                    }
                 }
                 it->var = res.first->second;
             }

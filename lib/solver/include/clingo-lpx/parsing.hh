@@ -35,7 +35,7 @@ constexpr char const *THEORY = R"(
 )";
 
 using VarMap = std::map<std::pair<Clingo::Symbol, Clingo::ProgramLiteral>, Clingo::Symbol>;
-using LitMapper = std::function<Clingo::ProgramLiteral(Clingo::ProgramLiteral)>;
+using LitMapper = std::function<Clingo::ProgramLiteral(std::optional<Clingo::ProgramLiteral>)>;
 
 void evaluate_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, LitMapper const &mapper,
                      VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective);

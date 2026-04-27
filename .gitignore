@@ -10,6 +10,7 @@ doc/*.synctex.gz
 .gdb_history
 *.so
 *.prof
+*~
 .cache
 .venv
 __pycache__

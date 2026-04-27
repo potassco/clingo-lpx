@@ -1028,8 +1028,8 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass
     }
 
     evaluate_theory(
-        *lib_, init.base().theory(), [&](Clingo::SolverLiteral lit) { return init.solver_literal(lit); }, aux_map_,
-        iqs_, objective_);
+        *lib_, init.base().theory(), [&](std::optional<Clingo::SolverLiteral> lit) { return init.solver_literal(lit); },
+        aux_map_, iqs_, objective_);
 
     auto gather_vars = [this](std::vector<Term> const &terms) {
         for (auto const &term : terms) {

@@ -314,6 +314,18 @@ TEST_CASE_METHOD(Fixture, "solving unsat") {
     REQUIRE(ctl.stats()["solving"]["solvers"]["choices"].value() == 0);
 }
 
+TEST_CASE_METHOD(Fixture, "solving conditions") {
+    theory.rewrite(lib, ctl, "{a; b}. &sum { 5*a: a; 3:b } = b. &sum { a } = 2.");
+    ctl.ground();
+    auto result = solve(ctl);
+    REQUIRE(result == RV{
+                          {{{sym_a, num(2)}, {sym_b, num(0)}}, {}},
+                          {{{sym_a, num(2)}, {sym_b, num(10)}}, {sym_a}},
+                          {{{sym_a, num(2)}, {sym_b, num(13)}}, {sym_a, sym_b}},
+                          {{{sym_a, num(2)}, {sym_b, num(3)}}, {sym_b}},
+                      });
+}
+
 TEST_CASE_METHOD(Fixture, "solving normalize") {
     cfg["lpx.strict"] = "on";
     theory.rewrite(lib, ctl,

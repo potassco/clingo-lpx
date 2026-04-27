@@ -24,7 +24,7 @@ struct Fixture {
         ctl.ground();
         evaluate_theory(lib, ctl.base().theory(), Fixture::mapper, vars, eqs, objective);
     }
-    static auto mapper(Clingo::ProgramLiteral lit) -> Clingo::ProgramLiteral {
+    static auto mapper(std::optional<Clingo::ProgramLiteral> lit) -> Clingo::ProgramLiteral {
         static_cast<void>(lit);
         return 1;
     };
