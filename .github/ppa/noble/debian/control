@@ -21,7 +21,7 @@ Description: A solver for logic programs with linear programming constraints
 Package: libclingo-lpx
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo, libflint18t64, libflint-dev
+Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo
 Description: The shared library for the clingo-lpx package
 
 Package: libclingo-lpx-dev
