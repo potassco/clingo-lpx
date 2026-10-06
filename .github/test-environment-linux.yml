@@ -5,5 +5,5 @@ dependencies:
   - cmake
   - ninja
   - pytest
-  - c-compiler
-  - cxx-compiler
+  - gxx_linux-64 >=16
+  - gcc_linux-64 >=16
