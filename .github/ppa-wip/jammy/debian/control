@@ -17,7 +17,7 @@ Description: A solver for logic programs with linear constraints
 Package: python3-clingo-lpx
 Section: python
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, libclingo-lpx (= ${binary:Version}), python3-cffi-backend
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python3:Depends}, python3-clingo, libclingo-lpx (= ${binary:Version})
 Description: A solver for logic programs with linear constraints
  This package contains python bindings for clingo-lpx.
 
@@ -31,6 +31,6 @@ Description: A solver for logic programs with linear constraints
 Package: libclingo-lpx-dev
 Section: libdevel
 Architecture: any
-Depends: ${misc:Depends}, libclingo-lpx (= ${binary:Version})
+Depends: ${misc:Depends}, libclingo-dev, python3-clingo-lpx, clingo-lpx, libclingo-lpx (= ${binary:Version})
 Description: A solver for logic programs with linear constraints
  This package contains the development files.
