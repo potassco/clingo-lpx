@@ -1,9 +1,6 @@
-name: clingo-lpx
-channels:
-  - conda-forge
+name: test-env
 dependencies:
   - clingo
   - cmake
   - ninja
   - cxx-compiler
-  - libflint

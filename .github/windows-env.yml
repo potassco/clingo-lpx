@@ -1,9 +1,0 @@
-name: clingo-lpx
-channels:
-  - conda-forge
-dependencies:
-  - clingo
-  - cmake
-  - ninja
-  - cxx-compiler
-  - libflint
