@@ -39,7 +39,7 @@ if (PYCLINGOLPX_ENABLE STREQUAL "pip")
 else()
     add_library(pyclingo-lpx MODULE ${source})
 endif()
-target_link_libraries(pyclingo-lpx PRIVATE libclingo-lpx Python::Module)
+target_link_libraries(pyclingo-lpx PRIVATE libclingo-lpx clingolpx_python_config Python::Module)
 target_compile_definitions(pyclingo-lpx PRIVATE _CFFI_NO_LIMITED_API)
 set_target_properties(pyclingo-lpx PROPERTIES
     FOLDER lib

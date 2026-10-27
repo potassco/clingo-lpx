@@ -1,4 +1,6 @@
 build/
+dist
+wheelhouse
 compile_commands.json
 .mypy_cache/
 doc/example.pdf

@@ -1,2 +1,41 @@
 [build-system]
-requires = ["setuptools", "wheel", "scikit-build", "cmake", "ninja", "clingo"]
+requires = ["clingo>=5.8,<5.9", "scikit-build-core>=1.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "clingo-lpx"
+dynamic = ["version"]
+description = "CFFI-based bindings to the clingo-lpx solver."
+readme = { text = """
+This package allows for adding the clingo-lpx propagator as a
+theory for clingo.
+
+It can also be used as a clingo-lpx solver running:
+
+    python -m clingolpx ARGUMENTS
+""", content-type = "text/markdown" }
+authors = [{ name = "Roland Kaminski", email = "kaminski@cs.uni-potsdam.de" }]
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = ["clingo>=5.8,<5.9", "cffi"]
+
+[project.scripts]
+pyclingolpx = "clingolpx.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/potassco/clingo-lpx"
+
+[[tool.dynamic-metadata]]
+provider = { path = "scripts", module = "meta" }
+
+[tool.scikit-build]
+cmake.version = ">=3.18"
+cmake.args = [
+  '-DCLINGOLPX_MANAGE_RPATH=OFF',
+  '-DPYCLINGOLPX_ENABLE=pip',
+  '-DPYCLINGOLPX_INSTALL_DIR=.',
+  '-DCLINGOLPX_MATH_LIBRARY=imath',
+]
+
+[tool.cibuildwheel.windows]
+repair-wheel-command = "delvewheel repair -w {dest_dir} -v --exclude \"_clingo*.pyd\" {wheel}"
