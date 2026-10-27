@@ -121,8 +121,7 @@ struct AS {
         a.append("/1");
         a.append(it - ib, '0');
     }
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-    Rational n{a, 10};
+    Rational n{a, dec_radix};
     if (match[1].matched) {
         n.neg();
     }
@@ -191,19 +190,19 @@ auto evaluate(bool num_str, Clingo::TheoryTerm const &term) -> std::variant<Rati
 
     if (match(term, "+", 2)) {
         return evaluate(num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) + std::move(b); });
+                        [](Rational &&a, Rational &&b) -> Rational { return std::move(a) + std::move(b); });
     }
     if (match(term, "-", 2)) {
         return evaluate(num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) - std::move(b); });
+                        [](Rational &&a, Rational &&b) -> Rational { return std::move(a) - std::move(b); });
     }
     if (match(term, "*", 2)) {
         return evaluate(num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) * std::move(b); });
+                        [](Rational &&a, Rational &&b) -> Rational { return std::move(a) * std::move(b); });
     }
     if (match(term, "/", 2)) {
         return evaluate(num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) / std::move(b); });
+                        [](Rational &&a, Rational &&b) -> Rational { return std::move(a) / std::move(b); });
     }
 
     if (match(term, "-", 1)) {
@@ -247,7 +246,7 @@ auto parse_diff_elem(Clingo::TheoryTerm const &term) -> std::vector<Term> {
     if (match(term, "-", 2)) {
         auto args = term.arguments();
         std::visit(
-            [&res](auto &&a) {
+            [&res](auto &&a) -> auto {
                 if constexpr (MATCHES(a, Rational)) {
                     res.emplace_back(Term{FWD(a), Clingo::Number(0)});
                 }
@@ -257,7 +256,7 @@ auto parse_diff_elem(Clingo::TheoryTerm const &term) -> std::vector<Term> {
             },
             evaluate(true, args.front()));
         std::visit(
-            [&res](auto &&a) {
+            [&res](auto &&a) -> auto {
                 if constexpr (MATCHES(a, Rational)) {
                     res.emplace_back(Term{-FWD(a), Clingo::Number(0)});
                 }
@@ -362,7 +361,7 @@ auto simplify(std::unordered_map<Clingo::Symbol, Term &> &cos, std::vector<Term>
     auto rhs = Rational{0};
     // combine cofficients
     cos.clear();
-    std::for_each(ib, ie, [&cos, &rhs](Term &term) {
+    std::for_each(ib, ie, [&cos, &rhs](Term &term) -> void {
         if (is_invalid(term.var)) {
             rhs -= std::move(term.co);
             term.co = 0;
@@ -373,7 +372,7 @@ auto simplify(std::unordered_map<Clingo::Symbol, Term &> &cos, std::vector<Term>
     });
 
     // remove terms with zero coeffcients
-    terms.erase(std::remove_if(ib, ie, [](Term const &term) { return term.co == 0; }), ie);
+    terms.erase(std::remove_if(ib, ie, [](Term const &term) -> bool { return term.co == 0; }), ie);
 
     return rhs;
 }

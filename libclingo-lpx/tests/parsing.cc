@@ -14,7 +14,7 @@ template <typename T> auto str(T &&x) -> std::string {
 TEST_CASE("parsing") {
     Clingo::Control ctl;
     ctl.add("base", {}, THEORY);
-    auto mapper = [](Clingo::literal_t lit) {
+    auto mapper = [](Clingo::literal_t lit) -> int {
         static_cast<void>(lit);
         return 1;
     };
@@ -69,7 +69,7 @@ TEST_CASE("parsing") {
         REQUIRE(eqs.empty());
         REQUIRE(objective.size() == 2);
         std::sort(objective.begin(), objective.end(),
-                  [](auto &a, auto &b) { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
+                  [](auto &a, auto &b) -> auto { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
         REQUIRE(str(Inequality{objective, 0, Relation::Equal, 0}) == "-3*x + -y = 0");
     }
 

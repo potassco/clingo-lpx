@@ -1,0 +1,12 @@
+function(clingolpx_add_clang_c2y_suppression)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        set(_old_required_flags "${CMAKE_REQUIRED_FLAGS}")
+        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror=unknown-warning-option")
+        check_cxx_compiler_flag("-Wno-c2y-extensions" CLINGOLPX_HAS_WNO_C2Y_EXTENSIONS)
+        set(CMAKE_REQUIRED_FLAGS "${_old_required_flags}")
+
+        if (CLINGOLPX_HAS_WNO_C2Y_EXTENSIONS)
+            add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wno-c2y-extensions>")
+        endif()
+    endif()
+endfunction()

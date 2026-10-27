@@ -18,10 +18,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 include(GNUInstallDirs)
 include(CMakeDependentOption)
+include(CheckCXXCompilerFlag)
+include(ClingoLPXUtils)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+clingolpx_add_clang_c2y_suppression()
 
 option(CLINGOLPX_MANAGE_RPATH "set rpath if not installed into system directory" ON)
 option(CLINGOLPX_BUILD_TESTS "build tests" OFF)

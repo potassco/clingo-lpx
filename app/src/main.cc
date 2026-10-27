@@ -118,7 +118,7 @@ class App : public Clingo::Application, private Clingo::SolveEventHandler {
     void main(Clingo::Control &ctl, Clingo::StringSpan files) override { // NOLINT(bugprone-exception-escape)
         handle_error(clingolpx_register(theory_, ctl.to_c()));
 
-        Clingo::AST::with_builder(ctl, [&](Clingo::AST::ProgramBuilder &builder) {
+        Clingo::AST::with_builder(ctl, [&](Clingo::AST::ProgramBuilder &builder) -> void {
             Rewriter rewriter{theory_, builder.to_c()};
             rewriter.rewrite(ctl, files);
         });

@@ -338,8 +338,12 @@ auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
         // add an inequality
         else {
             auto i = prep.add_basic();
-            bounds_.emplace(x.lit, Bound{bound_val<Value>(x.rhs, x.rel), static_cast<index_t>(variables_.size() - 1),
-                                         x.lit, bound_rel<Value>(x.rel)});
+            bounds_.emplace(x.lit, Bound{
+                                       bound_val<Value>(x.rhs, x.rel),
+                                       static_cast<index_t>(variables_.size() - 1),
+                                       x.lit,
+                                       bound_rel<Value>(x.rel),
+                                   });
             for (auto const &[j, v] : row) {
                 tableau_.set(i, j, v);
             }
@@ -350,7 +354,7 @@ auto Solver<Value>::prepare(Clingo::PropagateInit &init, SymbolMap const &symbol
     if (!objective.empty()) {
         objective_.active = true;
         auto row = prep.add_row(objective);
-        auto add_row = [&, this]() {
+        auto add_row = [&, this]() -> auto {
             auto i = prep.add_basic();
             for (auto const &[j, v] : row) {
                 tableau_.set(i, j, v);
@@ -510,7 +514,7 @@ template <typename Value> void Solver<Value>::optimize() {
         // select entering variable x_e
         index_t ee = variables_.size();
         bool pos_a_ze = false;
-        tableau_.update_row(z, [&, this](int j, Integer const &a_zj, Integer const &d_z) {
+        tableau_.update_row(z, [&, this](int j, Integer const &a_zj, Integer const &d_z) -> auto {
             auto jj = variables_[j].index;
             if (jj < ee) {
                 auto &x_j = variables_[jj];
@@ -538,7 +542,7 @@ template <typename Value> void Solver<Value>::optimize() {
         index_t ll = variables_.size();
         Value const *bound_l = nullptr;
 
-        tableau_.update_col(e, [&, this](index_t i, Integer const &a_ie, Integer const &d_i) {
+        tableau_.update_col(e, [&, this](index_t i, Integer const &a_ie, Integer const &d_i) -> auto {
             auto &y_i = basic_(i);
             bool pos_a_ie = ((a_ie > 0) == (d_i > 0));
             bool increase = pos_a_ie == pos_a_ze;
@@ -671,8 +675,11 @@ template <typename Value> auto Solver<Value>::solve(Clingo::PropagateControl &ct
     auto level = ass.decision_level();
 
     if (trail_offset_.empty() || trail_offset_.back().level < level) {
-        trail_offset_.emplace_back(TrailOffset{level, static_cast<index_t>(bound_trail_.size()),
-                                               static_cast<index_t>(assignment_trail_.size())});
+        trail_offset_.emplace_back(TrailOffset{
+            level,
+            static_cast<index_t>(bound_trail_.size()),
+            static_cast<index_t>(assignment_trail_.size()),
+        });
     }
 
     for (auto lit : lits) {
@@ -726,12 +733,12 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateContro
     auto ass = ctl.assignment();
     std::vector<Clingo::literal_t> lower_clause;
     std::vector<Clingo::literal_t> upper_clause;
-    auto propagate_row = [&](index_t i) {
+    auto propagate_row = [&](index_t i) -> auto {
         variables_[i].propagate = false;
         std::optional<Value> lower = Value{0};
         std::optional<Value> upper = Value{0};
         // check if a constraint provides a bound
-        tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) {
+        tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) -> auto {
             auto &x_j = non_basic_(j);
             bool pos_a_ij = (a_ij > 0) == (d_i > 0);
             if (pos_a_ij ? !x_j.has_lower() : !x_j.has_upper()) {
@@ -747,15 +754,15 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateContro
         lower_clause.clear();
         upper_clause.clear();
         // compute the bound
-        tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) {
+        tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) -> auto {
             auto &x_j = non_basic_(j);
-            auto update_lower = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) {
+            auto update_lower = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) -> auto {
                 if (bound.has_value() && x_j.has_lower()) {
                     *bound += x_j.lower() * a_ij / d_i;
                     clause.emplace_back(-x_j.lower_bound->lit);
                 }
             };
-            auto update_upper = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) {
+            auto update_upper = [&](std::vector<Clingo::literal_t> &clause, std::optional<Value> &bound) -> auto {
                 if (bound.has_value() && x_j.has_upper()) {
                     *bound += x_j.upper() * a_ij / d_i;
                     clause.emplace_back(-x_j.upper_bound->lit);
@@ -770,7 +777,7 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::PropagateContro
             }
         });
         auto &y_i = basic_(i);
-        auto propagate = [&, this](std::vector<Clingo::literal_t> &clause, Bound const &bound) {
+        auto propagate = [&, this](std::vector<Clingo::literal_t> &clause, Bound const &bound) -> auto {
             clause.emplace_back(-bound.lit);
             bool ret = ctl.add_clause(clause) && ctl.propagate();
             clause.pop_back();
@@ -871,7 +878,7 @@ template <typename Value> auto Solver<Value>::check_tableau_() -> bool {
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
         tableau_.update_row(
-            i, [&](index_t j, Integer const &a_ij, Integer d_i) { v_i += non_basic_(j).value * a_ij / d_i; });
+            i, [&](index_t j, Integer const &a_ij, Integer d_i) -> auto { v_i += non_basic_(j).value * a_ij / d_i; });
         if (v_i != basic_(i).value) {
             return false;
         }
@@ -919,7 +926,7 @@ template <typename Value> auto Solver<Value>::check_solution_() -> bool {
 
 template <typename Value> void Solver<Value>::update_(index_t level, index_t j, Value v) {
     auto &xj = non_basic_(j);
-    tableau_.update_col(j, [&](index_t i, Integer const &a_ij, Integer d_i) {
+    tableau_.update_col(j, [&](index_t i, Integer const &a_ij, Integer d_i) -> auto {
         basic_(i).set_value(*this, level, (v - xj.value) * a_ij / d_i, true);
         enqueue_(i);
     });
@@ -940,7 +947,7 @@ template <typename Value> void Solver<Value>::pivot_(index_t level, index_t i, i
 
     xi.set_value(*this, level, v, false);
     xj.set_value(*this, level, v_j, true);
-    tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) {
+    tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) -> auto {
         if (k != i) {
             basic_(k).set_value(*this, level, v_j * a_kj / d_k, true);
             enqueue_(k);
@@ -984,7 +991,7 @@ auto Solver<Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v)
             conflict_clause_.clear();
             conflict_clause_.emplace_back(lower ? -xi.lower_bound->lit : -xi.upper_bound->lit);
             index_t kk = variables_.size();
-            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) {
+            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) -> auto {
                 auto jj = variables_[j].index;
                 // skip over the variable if we already have a better one
                 // according to blands rule
@@ -1050,10 +1057,10 @@ template <typename Value> void Propagator<Value>::init(Clingo::PropagateInit &in
     }
 
     evaluate_theory(
-        init.theory_atoms(), [&](Clingo::literal_t lit) { return init.solver_literal(lit); }, aux_map_, iqs_,
+        init.theory_atoms(), [&](Clingo::literal_t lit) -> auto { return init.solver_literal(lit); }, aux_map_, iqs_,
         objective_);
 
-    auto gather_vars = [this](std::vector<Term> const &terms) {
+    auto gather_vars = [this](std::vector<Term> const &terms) -> auto {
         for (auto const &term : terms) {
             if (var_map_.emplace(term.var, var_map_.size()).second) {
                 var_vec_.emplace_back(term.var);

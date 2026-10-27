@@ -24,8 +24,9 @@ template <typename V> class SHM : public Clingo::SolveEventHandler {
     Propagator<V> &prp_;
 };
 
-Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, PropagateMode::Changed,
-                      true};
+Options const options{
+    SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, PropagateMode::Changed, true,
+};
 
 template <typename V = Rational> auto run(char const *s) -> bool {
     Propagator<V> prp{options};

@@ -307,8 +307,7 @@ auto parse_objective(const char *value, void *data) -> bool {
         options.global_objective = RationalQ{Rational{0}, Rational{1}};
         return true;
     }
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-    options.global_objective = RationalQ{Rational{value, 10}};
+    options.global_objective = RationalQ{Rational{value, dec_radix}};
     return true;
 }
 

@@ -91,7 +91,7 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     std::vector<Cell> row;
     std::vector<index_t> col_buf;
 
-    update_row(i, [&](index_t k, Integer &a_il, Integer &d_i) {
+    update_row(i, [&](index_t k, Integer &a_il, Integer &d_i) -> void {
         static_cast<void>(d_i);
         if (k != j) {
             a_il.neg();
@@ -100,7 +100,7 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     // Note that insertions into rows and columns do not invert iterators:
     // - row i is unaffected because k != i
     // - there are no insertions in column j because each a_kj != 0
-    update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) {
+    update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) -> void {
         if (k != i) {
             auto [g, ga_ij, ga_kj] = gcd_div(a_ij, a_kj);
             size_t pivot_index = 0;
@@ -200,11 +200,11 @@ void Tableau::debug(char const *indent) const {
 
 auto Tableau::size() const -> size_t {
     return std::accumulate(rows_.begin(), rows_.end(), static_cast<size_t>(0),
-                           [](size_t n, auto const &r) { return n + r.cells.size(); });
+                           [](size_t n, auto const &r) -> auto { return n + r.cells.size(); });
 }
 
 auto Tableau::empty() const -> bool {
-    return std::all_of(rows_.cbegin(), rows_.cend(), [](auto const &r) { return r.cells.empty(); });
+    return std::all_of(rows_.cbegin(), rows_.cend(), [](auto const &r) -> auto { return r.cells.empty(); });
 }
 
 void Tableau::clear() {

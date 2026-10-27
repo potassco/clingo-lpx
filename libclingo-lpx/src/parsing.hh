@@ -4,6 +4,8 @@
 
 #include <map>
 
+constexpr auto dec_radix = 10;
+
 constexpr char const *THEORY = R"(
 #theory lp {
     sum_term {

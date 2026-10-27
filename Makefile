@@ -1,7 +1,7 @@
 BUILD_TYPE:=debug
 CLINGO_DIR:=${HOME}/.local/opt/potassco/$(BUILD_TYPE)/lib/cmake/Clingo
-CXX=clang++
-CXXFLAGS=-Wall -Wextra -Wpedantic -Werror -stdlib=libc++
+CXX=clang++-22
+CXXFLAGS=-Wall -Wextra -Wpedantic -stdlib=libc++
 define cmake_options
 -G Ninja \
 -S . \

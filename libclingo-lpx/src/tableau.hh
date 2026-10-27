@@ -58,7 +58,7 @@ class Tableau {
         if (i < rows_.size()) {
             auto &row = rows_[i];
             for (auto &[col, val] : row.cells) {
-                f(static_cast<index_t>(col), val, row.den);
+                f(col, val, row.den);
             }
         }
     }

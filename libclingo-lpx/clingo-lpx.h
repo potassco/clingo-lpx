@@ -70,7 +70,7 @@ extern "C" {
 enum clingolpx_value_type {
     clingolpx_value_type_int = 0,
     clingolpx_value_type_double = 1,
-    clingolpx_value_type_symbol = 2
+    clingolpx_value_type_symbol = 2,
 };
 typedef int clingolpx_value_type_t;
 
