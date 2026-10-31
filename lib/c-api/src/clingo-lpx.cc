@@ -27,6 +27,8 @@
 #include <clingo-lpx/parsing.hh>
 #include <clingo-lpx/solving.hh>
 
+#include "clingolpx_git_hash.h"
+
 #include <clingo.h>
 #include <clingo/propagate.hh>
 
@@ -39,6 +41,8 @@
 using namespace ClingoLPX;
 
 namespace {
+
+constexpr auto dec_radix = 10;
 
 using namespace std::string_view_literals;
 
@@ -189,14 +193,14 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
 };
 
 //! Ascii tolower conversion.
-constexpr auto tolower(char c) -> char { return (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
+constexpr auto tolower(char c) -> char { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + ('a' - 'A')) : c; }
 
 //! Check if b is a lower case prefix of a returning a string_view to the remainder of a.
 auto iequals_pre(std::string_view a, std::string_view b) -> std::optional<std::string_view> {
     if (a.size() < b.size()) {
         return std::nullopt;
     }
-    auto cmp = [](char ac, char bc) { return tolower(ac) == tolower(bc); };
+    auto cmp = [](char ac, char bc) -> bool { return tolower(ac) == tolower(bc); };
     auto res = std::ranges::mismatch(b, a, cmp);
     return res.in1 == b.end() ? std::optional{a.substr(b.size())} : std::nullopt;
 }
@@ -216,7 +220,7 @@ template <typename Enum, size_t N> class EnumStringMap {
   public:
     constexpr EnumStringMap(const std::array<std::pair<std::string_view, Enum>, N> &map) : map_{map} {}
 
-    Enum from_string(std::string_view value) const {
+    [[nodiscard]] auto from_string(std::string_view value) const -> Enum {
         for (const auto &[name, mode] : map_) {
             if (iequals(value, name)) {
                 return mode;
@@ -225,7 +229,7 @@ template <typename Enum, size_t N> class EnumStringMap {
         throw std::invalid_argument("invalid enum string");
     }
 
-    std::string_view to_string(Enum mode) const {
+    [[nodiscard]] auto to_string(Enum mode) const -> std::string_view {
         for (const auto &[name, m] : map_) {
             if (mode == m) {
                 return name;
@@ -239,6 +243,7 @@ template <typename Enum, size_t N> class EnumStringMap {
 };
 
 template <typename Enum, size_t N>
+// NOLINTNEXTLINE(modernize-avoid-c-arrays)
 constexpr auto make_enum_string_map(std::pair<std::string_view, Enum> const (&map)[N]) {
     return EnumStringMap<Enum, N>(std::to_array(map));
 }
@@ -249,7 +254,7 @@ class ConfigPropagate {
 
     void set(std::string_view value) { opts_->propagate_mode = map_.from_string(value); }
 
-    auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->propagate_mode); }
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->propagate_mode); }
 
     static constexpr auto desc = //
         "Configure bound propagation"sv;
@@ -270,7 +275,7 @@ class ConfigSelect {
 
     void set(std::string_view value) { opts_->select = map_.from_string(value); }
 
-    auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->select); }
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->select); }
 
     static constexpr auto desc = //
         "Choose phase selection heuristic"sv;
@@ -291,7 +296,9 @@ class ConfigStore {
 
     void set(std::string_view value) { opts_->store_sat_assignment = map_.from_string(value); }
 
-    auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->store_sat_assignment); }
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> {
+        return map_.to_string(opts_->store_sat_assignment);
+    }
 
     static constexpr auto desc = //
         "Whether to store SAT assignments"sv;
@@ -322,7 +329,7 @@ class ConfigObjective {
                 if (iequals(value, "e")) {
                     opts_->global_objective = RationalQ{Rational{0}, Rational{1}};
                 } else {
-                    opts_->global_objective = RationalQ{Rational{std::string{value}, 10}};
+                    opts_->global_objective = RationalQ{Rational{std::string{value}, dec_radix}};
                 }
             } else {
                 throw std::invalid_argument{"invalid global objective"};
@@ -332,7 +339,7 @@ class ConfigObjective {
         }
     }
 
-    auto get() const -> std::optional<std::string> {
+    [[nodiscard]] auto get() const -> std::optional<std::string> {
         if (opts_->global_objective) {
             std::ostringstream oss;
             oss << "global";
@@ -365,32 +372,14 @@ class ConfigBool {
         }
     }
 
-    auto get() const -> std::optional<std::string_view> { return *target_ ? "yes" : "no"; }
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return *target_ ? "yes" : "no"; }
 
   private:
     bool *target_;
 };
 
-static constexpr auto desc_strict = "Enable support for strict constraints"sv;
-static constexpr auto desc_conflicts = "Propagate conflicting bounds"sv;
-
-//! Set the given error message if the Boolean is false.
-//!
-//! Return false if there is a parse error.
-template <class F, class... As> auto check_parse(char const *key, F fun, As &&...as) -> bool {
-    CLINGO_TRY {
-        bool res = false;
-        if (!fun(std::forward<As>(as)..., &res)) {
-            return false;
-        }
-        if (!res) {
-            auto msg = std::ostringstream{};
-            msg << "invalid value for '" << key << "'";
-            clingo_set_error(clingo_result_invalid, msg.view().data(), msg.view().size());
-        }
-    }
-    CLINGO_CATCH;
-}
+constexpr auto desc_strict = "Enable support for strict constraints"sv;
+constexpr auto desc_conflicts = "Propagate conflicting bounds"sv;
 
 struct clingolpx_theory {
     Clingo::Library lib;
@@ -398,7 +387,8 @@ struct clingolpx_theory {
     Options options;
     bool strict{false};
 
-    static auto info([[maybe_unused]] void *self, clingo_string_t *name, int *major, int *minor, int *patch) -> bool {
+    static auto info([[maybe_unused]] void *self, clingo_string_t *name, int *major, int *minor, int *patch,
+                     clingo_string_t *hash) -> bool {
         using namespace std::string_view_literals;
         CLINGO_TRY {
             if (name != nullptr) {
@@ -414,6 +404,15 @@ struct clingolpx_theory {
             }
             if (patch != nullptr) {
                 *patch = CLINGOLPX_VERSION_REVISION;
+            }
+            if (hash != nullptr) {
+#ifdef CLINGOLPX_GIT_HASH
+                constexpr auto str = std::string_view{CLINGOLPX_GIT_HASH};
+#else
+                constexpr auto str = ""sv;
+#endif
+                hash->data = str.data();
+                hash->size = str.size();
             }
         }
         CLINGO_CATCH;
@@ -458,26 +457,26 @@ struct clingolpx_theory {
     }
 
     static void destroy(void *self) {
-        auto theory = static_cast<clingolpx_theory *>(self);
+        auto *theory = static_cast<clingolpx_theory *>(self);
         std::unique_ptr<clingolpx_theory>{theory};
     }
 
     static auto register_options(void *self, clingo_options_t *options) -> bool {
         CLINGO_TRY {
             using namespace std::string_view_literals;
-            auto theory = static_cast<clingolpx_theory *>(self);
+            auto *theory = static_cast<clingolpx_theory *>(self);
             auto group = "Clingo.LPX Options"sv;
             auto opt = [&](std::string_view name, std::string_view desc, clingo_option_parser_t parser,
-                           bool multi = false, std::string_view arg = {}) {
+                           bool multi = false, std::string_view arg = {}) -> void {
                 handle_error(clingo_options_add(options, group.data(), group.size(), name.data(), name.size(),
                                                 desc.data(), desc.size(), parser, &theory->options, multi,
                                                 arg.empty() ? nullptr : arg.data(), arg.size()));
             };
-            auto flag = [&](std::string_view name, std::string_view desc, bool &target) {
+            auto flag = [&](std::string_view name, std::string_view desc, bool &target) -> void {
                 handle_error(clingo_options_add_flag(options, group.data(), group.size(), name.data(), name.size(),
                                                      desc.data(), desc.size(), &target));
             };
-            auto def = [&](std::string_view name, std::string_view value) {
+            auto def = [&](std::string_view name, std::string_view value) -> void {
                 handle_error(
                     clingo_options_set_default_value(options, name.data(), name.size(), value.data(), value.size()));
             };
@@ -517,7 +516,7 @@ struct clingolpx_theory {
 
     static auto lookup_symbol(void *self, clingo_symbol_t symbol, size_t *index, bool *found) -> bool {
         CLINGO_TRY {
-            auto theory = static_cast<clingolpx_theory *>(self);
+            auto *theory = static_cast<clingolpx_theory *>(self);
             *found = theory->clingolpx->lookup_symbol(Clingo::Symbol{symbol, true}, *index);
         }
         CLINGO_CATCH;
@@ -525,7 +524,7 @@ struct clingolpx_theory {
 
     static auto assignment_next(void *self, uint32_t thread_id, bool *init, size_t *index, bool *has_value) -> bool {
         CLINGO_TRY {
-            auto theory = static_cast<clingolpx_theory *>(self);
+            auto *theory = static_cast<clingolpx_theory *>(self);
             if (std::exchange(*init, false)) {
                 *index = 0;
             }
@@ -537,7 +536,7 @@ struct clingolpx_theory {
     static auto assignment_get_value(void *self, uint32_t thread_id, size_t index, clingo_symbol_t *symbol,
                                      clingo_theory_value_t *value, bool *has_value) -> bool {
         CLINGO_TRY {
-            auto theory = static_cast<clingolpx_theory *>(self);
+            auto *theory = static_cast<clingolpx_theory *>(self);
             bool hv = theory->clingolpx->has_value(thread_id, index);
             if (has_value != nullptr) {
                 *has_value = hv;
@@ -550,8 +549,10 @@ struct clingolpx_theory {
                 if (value != nullptr) {
                     auto sym = theory->clingolpx->get_value(theory->lib, thread_id, index);
                     value->type = clingo_theory_value_type_symbol;
+                    // NOLINTBEGIN(cppcoreguidelines-pro-type-union-access)
                     value->symbol = *c_cast(&sym);
                     clingo_symbol_acquire(value->symbol);
+                    // NOLINTEND(cppcoreguidelines-pro-type-union-access)
                 }
             }
         }
@@ -572,7 +573,7 @@ struct clingolpx_theory {
 
 } // namespace
 
-extern "C" bool clingolpx_create(clingo_lib_t *lib, clingo_theory_t *theory) {
+extern "C" auto clingolpx_create(clingo_lib_t *lib, clingo_theory_t *theory) -> bool {
     CLINGO_TRY {
         *theory = clingo_theory_t{
             clingolpx_theory::info,

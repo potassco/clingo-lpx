@@ -8,6 +8,7 @@ namespace PyClingoLPX {
 namespace {
 
 auto create_theory() -> pybind11::object {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     return pybind11::capsule{reinterpret_cast<void *>(&clingolpx_create), "clingo_theory_create"};
 }
 
@@ -33,7 +34,7 @@ class ClingoLPXApp(App):
     def __init__(self, lib: Library):
         theory = Theory(lib, create_theory())
         major, minor, revision = theory.version
-        super().__init__(theory.name, f"{major}.{minor}.{revision}")
+        super().__init__(theory.name, f"{major}.{minor}.{revision}", theory.commit_hash)
         self._lib = lib
         self._theory = theory
         globals()["THEORY"] = theory

@@ -31,8 +31,7 @@
 #include <gperftools/profiler.h>
 #endif
 
-#include <iostream>
-#include <optional>
+#include <utility>
 
 namespace ClingoLPX {
 
@@ -53,12 +52,20 @@ class Profiler {
 //! Application class to run clingo-lpx.
 class App : public Clingo::App, private Clingo::SolveEventHandler {
   public:
-    App(Clingo::Library const &lib) : lib_{lib} {}
+    App(Clingo::Library lib) : lib_{std::move(lib)} {}
     App(App &&other) = delete;
     //! Set program name to clingo-dl.
     auto do_program_name() noexcept -> std::string_view override { return "clingo-lpx"; }
     //! Set the version.
     auto do_version() noexcept -> std::string_view override { return CLINGOLPX_VERSION; }
+    //! Get the commit hash of the current build.
+    auto do_commit_hash() noexcept -> std::string_view override {
+        try {
+            return theory_.commit_hash();
+        } catch (...) {
+            return {};
+        }
+    }
     //! Pass models to the theory.
     auto do_model(Clingo::Model model) -> bool override {
         theory_.model(model);
@@ -99,6 +106,7 @@ class App : public Clingo::App, private Clingo::SolveEventHandler {
 auto main(int argc, char *argv[]) -> int { // NOLINT(bugprone-exception-escape)
     Clingo::Library lib;
     ClingoLPX::App app{lib};
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     auto args = std::vector<std::string_view>{argv + 1, argv + argc};
     return Clingo::main(lib, args, &app);
 }

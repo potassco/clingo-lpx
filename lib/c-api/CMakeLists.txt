@@ -29,13 +29,15 @@ else()
     set(lib_type STATIC)
 endif()
 
+potassco_git_hash(clingolpx)
+
 add_library(clingo-lpx "${lib_type}")
 clingolpx_target_properties(TARGETS clingo-lpx FOLDER "lib" TYPE default)
 target_sources(clingo-lpx PRIVATE ${header} ${source})
 target_include_directories(clingo-lpx PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
-target_link_libraries(clingo-lpx PUBLIC clingo::clingo PRIVATE clingo-lpx-solver)
+target_link_libraries(clingo-lpx PUBLIC clingo::clingo PRIVATE clingo-lpx-solver clingolpx-hash)
 if(CLINGOLPX_USE_VISIBILITY)
     target_compile_definitions(clingo-lpx PRIVATE "$<BUILD_INTERFACE:CLINGOLPX_BUILD_LIBRARY>")
 else()
@@ -90,7 +92,7 @@ if(CLINGOLPX_BUILD_TESTS)
     add_library(clingo-lpx_t STATIC)
     clingolpx_target_properties(TARGETS clingo-lpx_t FOLDER "lib")
     target_sources(clingo-lpx_t PRIVATE ${header} ${source})
-    target_link_libraries(clingo-lpx_t PUBLIC clingo-lpx-solver_t)
+    target_link_libraries(clingo-lpx_t PUBLIC clingo-lpx-solver_t clingolpx-hash)
     target_include_directories(clingo-lpx_t PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
     target_compile_definitions(clingo-lpx_t PUBLIC CLINGOLPX_NO_VISIBILITY)
 
