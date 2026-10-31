@@ -60,4 +60,5 @@ jobs:
       - name: Install
         run: |
           cmake --install build --config Release
-          clingcon --version
+          clingo-lpx --version
+          python -c 'import clingolpx; clingolpx._pyclingolpx()' --version
