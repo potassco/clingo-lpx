@@ -91,24 +91,24 @@ Setup
 \begin_layout Standard
 The goal is to find a solution that satisfies a set of constrains.
  A constraint has form
-\begin_inset Formula 
+\begin_inset Formula
 \begin{align}
 a_{1}x_{1}+\dots+a_{n}x_{n} & \prec b,\label{eq:constraint}
 \end{align}
 
 \end_inset
 
-where each 
+where each
 \begin_inset Formula $a_{i}$
 \end_inset
 
  is a rational number,
- each 
+ each
 \begin_inset Formula $x_{i}$
 \end_inset
 
  is a variable for a rational number,
- and 
+ and
 \begin_inset Formula $b$
 \end_inset
 
@@ -135,7 +135,7 @@ nolink "false"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
+\begin_inset Formula
 \begin{align}
 y & =\Sigma_{0\leq j<n}a_{ij}x_{j}\label{eq:tableaux}
 \end{align}
@@ -155,11 +155,11 @@ y & =\Sigma_{0\leq j<n}a_{ij}x_{j}\label{eq:tableaux}
 \uwave off
 \noun off
 \color none
-for 
+for
 \begin_inset Formula $0\leq i<m$
 \end_inset
 
- where 
+ where
 \family default
 \series default
 \shape default
@@ -172,11 +172,11 @@ for
 \uwave default
 \noun default
 \color inherit
-variables 
+variables
 \begin_inset Formula $y_{i}$
 \end_inset
 
- are basic and 
+ are basic and
 \begin_inset Formula $x_{j}$
 \end_inset
 
@@ -198,14 +198,14 @@ nolink "false"
 
 .
  Not every solution to a tableau corresponds to a solution of the constrains.
- Depending on the relation 
+ Depending on the relation
 \begin_inset Formula ${\prec}\in\left\{ \leq,\geq,=\right\} $
 \end_inset
 
 ,
  we require solutions for which basic variables are less equal,
  greater equal,
- or equal to 
+ or equal to
 \begin_inset Formula $b$
 \end_inset
 
@@ -214,35 +214,35 @@ nolink "false"
 
 \begin_layout Standard
 We can construct a solution for a tableau from a sequence of pivot operations.
- The pivot operation swaps a basic variable 
+ The pivot operation swaps a basic variable
 \begin_inset Formula $y_{i}$
 \end_inset
 
- and a non-basic variable 
+ and a non-basic variable
 \begin_inset Formula $x_{j}$
 \end_inset
 
 .
- It is applicable whenever 
+ It is applicable whenever
 \begin_inset Formula $a_{ij}\neq0$
 \end_inset
 
 .
  We consider one further addition,
- assuming that the 
+ assuming that the
 \begin_inset Formula $y_{i}$
 \end_inset
 
- have additional integer factors 
+ have additional integer factors
 \begin_inset Formula $d_{i}.$
 \end_inset
 
  The idea here is that we can avoid rational numbers by multiplying equations with a suitable denominator.
- 
+
 \emph on
 Rearranging
 \emph default
- the 
+ the
 \begin_inset Formula $i$
 \end_inset
 
@@ -251,7 +251,7 @@ Rearranging
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
+\begin_inset Formula
 \begin{align*}
 a_{ij}x_{j} & =d_{i}y_{i}-\Sigma_{0\leq l<n,l\neq j}a_{il}\cdot x_{l}.
 \end{align*}
@@ -262,16 +262,16 @@ a_{ij}x_{j} & =d_{i}y_{i}-\Sigma_{0\leq l<n,l\neq j}a_{il}\cdot x_{l}.
 \end_layout
 
 \begin_layout Standard
-The equation can then be used to 
+The equation can then be used to
 \emph on
 eliminate
 \emph default
- 
+
 \begin_inset Formula $x_{j}$
 \end_inset
 
  from the other equations.
- For 
+ For
 \begin_inset Formula $k\neq i$
 \end_inset
 
@@ -280,7 +280,7 @@ eliminate
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula 
+\begin_inset Formula
 \begin{align*}
 d_{k}y_{k} & =\left(\Sigma_{0\leq l<n,l\neq j}a_{kl}x_{l}\right)+\frac{a_{kj}}{a_{ij}}\left(d_{i}y_{i}-\Sigma_{0\leq l<n,l\neq j}a_{il}x_{l}\right)\\
 a_{ij}d_{k}y_{k} & =a_{kj}d_{i}y_{i}+a_{ij}\left(\Sigma_{0\leq l<n,l\neq j}a_{kl}x_{l}\right)-\left(\Sigma_{0\leq l<n,l\neq j}a_{kj}a_{il}x_{l}\right)\\
@@ -289,11 +289,11 @@ a_{ij}d_{k}y_{k} & =a_{kj}d_{i}y_{i}+a_{ij}\left(\Sigma_{0\leq l<n,l\neq j}a_{kl
 
 \end_inset
 
-Swapping variables 
+Swapping variables
 \begin_inset Formula $y_{i}$
 \end_inset
 
- and 
+ and
 \begin_inset Formula $x_{j}$
 \end_inset
 
@@ -314,15 +314,15 @@ nolink "false"
 
 .
  Furthemore,
- note that we can divide the equations for 
+ note that we can divide the equations for
 \begin_inset Formula $y_{k}$
 \end_inset
 
- by the greatest common divisor of 
+ by the greatest common divisor of
 \begin_inset Formula $a_{ij}$
 \end_inset
 
- and 
+ and
 \begin_inset Formula $a_{kj}$
 \end_inset
 
@@ -334,7 +334,7 @@ Refinement
 \end_layout
 
 \begin_layout Standard
-The current algorithm in 
+The current algorithm in
 \emph on
 clingo-lpx
 \emph default

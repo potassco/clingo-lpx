@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <clingo-lpx/tableau.hh>
 
 #include <cassert>
@@ -9,7 +10,7 @@ namespace ClingoLPX {
 auto Tableau::get(index_t i, index_t j) const -> Rational {
     if (i < rows_.size()) {
         auto const &r = rows_[i];
-        auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
+        auto it = std::ranges::lower_bound(r.cells, j, {}, &Cell::col);
         if (it != r.cells.end() && it->col == j) {
             return Rational{it->val, r.den};
         }
@@ -19,7 +20,7 @@ auto Tableau::get(index_t i, index_t j) const -> Rational {
 
 void Tableau::unsafe_get(index_t i, index_t j, Integer *&num, Integer *&den) {
     auto &r = rows_[i];
-    num = &std::lower_bound(r.cells.begin(), r.cells.end(), j)->val;
+    num = &std::ranges::lower_bound(r.cells, j, {}, &Cell::col)->val;
     den = &r.den;
 }
 
@@ -31,14 +32,14 @@ void Tableau::set(index_t i, index_t j, Rational const &a) {
     if (a == 0) {
         if (i < rows_.size()) {
             auto &r = rows_[i].cells;
-            auto it = std::lower_bound(r.begin(), r.end(), j);
+            auto it = std::ranges::lower_bound(r, j, {}, &Cell::col);
             if (it != r.end() && it->col == j) {
                 r.erase(it);
             }
         }
     } else {
         auto &r = reserve_row_(i);
-        auto it = std::lower_bound(r.cells.begin(), r.cells.end(), j);
+        auto it = std::ranges::lower_bound(r.cells, j, {}, &Cell::col);
         auto [g, ag, rg] = gcd_div(a.den(), r.den);
         if (it == r.cells.end() || it->col != j) {
             it = r.cells.emplace(it, j, a.num() * rg);
@@ -56,7 +57,7 @@ void Tableau::set(index_t i, index_t j, Rational const &a) {
             }
         }
         auto &col = reserve_col_(j);
-        auto jt = std::lower_bound(col.begin(), col.end(), i);
+        auto jt = std::ranges::lower_bound(col, i);
         if (jt == col.end() || *jt != i) {
             col.emplace(jt, i);
         }
@@ -93,7 +94,7 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     std::vector<Cell> row;
     std::vector<index_t> col_buf;
 
-    update_row(i, [&](index_t k, Integer &a_il, Integer &d_i) {
+    update_row(i, [&](index_t k, Integer &a_il, Integer &d_i) -> void {
         static_cast<void>(d_i);
         if (k != j) {
             a_il.neg();
@@ -102,7 +103,7 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
     // Note that insertions into rows and columns do not invert iterators:
     // - row i is unaffected because k != i
     // - there are no insertions in column j because each a_kj != 0
-    update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) {
+    update_col(j, [&](index_t k, Integer const &a_kj, Integer &d_k) -> void {
         if (k != i) {
             auto [g, ga_ij, ga_kj] = gcd_div(a_ij, a_kj);
             size_t pivot_index = 0;
@@ -169,7 +170,7 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
         if (*jt == 1) {
             auto j = col.back();
             col.pop_back();
-            auto kt = std::lower_bound(col.begin(), col.end(), j);
+            auto kt = std::ranges::lower_bound(col, j);
             if (kt == col.end() || *kt != j) {
                 col.emplace(kt, j);
             }
@@ -202,11 +203,11 @@ void Tableau::debug(char const *indent) const {
 
 auto Tableau::size() const -> size_t {
     return std::accumulate(rows_.begin(), rows_.end(), static_cast<size_t>(0),
-                           [](size_t n, auto const &r) { return n + r.cells.size(); });
+                           [](size_t n, auto const &r) -> auto { return n + r.cells.size(); });
 }
 
 auto Tableau::empty() const -> bool {
-    return std::all_of(rows_.cbegin(), rows_.cend(), [](auto const &r) { return r.cells.empty(); });
+    return std::ranges::all_of(rows_, [](auto const &r) -> auto { return r.cells.empty(); });
 }
 
 void Tableau::clear() {

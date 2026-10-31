@@ -2,8 +2,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <iterator>
-#include <type_traits>
 #include <vector>
 
 #include "number.hh"
@@ -57,11 +55,12 @@ class Tableau {
     //! not required by a simplex algorithm.
     //!
     //! Runs in O(n).
+    // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
     template <typename F> void update_row(index_t i, F &&f) {
         if (i < rows_.size()) {
             auto &row = rows_[i];
             for (auto &[col, val] : row.cells) {
-                f(static_cast<index_t>(col), val, row.den);
+                std::invoke(f, col, val, row.den);
             }
         }
     }
@@ -71,6 +70,7 @@ class Tableau {
     //! The same remark as for update_row() applies.
     //!
     //! Runs in O(m*log(n)).
+    // NOLINTNEXTLINE(cppcoreguidelines-missing-std-forward)
     template <typename F> void update_col(index_t j, F &&f) {
         if (j < cols_.size()) {
             auto &col = cols_[j];
@@ -79,9 +79,9 @@ class Tableau {
             for (auto jt = it; jt != ie; ++jt) {
                 auto i = *jt;
                 auto &row = rows_[i];
-                auto kt = std::lower_bound(row.cells.begin(), row.cells.end(), j);
+                auto kt = std::ranges::lower_bound(row.cells, j, {}, &Cell::col);
                 if (kt != row.cells.end() && kt->col == j) {
-                    f(i, kt->val, row.den);
+                    std::invoke(f, i, kt->val, row.den);
                     if (it != jt) {
                         std::iter_swap(it, jt);
                     }
@@ -127,9 +127,6 @@ class Tableau {
         Cell(index_t col, Integer val) : col{col}, val{std::move(val)} {}
 
         friend auto operator==(Cell const &x, Cell const &y) -> bool { return x.col == y.col && x.val == y.val; }
-        friend auto operator<(Cell const &x, Cell const &y) -> bool { return x.col < y.col; }
-        friend auto operator<(Cell const &x, index_t col) -> bool { return x.col < col; }
-        friend auto operator<(index_t col, Cell const &x) -> bool { return col < x.col; }
 
         index_t col;
         Integer val;

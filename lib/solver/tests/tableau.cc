@@ -31,7 +31,7 @@ auto as_int_mat(Tableau &tab, index_t m, index_t n) -> std::vector<std::vector<I
             row.emplace_back(0);
         }
         row.emplace_back(1);
-        tab.update_row(i, [&row](index_t j, Integer const &num, Integer const &den) {
+        tab.update_row(i, [&row](index_t j, Integer const &num, Integer const &den) -> void {
             row[j] = num;
             row.back() = den;
         });
@@ -100,7 +100,7 @@ TEST_CASE("matrix") {
         REQUIRE(tab.size() == 1);
 
         // traverse the first row
-        tab.update_row(0, [](index_t j, Integer &a_0j, Integer &d_0) {
+        tab.update_row(0, [](index_t j, Integer &a_0j, Integer &d_0) -> void {
             REQUIRE(j == 2);
             REQUIRE(a_0j == 1);
             REQUIRE(d_0 == 1);
@@ -108,7 +108,7 @@ TEST_CASE("matrix") {
         REQUIRE(tab.size() == 1);
 
         // traverse the third column
-        tab.update_col(2, [](index_t i, Integer &a_2j, Integer &d_2) {
+        tab.update_col(2, [](index_t i, Integer &a_2j, Integer &d_2) -> void {
             REQUIRE(i == 0);
             REQUIRE(a_2j == 1);
             REQUIRE(d_2 == 1);
@@ -117,7 +117,7 @@ TEST_CASE("matrix") {
 
         // traverse the first column
         size_t n = 0;
-        tab.update_col(0, [&n](index_t i, Integer &a_i0, Integer &d_i) {
+        tab.update_col(0, [&n](index_t i, Integer &a_i0, Integer &d_i) -> void {
             static_cast<void>(i);
             static_cast<void>(a_i0);
             static_cast<void>(d_i);
@@ -153,7 +153,10 @@ TEST_CASE("matrix") {
         std::vector<std::vector<Integer>> int_ret = as_int_mat(tab, 3, 3);
 
         std::vector<std::vector<Rational>> num_sol = {
-            {{-3, 5}, {2, 5}, {3, 5}}, {{-4, 5}, {1, 5}, {-6, 5}}, {{3, 5}, {8, 5}, {-3, 5}}};
+            {{-3, 5}, {2, 5}, {3, 5}},
+            {{-4, 5}, {1, 5}, {-6, 5}},
+            {{3, 5}, {8, 5}, {-3, 5}},
+        };
         std::vector<std::vector<Integer>> int_sol = {{-3, 2, 3, 5}, {-4, 1, -6, 5}, {3, 8, -3, 5}};
 
         REQUIRE(num_ret == num_sol);

@@ -1,10 +1,10 @@
+#include <algorithm>
 #include <clingo-lpx/parsing.hh>
 #include <clingo-lpx/util.hh>
 
 #include <clingo/core.hh>
 #include <clingo/symbol.hh>
 
-#include <algorithm>
 #include <iterator>
 #include <optional>
 #include <stdexcept>
@@ -16,8 +16,12 @@ namespace ClingoLPX {
 
 namespace {
 
+// NOLINTBEGIN(cppcoreguidelines-macro-usage)
 #define MATCHES(a, b) std::is_same_v<std::remove_reference_t<std::remove_cv_t<decltype(a)>>, b>
 #define FWD(a) std::forward<decltype(a)>(a)
+// NOLINTEND(cppcoreguidelines-macro-usage)
+
+constexpr auto dec_radix = 10;
 
 template <typename T = void> [[nodiscard]] auto throw_syntax_error(char const *message = "Invalid Syntax") -> T {
     throw std::runtime_error(message);
@@ -66,7 +70,7 @@ void check_syntax(bool condition, char const *message = "Invalid Syntax") {
 }
 
 template <class F> struct EB {
-    EB(F &f) : f{f} {}
+    explicit EB(F &f) : f{f} {}
     auto operator()(Rational &&a, Rational &&b) -> Rational { return f(std::move(a), std::move(b)); }
     template <class A, class B> auto operator()([[maybe_unused]] A &&a, [[maybe_unused]] B &&b) -> Rational {
         return throw_syntax_error<Rational>();
@@ -76,7 +80,7 @@ template <class F> struct EB {
 
 struct EU {
     auto operator()(Rational &&a) -> std::variant<Rational, Clingo::Symbol> { return -std::move(a); }
-    auto operator()(Clingo::Symbol &&a) -> std::variant<Rational, Clingo::Symbol> {
+    auto operator()(Clingo::Symbol const &a) -> std::variant<Rational, Clingo::Symbol> {
         if (a.type() == Clingo::SymbolType::function) {
             return Clingo::Function(lib, a.name(), a.arguments(), !a.is_positive());
         }
@@ -86,13 +90,13 @@ struct EU {
 };
 
 struct AS {
-    auto operator()(Rational &&a) -> Clingo::Symbol {
+    auto operator()(Rational const &a) -> Clingo::Symbol {
         if (auto v = a.num().as_int(); a.den() == 1 && v) {
             return Clingo::Number(*v);
         }
         return throw_syntax_error<Clingo::Symbol>();
     }
-    auto operator()(Clingo::Symbol &&a) -> Clingo::Symbol { return std::move(a); }
+    auto operator()(Clingo::Symbol a) -> Clingo::Symbol { return a; }
 };
 
 [[nodiscard]] auto as_sym(std::variant<Rational, Clingo::Symbol> &&x) -> Clingo::Symbol {
@@ -109,7 +113,7 @@ struct AS {
     auto dot = name.find('.');
     auto lhs = (dot != std::string_view::npos) ? name.substr(0, dot) : name;
     auto rhs = (dot != std::string_view::npos) ? name.substr(dot + 1) : "0";
-    auto is_digit = [](char c) { return c >= '0' && c <= '9'; };
+    auto is_digit = [](char c) -> bool { return c >= '0' && c <= '9'; };
     if (lhs.empty() || rhs.empty() || !std::ranges::all_of(lhs, is_digit) || !std::ranges::all_of(rhs, is_digit)) {
         return std::nullopt;
     }
@@ -123,7 +127,7 @@ struct AS {
         a.append(rhs.size(), '0');
     }
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-    Rational n{a, 10};
+    Rational n{a, dec_radix};
     if (negative) {
         n.neg();
     }
@@ -137,9 +141,9 @@ struct AS {
     if (is_string(str)) {
         str = str.substr(1, str.size() - 2);
     }
-    for (auto it = str.begin(), ie = str.end(); it != ie; ++it) {
+    for (char it : str) {
         if (slash) {
-            switch (*it) {
+            switch (it) {
                 case 'n': {
                     res.push_back('\n');
                     break;
@@ -158,10 +162,10 @@ struct AS {
                 }
             }
             slash = false;
-        } else if (*it == '\\') {
+        } else if (it == '\\') {
             slash = true;
         } else {
-            res.push_back(*it);
+            res.push_back(it);
         }
     }
     return res;
@@ -197,19 +201,19 @@ auto evaluate(Clingo::Library const &lib, bool num_str, Clingo::TheoryTerm const
 
     if (match(term, "+", 2)) {
         return evaluate(lib, num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) + std::move(b); });
+                        [](Rational &&a, Rational const &b) -> Rational { return std::move(a) + b; });
     }
     if (match(term, "-", 2)) {
         return evaluate(lib, num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) - std::move(b); });
+                        [](Rational &&a, Rational const &b) -> Rational { return std::move(a) - b; });
     }
     if (match(term, "*", 2)) {
         return evaluate(lib, num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) * std::move(b); });
+                        [](Rational &&a, Rational const &b) -> Rational { return std::move(a) * b; });
     }
     if (match(term, "/", 2)) {
         return evaluate(lib, num_str, term.arguments().front(), term.arguments().back(),
-                        [](Rational &&a, Rational &&b) { return std::move(a) / std::move(b); });
+                        [](Rational &&a, Rational const &b) -> Rational { return std::move(a) / b; });
     }
 
     if (match(term, "-", 1)) {
@@ -256,7 +260,7 @@ auto parse_diff_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term)
     if (match(term, "-", 2)) {
         auto args = term.arguments();
         std::visit(
-            [&res](auto &&a) {
+            [&res](auto &&a) -> auto {
                 if constexpr (MATCHES(a, Rational)) {
                     res.emplace_back(Term{FWD(a), Clingo::Number(0)});
                 }
@@ -266,7 +270,7 @@ auto parse_diff_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term)
             },
             evaluate(lib, true, args.front()));
         std::visit(
-            [&res](auto &&a) {
+            [&res](auto &&a) -> auto {
                 if constexpr (MATCHES(a, Rational)) {
                     res.emplace_back(Term{-FWD(a), Clingo::Number(0)});
                 }
@@ -293,13 +297,13 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
         parse_sum_elem(lib, args.front(), res);
         auto pos = res.size();
         parse_sum_elem(lib, args.back(), res);
-        for (auto it = res.begin() + pos, ie = res.end(); it != ie; ++it) {
+        for (auto it = res.begin() + static_cast<ptrdiff_t>(pos), ie = res.end(); it != ie; ++it) {
             it->co = -it->co;
         }
     } else if (match(term, "-", 1)) {
         auto pos = res.size();
         parse_sum_elem(lib, term.arguments().front(), res);
-        for (auto it = res.begin() + pos, ie = res.end(); it != ie; ++it) {
+        for (auto it = res.begin() + static_cast<ptrdiff_t>(pos), ie = res.end(); it != ie; ++it) {
             it->co = -it->co;
         }
     } else if (match(term, "+", 1)) {
@@ -352,7 +356,7 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
         parse_sum_elem(lib, term, lhs);
         if (auto cond_id = elem.condition_id(); cond_id) {
             auto cond_lit = mapper(cond_id);
-            for (auto it = lhs.begin() + n, ie = lhs.end(); it != ie; ++it) {
+            for (auto it = lhs.begin() + static_cast<ptrdiff_t>(n), ie = lhs.end(); it != ie; ++it) {
                 auto res = var_map.try_emplace(std::make_pair(it->var, cond_lit),
                                                Clingo::Number(safe_cast<int>(var_map.size() + 1)));
                 if (res.second) {
@@ -378,21 +382,23 @@ auto simplify(std::unordered_map<Clingo::Symbol, Term &> &cos, std::vector<Term>
     auto rhs = Rational{0};
     // combine cofficients
     cos.clear();
-    std::for_each(ib, ie, [&cos, &rhs](Term &term) {
+    std::for_each(ib, ie, [&cos, &rhs](Term &term) -> void {
         if (is_invalid(term.var)) {
-            rhs -= std::move(term.co);
+            rhs -= term.co;
             term.co = 0;
         } else if (auto [jt, res] = cos.emplace(term.var, term); !res) {
-            jt->second.co += std::move(term.co);
+            jt->second.co += term.co;
             term.co = 0;
         }
     });
 
     // remove terms with zero coeffcients
-    terms.erase(std::remove_if(ib, ie, [](Term const &term) { return term.co == 0; }), ie);
+    terms.erase(std::remove_if(ib, ie, [](Term const &term) -> bool { return term.co == 0; }), ie);
 
     return rhs;
 }
+
+// NOLINTBEGIN(bugprone-unchecked-optional-access)
 
 void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, LitMapper const &mapper,
                   VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective) {
@@ -423,7 +429,7 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
             auto lhs = parse_diff_elem(lib, tuple.front());
             size_t n = lhs.size();
             parse_sum_elem(lib, guard->second, lhs);
-            for (auto it = lhs.begin() + n, ie = lhs.end(); it != ie; ++it) {
+            for (auto it = lhs.begin() + static_cast<ptrdiff_t>(n), ie = lhs.end(); it != ie; ++it) {
                 it->co.neg();
             }
             auto rhs = simplify(cos, lhs);
@@ -435,7 +441,7 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
             auto lhs = parse_sum_elems(lib, mapper, var_map, iqs, atom.elements());
             size_t n = lhs.size();
             parse_sum_elem(lib, guard->second, lhs);
-            for (auto it = lhs.begin() + n, ie = lhs.end(); it != ie; ++it) {
+            for (auto it = lhs.begin() + static_cast<ptrdiff_t>(n), ie = lhs.end(); it != ie; ++it) {
                 it->co.neg();
             }
             auto rhs = simplify(cos, lhs);
@@ -448,12 +454,14 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
                     term.co.neg();
                 }
             }
-            std::move(lhs.begin(), lhs.end(), std::back_inserter(objective));
+            std::ranges::move(lhs, std::back_inserter(objective));
         }
     }
     auto rhs = simplify(cos, objective);
     check_syntax(rhs == 0, "objective must not contain constants");
 }
+
+// NOLINTEND(bugprone-unchecked-optional-access)
 
 } // namespace
 

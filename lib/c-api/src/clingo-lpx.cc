@@ -218,7 +218,7 @@ template <class T> auto c_parse(const char *value, size_t size, void *data) -> b
 
 template <typename Enum, size_t N> class EnumStringMap {
   public:
-    constexpr EnumStringMap(const std::array<std::pair<std::string_view, Enum>, N> &map) : map_{map} {}
+    constexpr explicit EnumStringMap(const std::array<std::pair<std::string_view, Enum>, N> &map) : map_{map} {}
 
     [[nodiscard]] auto from_string(std::string_view value) const -> Enum {
         for (const auto &[name, mode] : map_) {
@@ -250,7 +250,7 @@ constexpr auto make_enum_string_map(std::pair<std::string_view, Enum> const (&ma
 
 class ConfigPropagate {
   public:
-    ConfigPropagate(Options &opts) : opts_{&opts} {}
+    explicit ConfigPropagate(Options &opts) : opts_{&opts} {}
 
     void set(std::string_view value) { opts_->propagate_mode = map_.from_string(value); }
 
@@ -271,7 +271,7 @@ class ConfigPropagate {
 
 class ConfigSelect {
   public:
-    ConfigSelect(Options &opts) : opts_{&opts} {}
+    explicit ConfigSelect(Options &opts) : opts_{&opts} {}
 
     void set(std::string_view value) { opts_->select = map_.from_string(value); }
 
@@ -292,7 +292,7 @@ class ConfigSelect {
 
 class ConfigStore {
   public:
-    ConfigStore(Options &opts) : opts_{&opts} {}
+    explicit ConfigStore(Options &opts) : opts_{&opts} {}
 
     void set(std::string_view value) { opts_->store_sat_assignment = map_.from_string(value); }
 
@@ -315,7 +315,7 @@ class ConfigStore {
 
 class ConfigObjective {
   public:
-    ConfigObjective(Options &opts) : opts_{&opts} {}
+    explicit ConfigObjective(Options &opts) : opts_{&opts} {}
 
     void set(std::string_view value) {
         if (iequals(value, "local")) {
@@ -360,7 +360,7 @@ class ConfigObjective {
 
 class ConfigBool {
   public:
-    ConfigBool(bool &target) : target_{&target} {}
+    explicit ConfigBool(bool &target) : target_{&target} {}
 
     void set(std::string_view value) {
         if (iequals(value, "no") || iequals(value, "off") || iequals(value, "0")) {

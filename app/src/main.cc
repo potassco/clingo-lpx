@@ -52,7 +52,7 @@ class Profiler {
 //! Application class to run clingo-lpx.
 class App : public Clingo::App, private Clingo::SolveEventHandler {
   public:
-    App(Clingo::Library lib) : lib_{std::move(lib)} {}
+    explicit App(Clingo::Library lib) : lib_{std::move(lib)} {}
     App(App &&other) = delete;
     //! Set program name to clingo-dl.
     auto do_program_name() noexcept -> std::string_view override { return "clingo-lpx"; }

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <clingo-lpx/parsing.hh>
 
 #include <clingo/control.hh>
@@ -13,7 +14,7 @@ namespace {
 
 template <typename T> auto str(T &&x) -> std::string {
     std::ostringstream oss;
-    oss << x;
+    oss << std::forward<T>(x);
     return oss.str();
 }
 
@@ -64,8 +65,8 @@ TEST_CASE_METHOD(Fixture, "parsing objective") {
     evaluate("&minimize { 3*x }. &maximize { -y }.");
     REQUIRE(eqs.empty());
     REQUIRE(objective.size() == 2);
-    std::sort(objective.begin(), objective.end(),
-              [](auto &a, auto &b) { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
+    std::ranges::sort(
+        objective, [](auto &a, auto &b) -> auto { return std::make_pair(a.var, a.co) < std::make_pair(b.var, b.co); });
     REQUIRE(str(Inequality{objective, 0, Relation::Equal, 0}) == "-3*x + -y = 0");
 }
 

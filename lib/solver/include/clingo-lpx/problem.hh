@@ -6,7 +6,7 @@
 
 namespace ClingoLPX {
 
-enum class Relation {
+enum class Relation : uint8_t {
     LessEqual = 0,
     GreaterEqual = 1,
     Equal = 2,

@@ -18,19 +18,19 @@ namespace ClingoLPX {
 using SymbolMap = std::unordered_map<Clingo::Symbol, index_t>;
 using SymbolVec = std::vector<Clingo::Symbol>;
 
-enum class StoreSATAssignments : int {
+enum class StoreSATAssignments : uint8_t {
     No = 0,
     Partial = 1,
     Total = 2,
 };
 
-enum class SelectionHeuristic : int {
+enum class SelectionHeuristic : uint8_t {
     None = 0,
     Match = 1,
     Conflict = 2,
 };
 
-enum class PropagateMode : int {
+enum class PropagateMode : uint8_t {
     None = 0,
     Changed = 1,
     Full = 2,
@@ -71,17 +71,17 @@ template <typename Value> class Solver {
     //! Helper class to prepare the inequalities for solving.
     struct Prepare;
     //! The bound type.
-    enum class BoundType : uint32_t {
+    enum class BoundType : uint8_t {
         Lower = 0,
         Upper = 1,
         // Equal = 2,
     };
-    enum class BoundRelation : uint32_t {
+    enum class BoundRelation : uint8_t {
         LessEqual = 0,
         GreaterEqual = 1,
         Equal = 2,
     };
-    template <typename V> friend auto bound_rel(Relation rel) -> typename Solver<V>::BoundRelation;
+    template <typename V> friend auto bound_rel(Relation rel) -> Solver<V>::BoundRelation;
     //! The bounds associated with a Variable.
     //!
     //! In practice, there should be a lot of variables with just one bound.
@@ -143,7 +143,7 @@ template <typename Value> class Solver {
     };
     //! Captures what is know about of the satisfiability of a problem while
     //! solving.
-    enum class State { Satisfiable = 0, Unsatisfiable = 1, Unknown = 2 };
+    enum class State : uint8_t { Satisfiable = 0, Unsatisfiable = 1, Unknown = 2 };
     //! Captures the objective function.
     struct Objective {
         explicit operator bool() const { return active; }
@@ -163,7 +163,7 @@ template <typename Value> class Solver {
 
   public:
     //! Construct a new solver object.
-    Solver(Options const &options);
+    explicit Solver(Options const &options);
 
     //! Prepare inequalities for solving.
     [[nodiscard]] auto prepare(Clingo::Assignment ass, Clingo::PropagateInit init, SymbolMap const &symbols,
@@ -275,7 +275,7 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     void on_statistics(Clingo::Stats step, Clingo::Stats accu);
     void on_model(Clingo::Model const &model);
 
-    [[nodiscard]] auto lookup_symbol(Clingo::Symbol symbol) const -> std::optional<index_t>;
+    [[nodiscard]] auto lookup_symbol(const Clingo::Symbol &symbol) const -> std::optional<index_t>;
     [[nodiscard]] auto get_symbol(index_t i) const -> Clingo::Symbol;
     [[nodiscard]] auto has_value(index_t thread_id, index_t i) const -> bool;
     [[nodiscard]] auto get_value(index_t thread_id, index_t i) const -> Value;
@@ -287,7 +287,7 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     void do_check(Clingo::Assignment ass, Clingo::PropagateControl ctl) override;
     void do_propagate(Clingo::Assignment ass, Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan changes) override;
     void do_undo(Clingo::Assignment ass, Clingo::SolverLiteralSpan changes) override;
-    auto do_decide(Clingo::Assignment ass, Clingo::SolverLiteral literal) -> Clingo::SolverLiteral override;
+    auto do_decide(Clingo::Assignment ass, Clingo::SolverLiteral fallback) -> Clingo::SolverLiteral override;
 
     Clingo::Library const *lib_;
     VarMap aux_map_;

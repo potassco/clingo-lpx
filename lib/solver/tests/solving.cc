@@ -14,7 +14,7 @@ namespace {
 
 template <typename V> class SHM : public Clingo::SolveEventHandler {
   public:
-    SHM(Propagator<V> &prp) : prp_{prp} {}
+    explicit SHM(Propagator<V> &prp) : prp_{prp} {}
 
     auto get_objective() const -> std::optional<std::pair<V, bool>> const & { return val_; }
 
@@ -29,8 +29,9 @@ template <typename V> class SHM : public Clingo::SolveEventHandler {
     Propagator<V> &prp_;
 };
 
-Options const options{SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, PropagateMode::Changed,
-                      true};
+Options const options{
+    SelectionHeuristic::Conflict, StoreSATAssignments::Partial, std::nullopt, PropagateMode::Changed, true,
+};
 
 template <typename V = Rational> auto run(char const *s) -> bool {
     auto lib = Clingo::Library{};

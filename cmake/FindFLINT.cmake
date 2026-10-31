@@ -27,18 +27,18 @@ if(DEFINED ENV{FLINT_DIR})
 endif()
 
 find_library(
-    GMP_LIBRARY 
+    GMP_LIBRARY
     NAMES gmp
     HINTS ${gmp_library_search_hints})
 
 find_path(
-    FLINT_INCLUDE 
+    FLINT_INCLUDE
     NAMES flint/flint.h flint.h
     HINTS ${flint_include_search_hints})
 
 find_library(
-    FLINT_LIBRARY 
-    NAMES flint 
+    FLINT_LIBRARY
+    NAMES flint
     HINTS ${flint_library_search_hints})
 
 include(FindPackageHandleStandardArgs)
