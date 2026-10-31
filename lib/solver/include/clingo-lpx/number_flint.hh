@@ -23,10 +23,6 @@ class Integer;
 template <class T>
 concept IsInteger = std::same_as<std::remove_cvref_t<T>, Integer>;
 
-class Rational;
-template <class T>
-concept IsRational = std::same_as<std::remove_cvref_t<T>, Rational>;
-
 class Integer {
     friend auto operator+(IsInteger auto &&a, fixed_int b) -> Integer;
     friend auto operator+(IsInteger auto &&a, Integer const &b) -> Integer;
@@ -82,6 +78,10 @@ class Integer {
   private:
     mutable fmpz num_;
 };
+
+class Rational;
+template <class T>
+concept IsRational = std::same_as<std::remove_cvref_t<T>, Rational>;
 
 class Rational {
   private:

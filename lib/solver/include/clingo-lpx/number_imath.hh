@@ -5,7 +5,6 @@
 #include <imath.h>
 #include <imrat.h>
 
-#include <ios>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -20,48 +19,34 @@ constexpr int BASE = 10;
 
 using fixed_int = mp_small;
 
+class Integer;
+template <class T>
+concept IsInteger = std::same_as<std::remove_cvref_t<T>, Integer>;
+
 class Integer {
   private:
-    friend auto operator+(Integer const &a, fixed_int b) -> Integer;
-    friend auto operator+(Integer const &a, Integer const &b) -> Integer;
-    friend auto operator+(Integer &&a, fixed_int b) -> Integer;
-    friend auto operator+(Integer &&a, Integer const &b) -> Integer;
+    friend auto operator+(IsInteger auto &&a, fixed_int b) -> Integer;
+    friend auto operator+(IsInteger auto &&a, Integer const &b) -> Integer;
     friend auto operator+=(Integer &a, fixed_int b) -> Integer &;
     friend auto operator+=(Integer &a, Integer const &b) -> Integer &;
 
     friend auto operator-(Integer a) -> Integer;
 
-    friend auto operator-(Integer const &a, fixed_int b) -> Integer;
-    friend auto operator-(Integer const &a, Integer const &b) -> Integer;
-    friend auto operator-(Integer &&a, fixed_int b) -> Integer;
-    friend auto operator-(Integer &&a, Integer const &b) -> Integer;
+    friend auto operator-(IsInteger auto &&a, fixed_int b) -> Integer;
+    friend auto operator-(IsInteger auto &&a, Integer const &b) -> Integer;
     friend auto operator-=(Integer &a, fixed_int b) -> Integer &;
     friend auto operator-=(Integer &a, Integer const &b) -> Integer &;
 
-    friend auto operator*(Integer const &a, fixed_int b) -> Integer;
-    friend auto operator*(Integer const &a, Integer const &b) -> Integer;
-    friend auto operator*(Integer &&a, fixed_int b) -> Integer;
-    friend auto operator*(Integer &&a, Integer const &b) -> Integer;
+    friend auto operator*(IsInteger auto &&a, fixed_int b) -> Integer;
+    friend auto operator*(IsInteger auto &&a, Integer const &b) -> Integer;
     friend auto operator*=(Integer &a, fixed_int b) -> Integer &;
     friend auto operator*=(Integer &a, Integer const &b) -> Integer &;
-
-    friend auto operator<(Integer const &a, fixed_int b) -> bool;
-    friend auto operator<(Integer const &a, Integer const &b) -> bool;
-
-    friend auto operator<=(Integer const &a, fixed_int b) -> bool;
-    friend auto operator<=(Integer const &a, Integer const &b) -> bool;
-
-    friend auto operator>(Integer const &a, fixed_int b) -> bool;
-    friend auto operator>(Integer const &a, Integer const &b) -> bool;
-
-    friend auto operator>=(Integer const &a, fixed_int b) -> bool;
-    friend auto operator>=(Integer const &a, Integer const &b) -> bool;
 
     friend auto operator==(Integer const &a, fixed_int b) -> bool;
     friend auto operator==(Integer const &a, Integer const &b) -> bool;
 
-    friend auto operator!=(Integer const &a, fixed_int b) -> bool;
-    friend auto operator!=(Integer const &a, Integer const &b) -> bool;
+    friend auto operator<=>(Integer const &a, fixed_int b) -> std::strong_ordering;
+    friend auto operator<=>(Integer const &a, fixed_int b) -> std::strong_ordering;
 
     friend auto operator<<(std::ostream &out, Integer const &a) -> std::ostream &;
 
@@ -73,6 +58,7 @@ class Integer {
 
   public:
     Integer() noexcept;
+    // NOLINTNEXTLINE(cppcoreguidelines-explicit-constructor)
     Integer(fixed_int val);
     Integer(char const *val, int radix);
     Integer(std::string const &val, int radix);
@@ -94,73 +80,49 @@ class Integer {
     mutable mpz_t num_;
 };
 
+class Rational;
+template <class T>
+concept IsRational = std::same_as<std::remove_cvref_t<T>, Rational>;
+
 class Rational {
   private:
-    friend auto operator+(Rational const &a, fixed_int b) -> Rational;
-    friend auto operator+(Rational const &a, Integer const &b) -> Rational;
-    friend auto operator+(Rational const &a, Rational const &b) -> Rational;
-    friend auto operator+(Rational &&a, fixed_int b) -> Rational;
-    friend auto operator+(Rational &&a, Integer const &b) -> Rational;
-    friend auto operator+(Rational &&a, Rational const &b) -> Rational;
+    friend auto operator+(IsRational auto &&a, fixed_int b) -> Rational;
+    friend auto operator+(IsRational auto &&a, Integer const &b) -> Rational;
+    friend auto operator+(IsRational auto &&a, Rational const &b) -> Rational;
     friend auto operator+=(Rational &a, fixed_int b) -> Rational &;
     friend auto operator+=(Rational &a, Integer const &b) -> Rational &;
     friend auto operator+=(Rational &a, Rational const &b) -> Rational &;
 
     friend auto operator-(Rational a) -> Rational;
 
-    friend auto operator-(Rational const &a, fixed_int b) -> Rational;
-    friend auto operator-(Rational const &a, Integer const &b) -> Rational;
-    friend auto operator-(Rational const &a, Rational const &b) -> Rational;
-    friend auto operator-(Rational &&a, fixed_int b) -> Rational;
-    friend auto operator-(Rational &&a, Integer const &b) -> Rational;
-    friend auto operator-(Rational &&a, Rational const &b) -> Rational;
+    friend auto operator-(IsRational auto &&a, fixed_int b) -> Rational;
+    friend auto operator-(IsRational auto &&a, Integer const &b) -> Rational;
+    friend auto operator-(IsRational auto &&a, Rational const &b) -> Rational;
     friend auto operator-=(Rational &a, fixed_int b) -> Rational &;
     friend auto operator-=(Rational &a, Integer const &b) -> Rational &;
     friend auto operator-=(Rational &a, Rational const &b) -> Rational &;
 
-    friend auto operator*(Rational const &a, fixed_int b) -> Rational;
-    friend auto operator*(Rational const &a, Integer const &b) -> Rational;
-    friend auto operator*(Rational const &a, Rational const &b) -> Rational;
-    friend auto operator*(Rational &&a, fixed_int b) -> Rational;
-    friend auto operator*(Rational &&a, Integer const &b) -> Rational;
-    friend auto operator*(Rational &&a, Rational const &b) -> Rational;
+    friend auto operator*(IsRational auto &&a, fixed_int b) -> Rational;
+    friend auto operator*(IsRational auto &&a, Integer const &b) -> Rational;
+    friend auto operator*(IsRational auto &&a, Rational const &b) -> Rational;
     friend auto operator*=(Rational &a, fixed_int b) -> Rational &;
     friend auto operator*=(Rational &a, Integer const &b) -> Rational &;
     friend auto operator*=(Rational &a, Rational const &b) -> Rational &;
 
-    friend auto operator/(Rational const &a, fixed_int b) -> Rational;
-    friend auto operator/(Rational const &a, Integer const &b) -> Rational;
-    friend auto operator/(Rational const &a, Rational const &b) -> Rational;
-    friend auto operator/(Rational &&a, fixed_int b) -> Rational;
-    friend auto operator/(Rational &&a, Integer const &b) -> Rational;
-    friend auto operator/(Rational &&a, Rational const &b) -> Rational;
+    friend auto operator/(IsRational auto &&a, fixed_int b) -> Rational;
+    friend auto operator/(IsRational auto &&a, Integer const &b) -> Rational;
+    friend auto operator/(IsRational auto &&a, Rational const &b) -> Rational;
     friend auto operator/=(Rational &a, fixed_int b) -> Rational &;
     friend auto operator/=(Rational &a, Integer const &b) -> Rational &;
     friend auto operator/=(Rational &a, Rational const &b) -> Rational &;
-
-    friend auto operator<(Rational const &a, fixed_int b) -> bool;
-    friend auto operator<(Rational const &a, Integer const &b) -> bool;
-    friend auto operator<(Rational const &a, Rational const &b) -> bool;
-
-    friend auto operator<=(Rational const &a, fixed_int b) -> bool;
-    friend auto operator<=(Rational const &a, Integer const &b) -> bool;
-    friend auto operator<=(Rational const &a, Rational const &b) -> bool;
-
-    friend auto operator>(Rational const &a, fixed_int b) -> bool;
-    friend auto operator>(Rational const &a, Integer const &b) -> bool;
-    friend auto operator>(Rational const &a, Rational const &b) -> bool;
-
-    friend auto operator>=(Rational const &a, fixed_int b) -> bool;
-    friend auto operator>=(Rational const &a, Integer const &b) -> bool;
-    friend auto operator>=(Rational const &a, Rational const &b) -> bool;
 
     friend auto operator==(Rational const &a, fixed_int b) -> bool;
     friend auto operator==(Rational const &a, Integer const &b) -> bool;
     friend auto operator==(Rational const &a, Rational const &b) -> bool;
 
-    friend auto operator!=(Rational const &a, fixed_int b) -> bool;
-    friend auto operator!=(Rational const &a, Integer const &b) -> bool;
-    friend auto operator!=(Rational const &a, Rational const &b) -> bool;
+    friend auto operator<=>(Rational const &a, fixed_int b) -> std::strong_ordering;
+    friend auto operator<=>(Rational const &a, Integer const &b) -> std::strong_ordering;
+    friend auto operator<=>(Rational const &a, Rational const &b) -> std::strong_ordering;
 
     friend auto operator<<(std::ostream &out, Rational const &a) -> std::ostream &;
 
@@ -170,6 +132,7 @@ class Rational {
 
   public:
     Rational() noexcept;
+    // NOLINTNEXTLINE(cppcoreguidelines-explicit-constructor)
     Rational(fixed_int val);
     Rational(Integer num, Integer den);
     Rational(char const *val, int radix);
@@ -258,11 +221,11 @@ inline auto Integer::neg() -> Integer & {
 
 inline auto Integer::as_int() const -> std::optional<int> {
     auto res = mp_small{};
-    if (mp_int_to_int(&num_, &res) == MP_OK) {
-        if (std::numeric_limits<int>::min() <= res && res <= std::numeric_limits<int>::max()) {
-            return res;
-        }
+    if ((mp_int_to_int(&num_, &res) == MP_OK) &&
+        (std::numeric_limits<int>::min() <= res && res <= std::numeric_limits<int>::max())) {
+        return res;
     }
+
     return std::nullopt;
 }
 
@@ -270,21 +233,29 @@ inline auto Integer::impl() const -> mpz_t & { return num_; }
 
 // addition
 
-[[nodiscard]] inline auto operator+(Integer const &a, fixed_int b) -> Integer {
-    Integer c;
-    mp_handle_error_(mp_int_add_value(&a.num_, b, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator+(IsInteger auto &&a, fixed_int b) -> Integer {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret += b;
+        return ret;
+    } else {
+        Integer c;
+        mp_handle_error_(mp_int_add_value(&a.num_, b, &c.num_));
+        return c;
+    }
 }
 
-[[nodiscard]] inline auto operator+(Integer const &a, Integer const &b) -> Integer {
-    Integer c;
-    mp_handle_error_(mp_int_add(&a.num_, &b.num_, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator+(IsInteger auto &&a, Integer const &b) -> Integer {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret += b;
+        return ret;
+    } else {
+        Integer c;
+        mp_handle_error_(mp_int_add(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
 }
-
-[[nodiscard]] inline auto operator+(Integer &&a, fixed_int b) -> Integer { return std::move(a += b); }
-
-[[nodiscard]] inline auto operator+(Integer &&a, Integer const &b) -> Integer { return std::move(a += b); }
 
 inline auto operator+=(Integer &a, fixed_int b) -> Integer & {
     mp_handle_error_(mp_int_add_value(&a.num_, b, &a.num_));
@@ -303,21 +274,29 @@ inline auto operator+=(Integer &a, Integer const &b) -> Integer & {
     return a;
 }
 
-[[nodiscard]] inline auto operator-(Integer const &a, fixed_int b) -> Integer {
-    Integer c;
-    mp_handle_error_(mp_int_sub_value(&a.num_, b, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator-(IsInteger auto &&a, fixed_int b) -> Integer {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret -= b;
+        return ret;
+    } else {
+        Integer c;
+        mp_handle_error_(mp_int_sub_value(&a.num_, b, &c.num_));
+        return c;
+    }
 }
 
-[[nodiscard]] inline auto operator-(Integer const &a, Integer const &b) -> Integer {
-    Integer c;
-    mp_handle_error_(mp_int_sub(&a.num_, &b.num_, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator-(IsInteger auto &&a, Integer const &b) -> Integer {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret -= b;
+        return ret;
+    } else {
+        Integer c;
+        mp_handle_error_(mp_int_sub(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
 }
-
-[[nodiscard]] inline auto operator-(Integer &&a, fixed_int b) -> Integer { return std::move(a -= b); }
-
-[[nodiscard]] inline auto operator-(Integer &&a, Integer const &b) -> Integer { return std::move(a -= b); }
 
 inline auto operator-=(Integer &a, fixed_int b) -> Integer & {
     mp_handle_error_(mp_int_sub_value(&a.num_, b, &a.num_));
@@ -331,21 +310,29 @@ inline auto operator-=(Integer &a, Integer const &b) -> Integer & {
 
 // multiplication
 
-[[nodiscard]] inline auto operator*(Integer const &a, fixed_int b) -> Integer {
-    Integer c;
-    mp_handle_error_(mp_int_mul_value(&a.num_, b, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator*(IsInteger auto &&a, fixed_int b) -> Integer {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret *= b;
+        return ret;
+    } else {
+        Integer c;
+        mp_handle_error_(mp_int_mul_value(&a.num_, b, &c.num_));
+        return c;
+    }
 }
 
-[[nodiscard]] inline auto operator*(Integer const &a, Integer const &b) -> Integer {
-    Integer c;
-    mp_handle_error_(mp_int_mul(&a.num_, &b.num_, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator*(IsInteger auto &&a, Integer const &b) -> Integer {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret *= b;
+        return ret;
+    } else {
+        Integer c;
+        mp_handle_error_(mp_int_mul(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
 }
-
-[[nodiscard]] inline auto operator*(Integer &&a, fixed_int b) -> Integer { return std::move(a *= b); }
-
-[[nodiscard]] inline auto operator*(Integer &&a, Integer const &b) -> Integer { return std::move(a *= b); }
 
 inline auto operator*=(Integer &a, fixed_int b) -> Integer & {
     mp_handle_error_(mp_int_mul_value(&a.num_, b, &a.num_));
@@ -357,41 +344,19 @@ inline auto operator*=(Integer &a, Integer const &b) -> Integer & {
     return a;
 }
 
-// less than
-
-[[nodiscard]] inline auto operator<(Integer const &a, fixed_int b) -> bool { return compare(a, b) < 0; }
-
-[[nodiscard]] inline auto operator<(Integer const &a, Integer const &b) -> bool { return compare(a, b) < 0; }
-
-// less than or equal to
-
-[[nodiscard]] inline auto operator<=(Integer const &a, fixed_int b) -> bool { return compare(a, b) <= 0; }
-
-[[nodiscard]] inline auto operator<=(Integer const &a, Integer const &b) -> bool { return compare(a, b) <= 0; }
-
-// greater than
-
-[[nodiscard]] inline auto operator>(Integer const &a, fixed_int b) -> bool { return compare(a, b) > 0; }
-
-[[nodiscard]] inline auto operator>(Integer const &a, Integer const &b) -> bool { return compare(a, b) > 0; }
-
-// greater than or equal to
-
-[[nodiscard]] inline auto operator>=(Integer const &a, fixed_int b) -> bool { return compare(a, b) >= 0; }
-
-[[nodiscard]] inline auto operator>=(Integer const &a, Integer const &b) -> bool { return compare(a, b) >= 0; }
-
-// greater equal to
+// comparison
 
 [[nodiscard]] inline auto operator==(Integer const &a, fixed_int b) -> bool { return compare(a, b) == 0; }
 
 [[nodiscard]] inline auto operator==(Integer const &a, Integer const &b) -> bool { return compare(a, b) == 0; }
 
-// not equal to
+[[nodiscard]] inline auto operator<=>(Integer const &a, fixed_int b) -> std::strong_ordering {
+    return compare(a, b) <=> 0;
+}
 
-[[nodiscard]] inline auto operator!=(Integer const &a, fixed_int b) -> bool { return compare(a, b) != 0; }
-
-[[nodiscard]] inline auto operator!=(Integer const &a, Integer const &b) -> bool { return compare(a, b) != 0; }
+[[nodiscard]] inline auto operator<=>(Integer const &a, Integer const &b) -> std::strong_ordering {
+    return compare(a, b) <=> 0;
+}
 
 // printing
 
@@ -497,25 +462,39 @@ inline void Rational::canonicalize() { mp_handle_error_(mp_rat_reduce(&num_)); }
 
 // addition
 
-[[nodiscard]] inline auto operator+(Rational const &a, fixed_int b) -> Rational { return a + Integer{b}; }
-
-[[nodiscard]] inline auto operator+(Rational const &a, Integer const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_add_int(&a.num_, &b.impl(), &c.num_));
-    return c;
+[[nodiscard]] inline auto operator+(IsRational auto &&a, fixed_int b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret += b;
+        return ret;
+    } else {
+        return a + Integer{b};
+    }
 }
 
-[[nodiscard]] inline auto operator+(Rational const &a, Rational const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_add(&a.num_, &b.num_, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator+(IsRational auto &&a, Integer const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret += b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_add_int(&a.num_, &b.impl(), &c.num_));
+        return c;
+    }
 }
 
-[[nodiscard]] inline auto operator+(Rational &&a, fixed_int b) -> Rational { return std::move(a += b); }
-
-[[nodiscard]] inline auto operator+(Rational &&a, Integer const &b) -> Rational { return std::move(a += b); }
-
-[[nodiscard]] inline auto operator+(Rational &&a, Rational const &b) -> Rational { return std::move(a += b); }
+[[nodiscard]] inline auto operator+(IsRational auto &&a, Rational const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret += b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_add(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+}
 
 inline auto operator+=(Rational &a, fixed_int b) -> Rational & { return a += Integer{b}; }
 
@@ -536,25 +515,39 @@ inline auto operator+=(Rational &a, Rational const &b) -> Rational & {
     return a;
 }
 
-[[nodiscard]] inline auto operator-(Rational const &a, fixed_int b) -> Rational { return a - Integer{b}; }
-
-[[nodiscard]] inline auto operator-(Rational const &a, Integer const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_sub_int(&a.num_, &b.impl(), &c.num_));
-    return c;
+[[nodiscard]] inline auto operator-(IsRational auto &&a, fixed_int b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret -= b;
+        return ret;
+    } else {
+        return a - Integer{b};
+    }
 }
 
-[[nodiscard]] inline auto operator-(Rational const &a, Rational const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_sub(&a.num_, &b.num_, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator-(IsRational auto &&a, Integer const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret -= b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_sub_int(&a.num_, &b.impl(), &c.num_));
+        return c;
+    }
 }
 
-[[nodiscard]] inline auto operator-(Rational &&a, fixed_int b) -> Rational { return std::move(a -= b); }
-
-[[nodiscard]] inline auto operator-(Rational &&a, Integer const &b) -> Rational { return std::move(a -= b); }
-
-[[nodiscard]] inline auto operator-(Rational &&a, Rational const &b) -> Rational { return std::move(a -= b); }
+[[nodiscard]] inline auto operator-(IsRational auto &&a, Rational const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret -= b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_sub(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+}
 
 inline auto operator-=(Rational &a, fixed_int b) -> Rational & { return a -= Integer{b}; }
 
@@ -570,25 +563,39 @@ inline auto operator-=(Rational &a, Rational const &b) -> Rational & {
 
 // multiplication
 
-[[nodiscard]] inline auto operator*(Rational const &a, fixed_int b) -> Rational { return a * Integer{b}; }
-
-[[nodiscard]] inline auto operator*(Rational const &a, Integer const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_mul_int(&a.num_, &b.impl(), &c.num_));
-    return c;
+[[nodiscard]] inline auto operator*(IsRational auto &&a, fixed_int b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret *= b;
+        return ret;
+    } else {
+        return a * Integer{b};
+    }
 }
 
-[[nodiscard]] inline auto operator*(Rational const &a, Rational const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_mul(&a.num_, &b.num_, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator*(IsRational auto &&a, Integer const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret *= b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_mul_int(&a.num_, &b.impl(), &c.num_));
+        return c;
+    }
 }
 
-[[nodiscard]] inline auto operator*(Rational &&a, fixed_int b) -> Rational { return std::move(a *= b); }
-
-[[nodiscard]] inline auto operator*(Rational &&a, Integer const &b) -> Rational { return std::move(a *= b); }
-
-[[nodiscard]] inline auto operator*(Rational &&a, Rational const &b) -> Rational { return std::move(a *= b); }
+[[nodiscard]] inline auto operator*(IsRational auto &&a, Rational const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret *= b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_mul(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+}
 
 inline auto operator*=(Rational &a, fixed_int b) -> Rational & { return a *= Integer{b}; }
 
@@ -604,25 +611,39 @@ inline auto operator*=(Rational &a, Rational const &b) -> Rational & {
 
 // division
 
-[[nodiscard]] inline auto operator/(Rational const &a, fixed_int b) -> Rational { return a / Integer{b}; }
-
-[[nodiscard]] inline auto operator/(Rational const &a, Integer const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_div_int(&a.num_, &b.impl(), &c.num_));
-    return c;
+[[nodiscard]] inline auto operator/(IsRational auto &&a, fixed_int b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret /= b;
+        return ret;
+    } else {
+        return a / Integer{b};
+    }
 }
 
-[[nodiscard]] inline auto operator/(Rational const &a, Rational const &b) -> Rational {
-    Rational c;
-    mp_handle_error_(mp_rat_div(&a.num_, &b.num_, &c.num_));
-    return c;
+[[nodiscard]] inline auto operator/(IsRational auto &&a, Integer const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret /= b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_div_int(&a.num_, &b.impl(), &c.num_));
+        return c;
+    }
 }
 
-[[nodiscard]] inline auto operator/(Rational &&a, fixed_int b) -> Rational { return std::move(a /= b); }
-
-[[nodiscard]] inline auto operator/(Rational &&a, Integer const &b) -> Rational { return std::move(a /= b); }
-
-[[nodiscard]] inline auto operator/(Rational &&a, Rational const &b) -> Rational { return std::move(a /= b); }
+[[nodiscard]] inline auto operator/(IsRational auto &&a, Rational const &b) -> Rational {
+    if constexpr (std::is_rvalue_reference_v<decltype(a)>) {
+        auto ret = std::forward<decltype(a)>(a);
+        ret /= b;
+        return ret;
+    } else {
+        Rational c;
+        mp_handle_error_(mp_rat_div(&a.num_, &b.num_, &c.num_));
+        return c;
+    }
+}
 
 inline auto operator/=(Rational &a, fixed_int b) -> Rational & { return a /= Integer{b}; }
 
@@ -638,51 +659,23 @@ inline auto operator/=(Rational &a, Rational const &b) -> Rational & {
 
 // less than
 
-[[nodiscard]] inline auto operator<(Rational const &a, fixed_int b) -> bool { return compare(a, b) < 0; }
-
-[[nodiscard]] inline auto operator<(Rational const &a, Integer const &b) -> bool { return compare(a, b) < 0; }
-
-[[nodiscard]] inline auto operator<(Rational const &a, Rational const &b) -> bool { return compare(a, b) < 0; }
-
-// less than or equal to
-
-[[nodiscard]] inline auto operator<=(Rational const &a, fixed_int b) -> bool { return compare(a, b) <= 0; }
-
-[[nodiscard]] inline auto operator<=(Rational const &a, Integer const &b) -> bool { return compare(a, b) <= 0; }
-
-[[nodiscard]] inline auto operator<=(Rational const &a, Rational const &b) -> bool { return compare(a, b) <= 0; }
-
-// greater than
-
-[[nodiscard]] inline auto operator>(Rational const &a, fixed_int b) -> bool { return compare(a, b) > 0; }
-
-[[nodiscard]] inline auto operator>(Rational const &a, Integer const &b) -> bool { return compare(a, b) > 0; }
-
-[[nodiscard]] inline auto operator>(Rational const &a, Rational const &b) -> bool { return compare(a, b) > 0; }
-
-// greater than or equal to
-
-[[nodiscard]] inline auto operator>=(Rational const &a, fixed_int b) -> bool { return compare(a, b) >= 0; }
-
-[[nodiscard]] inline auto operator>=(Rational const &a, Integer const &b) -> bool { return compare(a, b) >= 0; }
-
-[[nodiscard]] inline auto operator>=(Rational const &a, Rational const &b) -> bool { return compare(a, b) >= 0; }
-
-// equal to
-
 [[nodiscard]] inline auto operator==(Rational const &a, fixed_int b) -> bool { return compare(a, b) == 0; }
 
 [[nodiscard]] inline auto operator==(Rational const &a, Integer const &b) -> bool { return compare(a, b) == 0; }
 
 [[nodiscard]] inline auto operator==(Rational const &a, Rational const &b) -> bool { return compare(a, b) == 0; }
 
-// not equal to
+[[nodiscard]] inline auto operator<=>(Rational const &a, fixed_int b) -> std::strong_ordering {
+    return compare(a, b) <=> 0;
+}
 
-[[nodiscard]] inline auto operator!=(Rational const &a, fixed_int b) -> bool { return compare(a, b) != 0; }
+[[nodiscard]] inline auto operator<=>(Rational const &a, Integer const &b) -> std::strong_ordering {
+    return compare(a, b) <=> 0;
+}
 
-[[nodiscard]] inline auto operator!=(Rational const &a, Integer const &b) -> bool { return compare(a, b) != 0; }
-
-[[nodiscard]] inline auto operator!=(Rational const &a, Rational const &b) -> bool { return compare(a, b) != 0; }
+[[nodiscard]] inline auto operator<=>(Rational const &a, Rational const &b) -> std::strong_ordering {
+    return compare(a, b) <=> 0;
+}
 
 // printing
 
