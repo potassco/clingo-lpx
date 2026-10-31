@@ -4,8 +4,7 @@ on:
   push:
     branches:
       - master
-      - wip
-      - wip-20
+      - master-20
   pull_request:
 
 jobs:
