@@ -18,3 +18,4 @@ _skbuild
 dist
 /.vs
 /CMakeSettings.json
+.git_hash

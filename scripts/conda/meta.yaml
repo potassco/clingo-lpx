@@ -1,0 +1,49 @@
+{% set name = 'clingo-lpx' %}
+{% set version = environ.get('VERSION_NUMBER', '1.0.0') %}
+{% set build = environ.get('BUILD_NUMBER', '0') %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  path: ../..
+
+requirements:
+  build:
+  - cmake
+  - ninja
+  - re2c
+  - python
+  - pytest
+  - {{ compiler('c') }}
+  - {{ compiler('cxx') }}
+  host:
+  - clingo
+  - python
+  - libpython
+  run:
+  - libpython
+  - python
+  - clingo
+
+build:
+  number: {{ build }}
+
+test:
+  commands:
+  - clingo-lpx --version
+  - python -c "import clingolpx; clingolpx._pyclingolpx()" --version
+
+about:
+  home: https://potassco.org/
+  license: MIT
+  summary: A solver for logic programs with difference constraints.
+  description: >-
+    Clingo-lpx is an extension of the clingo answer set programming system that
+    integrates linear constraint solving. It enables modeling and solving
+    problems with variables over rationals, making it suitable for applications
+    such as resource allocation and planning.
+  license_file: LICENSE.md
+  doc_url: https://potassco.org/
+  dev_url: https://github.com/potassco/{{ name }}/

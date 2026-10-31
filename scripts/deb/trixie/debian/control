@@ -2,7 +2,7 @@ Source: clingo-lpx
 Section: devel
 Priority: optional
 Maintainer: Roland Kaminski <kaminski@cs.uni-potsdam.de>
-Build-Depends: debhelper-compat (= 13), dh-python, cmake, python3-dev, libclingo-dev, libflint-dev
+Build-Depends: debhelper-compat (= 13), dh-python, cmake, libflint-dev, python3-dev, libclingo-dev
 Standards-Version: 4.4.1
 Homepage: https://potassco.org/clingo-lpx
 Vcs-Browser: https://github.com/potassco/clingo-lpx
@@ -12,22 +12,22 @@ Package: clingo-lpx
 Architecture: any
 Section: devel
 Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo-lpx (= ${binary:Version})
-Description: A solver for logic programs with linear programming constraints
- Clingo-lpx extends the clingo Answer Set Programming (ASP) system by
- integrating linear programming constraint solving. It enables modeling and
- solving problems involving linear constraints over real variables, making it
- suitable for applications such as scheduling, optimization, and planning.
+Description: A solver for logic programs with linear constraints
+ Clingo-lpx is an extension of the clingo answer set programming system that
+ integrates linear constraint solving. It enables modeling and solving problems
+ with variables over rationals, making it suitable for applications such as
+ resource allocation and planning.
 
 Package: libclingo-lpx
 Section: libs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libclingo
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: The shared library for the clingo-lpx package
 
 Package: libclingo-lpx-dev
 Section: libdevel
 Architecture: any
-Depends: ${misc:Depends}, libclingo-dev, clingo-lpx, python3-clingo-lpx, libclingo-lpx (= ${binary:Version})
+Depends: ${misc:Depends}, libclingo-dev, python3-clingo-lpx, clingo-lpx, libclingo-lpx (= ${binary:Version})
 Description: The development files for the clingo-lpx package
 
 Package: python3-clingo-lpx

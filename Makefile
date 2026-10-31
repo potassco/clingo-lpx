@@ -50,6 +50,7 @@ test: all
 	$(MAKE) -C "build/$(BUILD_TYPE)" "$@"
 
 compdb: configure
+	rm -f compile_commands.json
 	compdb -p "build/$(BUILD_TYPE)" list -1 > compile_commands.json
 
 configure: build/$(BUILD_TYPE)/Makefile
