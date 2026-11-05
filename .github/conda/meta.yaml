@@ -19,11 +19,13 @@ requirements:
   - {{ compiler('cxx') }}
   host:
   - clingo
+  - libflint
   - python
   run:
-  - clingo
-  - python
   - cffi
+  - clingo
+  - libflint
+  - python
 
 build:
   number: {{ build }}
