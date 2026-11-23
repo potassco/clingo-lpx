@@ -55,9 +55,9 @@ class RationalQ {
     friend auto operator==(RationalQ const &a, RationalQ const &b) -> bool;
 
     friend auto operator<=>(RationalQ const &a, fixed_int b) -> std::strong_ordering;
-    friend auto operator<=>(RationalQ const &a, fixed_int b) -> std::strong_ordering;
-    friend auto operator<=>(RationalQ const &a, fixed_int b) -> std::strong_ordering;
-    friend auto operator<=>(RationalQ const &a, fixed_int b) -> std::strong_ordering;
+    friend auto operator<=>(RationalQ const &a, Integer const &b) -> std::strong_ordering;
+    friend auto operator<=>(RationalQ const &a, Rational const &b) -> std::strong_ordering;
+    friend auto operator<=>(RationalQ const &a, RationalQ const &b) -> std::strong_ordering;
 
     friend auto operator<<(std::ostream &out, RationalQ const &q) -> std::ostream &;
 

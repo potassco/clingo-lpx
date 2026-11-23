@@ -227,13 +227,9 @@ inline auto Integer::impl() const -> fmpz & { return num_; }
         ret += b;
         return ret;
     } else {
-#if __FLINT_RELEASE >= 20600
         Integer c;
         fmpz_add_si(&c.num_, &a.num_, b);
         return c;
-#else
-        return a + Integer{b};
-#endif
     }
 }
 
@@ -250,12 +246,8 @@ inline auto Integer::impl() const -> fmpz & { return num_; }
 }
 
 inline auto operator+=(Integer &a, fixed_int b) -> Integer & {
-#if __FLINT_RELEASE >= 20600
     fmpz_add_si(&a.num_, &a.num_, b);
     return a;
-#else
-    return a += Integer{b};
-#endif
 }
 
 inline auto operator+=(Integer &a, Integer const &b) -> Integer & {
@@ -276,13 +268,9 @@ inline auto operator+=(Integer &a, Integer const &b) -> Integer & {
         ret -= b;
         return ret;
     } else {
-#if __FLINT_RELEASE >= 20600
         Integer c;
         fmpz_sub_si(&c.num_, &a.num_, b);
         return c;
-#else
-        return a - Integer{b};
-#endif
     }
 }
 
@@ -299,12 +287,8 @@ inline auto operator+=(Integer &a, Integer const &b) -> Integer & {
 }
 
 inline auto operator-=(Integer &a, fixed_int b) -> Integer & {
-#if __FLINT_RELEASE >= 20600
     fmpz_sub_si(&a.num_, &a.num_, b);
     return a;
-#else
-    return a -= Integer{b};
-#endif
 }
 
 inline auto operator-=(Integer &a, Integer const &b) -> Integer & {
@@ -376,7 +360,7 @@ inline auto operator<<(std::ostream &out, Integer const &a) -> std::ostream & {
 
 [[nodiscard]] inline auto compare(Integer const &a, fixed_int b) -> int { return fmpz_cmp_si(&a.num_, b); }
 
-[[nodiscard]] inline auto compare(Integer const &a, Integer const &b) -> int { return fmpz_cmp_si(&a.num_, b.num_); }
+[[nodiscard]] inline auto compare(Integer const &a, Integer const &b) -> int { return fmpz_cmp(&a.num_, &b.num_); }
 
 // gcd
 
@@ -403,28 +387,9 @@ inline Rational::Rational() noexcept { // NOLINT
 inline Rational::Rational(fixed_int val) : Rational() { fmpq_set_si(&num_, val, 1); }
 
 inline Rational::Rational(char const *val, int radix) : Rational() {
-#if __FLINT_RELEASE >= 20600
     if (fmpq_set_str(&num_, val, radix) != 0) {
         throw std::runtime_error("could not parse number");
     }
-#else
-    std::string buf = val;
-    auto pos = buf.find('/');
-    if (pos == std::string::npos) {
-        if (fmpz_set_str(&num_.num, buf.c_str(), radix) != 0) {
-            throw std::runtime_error("could not parse number");
-        }
-        fmpz_set_si(&num_.den, 1);
-    } else {
-        if (fmpz_set_str(&num_.num, buf.substr(0, pos).c_str(), radix) != 0) {
-            throw std::runtime_error("could not parse number");
-        }
-        if (fmpz_set_str(&num_.den, buf.substr(pos + 1).c_str(), radix) != 0) {
-            throw std::runtime_error("could not parse number");
-        }
-        fmpq_canonicalise(&num_);
-    }
-#endif
 }
 
 inline Rational::Rational(std::string const &val, int radix) : Rational(val.c_str(), radix) {}
@@ -487,13 +452,9 @@ inline void Rational::canonicalize() { fmpq_canonicalise(&num_); }
         ret += b;
         return ret;
     } else {
-#if __FLINT_RELEASE >= 20600
         Rational c;
         fmpq_add_si(&c.num_, &a.num_, b);
         return c;
-#else
-        return a + Rational{b};
-#endif
     }
 }
 
@@ -549,13 +510,9 @@ inline auto operator+=(Rational &a, Rational const &b) -> Rational & {
         ret -= b;
         return ret;
     } else {
-#if __FLINT_RELEASE >= 20600
         Rational c;
         fmpq_sub_si(&c.num_, &a.num_, b);
         return c;
-#else
-        return a - Rational{b};
-#endif
     }
 }
 
@@ -606,13 +563,9 @@ inline auto operator-=(Rational &a, Rational const &b) -> Rational & {
         ret *= b;
         return ret;
     } else {
-#if __FLINT_RELEASE >= 20600
         Rational c;
         fmpq_mul_si(&c.num_, &a.num_, b);
         return c;
-#else
-        return a * Rational{b};
-#endif
     }
 }
 
@@ -641,12 +594,8 @@ inline auto operator-=(Rational &a, Rational const &b) -> Rational & {
 }
 
 inline auto operator*=(Rational &a, fixed_int b) -> Rational & {
-#if __FLINT_RELEASE >= 20600
     fmpq_mul_si(&a.num_, &a.num_, b);
     return a;
-#else
-    return a *= Rational{b};
-#endif
 }
 
 inline auto operator*=(Rational &a, Integer const &b) -> Rational & {
@@ -709,20 +658,10 @@ inline auto operator/=(Rational &a, Rational const &b) -> Rational & {
 
 // comparison
 
-[[nodiscard]] inline auto operator==(Rational const &a, fixed_int b) -> bool {
-#if __FLINT_RELEASE >= 20600
-    return fmpq_equal_si(&a.num_, b) != 0;
-#else
-    return a == Rational{b};
-#endif
-}
+[[nodiscard]] inline auto operator==(Rational const &a, fixed_int b) -> bool { return fmpq_equal_si(&a.num_, b) != 0; }
 
 [[nodiscard]] inline auto operator==(Rational const &a, Integer const &b) -> bool {
-#if __FLINT_RELEASE >= 20600
     return fmpq_equal_fmpz(&a.num_, &b.impl()) != 0;
-#else
-    return a == Rational{b, Integer{1}};
-#endif
 }
 
 [[nodiscard]] inline auto operator==(Rational const &a, Rational const &b) -> bool {
@@ -753,20 +692,10 @@ inline auto operator<<(std::ostream &out, Rational const &a) -> std::ostream & {
 
 // comparison
 
-[[nodiscard]] inline auto compare(Rational const &a, fixed_int b) -> int {
-#if __FLINT_RELEASE >= 20600
-    return fmpq_cmp_si(&a.num_, b);
-#else
-    return compare(a, Rational{b});
-#endif
-}
+[[nodiscard]] inline auto compare(Rational const &a, fixed_int b) -> int { return fmpq_cmp_si(&a.num_, b); }
 
 [[nodiscard]] inline auto compare(Rational const &a, Integer const &b) -> int {
-#if __FLINT_RELEASE >= 20600
     return fmpq_cmp_fmpz(&a.num_, &b.impl());
-#else
-    return compare(a, Rational{b, 1});
-#endif
 }
 
 [[nodiscard]] inline auto compare(Rational const &a, Rational const &b) -> int { return fmpq_cmp(&a.num_, &b.num_); }
