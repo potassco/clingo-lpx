@@ -1,31 +1,31 @@
+#include <Python.h>
+
 #include <clingo-lpx.h>
 
-#include <pybind11/eval.h>
-#include <pybind11/pybind11.h>
-
-namespace PyClingoLPX {
+#include <array>
+#include <memory>
 
 namespace {
 
-auto create_theory() -> pybind11::object {
+struct Decref {
+    void operator()(PyObject *obj) const noexcept { Py_DECREF(obj); }
+};
+
+using PyRef = std::unique_ptr<PyObject, Decref>;
+
+auto create_theory([[maybe_unused]] PyObject *mod, [[maybe_unused]] PyObject *arg) -> PyObject * {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    return pybind11::capsule{reinterpret_cast<void *>(&clingolpx_create), "clingo_theory_create"};
+    return PyCapsule_New(reinterpret_cast<void *>(&clingolpx_create), "clingo_theory_create", nullptr);
 }
 
-auto main() {
-    pybind11::exec(
-        R"py(
+constexpr char const *app_source = R"py(
 import sys
-from sys import stdout
-from typing import Callable, Sequence
+from typing import Sequence
 
-from clingo import ast
 from clingo.app import App, AppOptions, clingo_main
 from clingo.control import Control, ControlMode
 from clingo.core import Library
 from clingo.script import enable_python
-from clingo.solve import Model
-from clingo.symbol import SymbolType
 from clingo.theory import Theory
 from clingolpx import create_theory
 
@@ -40,9 +40,6 @@ class ClingoLPXApp(App):
         globals()["THEORY"] = theory
 
     def main(self, control: Control, files: Sequence[str]) -> None:
-        """
-        Run the main execution flow of the application.
-        """
         self._theory.register(control)
         self._theory.rewrite_files(self._lib, control, files)
 
@@ -54,15 +51,9 @@ class ClingoLPXApp(App):
             control.solve(on_model=self._theory.on_model, on_stats=self._theory.on_stats)
 
     def register_options(self, options: AppOptions) -> None:
-        """
-        Register command-line options for the application.
-        """
         self._theory.register_options(options)
 
     def validate_options(self) -> None:
-        """
-        Validate the options passed to the application.
-        """
         self._theory.validate_options()
 
 
@@ -70,21 +61,50 @@ def run():
     lib = Library()
     enable_python(lib)
     app = ClingoLPXApp(lib)
-    clingo_main(lib, sys.argv[1:], app)
+    sys.exit(clingo_main(lib, sys.argv[1:], app))
 
 
 run()
-)py");
+)py";
+
+auto run_app([[maybe_unused]] PyObject *mod, [[maybe_unused]] PyObject *arg) -> PyObject * {
+    auto main = PyRef{PyImport_ImportModule("__main__")};
+    if (!main) {
+        return nullptr;
+    }
+    auto code = PyRef{Py_CompileString(app_source, "<clingolpx>", Py_file_input)};
+    if (!code) {
+        return nullptr;
+    }
+    auto *scope = PyModule_GetDict(main.get());
+    auto res = PyRef{PyEval_EvalCode(code.get(), scope, scope)};
+    if (!res) {
+        return nullptr;
+    }
+    Py_RETURN_NONE;
 }
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+auto methods = std::array{
+    PyMethodDef{"create_theory", create_theory, METH_NOARGS, PyDoc_STR("Get the theory constructor.")},
+    PyMethodDef{"_pyclingolpx", run_app, METH_NOARGS, PyDoc_STR("Run clingo-lpx.")},
+    PyMethodDef{nullptr, nullptr, 0, nullptr},
+};
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+PyModuleDef module_def = {
+    PyModuleDef_HEAD_INIT,
+    "clingolpx",
+    PyDoc_STR("The clingo-lpx Python module."),
+    0,
+    methods.data(),
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+};
 
 } // namespace
 
-void register_clingolpx(pybind11::module &m) {
-    m.doc() = R"doc(The clingo-lpx python module.)doc";
-    m.def("create_theory", create_theory, R"(Get the theory constructor.)");
-    m.def("_pyclingolpx", main, R"(Run clingo-lpx.)");
-}
-
-} // namespace PyClingoLPX
-
-PYBIND11_MODULE(clingolpx, m) { PyClingoLPX::register_clingolpx(m); }
+// NOLINTNEXTLINE(modernize-use-trailing-return-type)
+PyMODINIT_FUNC PyInit_clingolpx() { return PyModuleDef_Init(&module_def); }

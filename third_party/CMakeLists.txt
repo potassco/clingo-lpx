@@ -35,10 +35,6 @@ else()
 endif()
 add_library(math::math ALIAS clingo-lpx-math)
 
-if(CLINGOLPX_BUILD_PYTHON AND NOT DEFINED SKBUILD)
-    add_subdirectory(pybind11)
-endif()
-
 if(CLINGOLPX_BUILD_TESTS)
     if(NOT TARGET Catch2::Catch2WithMain)
         if(CLINGOLPX_USE_LOCAL_CATCH)

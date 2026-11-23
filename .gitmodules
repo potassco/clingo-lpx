@@ -7,6 +7,3 @@
 [submodule "third_party/pytest-cmake"]
 	path = third_party/pytest-cmake
 	url = ../../python-cmake/pytest-cmake
-[submodule "third_party/pybind11"]
-	path = third_party/pybind11
-	url = ../../pybind/pybind11.git

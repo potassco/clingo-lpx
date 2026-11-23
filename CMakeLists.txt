@@ -17,6 +17,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES 0)
 
 include(GNUInstallDirs)
 include(CMakeDependentOption)
+include(CMakePackageConfigHelpers)
 include(macros)
 
 option(CLINGOLPX_CROSSCHECK "enable additional state checking" OFF)
@@ -52,16 +53,24 @@ if(CLINGOLPX_USE_VISIBILITY)
     set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 endif()
 
-set(PYBIND11_NEWPYTHON ON)
-set(PYBIND11_FINDPYTHON ON)
 set(CLINGOLPX_INSTALL_DEFAULT OFF)
 set(CLINGOLPX_INSTALL_EXTRA OFF)
 set(CLINGOLPX_INSTALL_WHEEL OFF)
 
+if(CLINGOLPX_BUILD_PYTHON)
+    set(PYTHON_COMPONENTS Interpreter Development.Module)
+    set(PYTHON_OPTIONAL_COMPONENTS "")
+    if(DEFINED SKBUILD)
+        list(APPEND PYTHON_COMPONENTS ${SKBUILD_SABI_COMPONENT})
+    elseif(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.26")
+        list(APPEND PYTHON_OPTIONAL_COMPONENTS Development.SABIModule)
+    endif()
+    find_package(Python 3.11 REQUIRED COMPONENTS ${PYTHON_COMPONENTS} OPTIONAL_COMPONENTS ${PYTHON_OPTIONAL_COMPONENTS})
+endif()
+
 if(DEFINED SKBUILD)
     message(STATUS "Configuring for skbuild")
     set(CLINGOLPX_INSTALL_WHEEL ON)
-    find_package(pybind11 CONFIG REQUIRED)
     execute_process(
         COMMAND "${Python_EXECUTABLE}" -c "import importlib.util, os; print(os.path.dirname(importlib.util.find_spec('clingo').origin))"
         OUTPUT_VARIABLE sp_dir

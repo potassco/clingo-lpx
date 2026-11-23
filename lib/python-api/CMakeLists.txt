@@ -7,11 +7,26 @@ set(source
     ${source-group})
 # ]]]
 
-pybind11_add_module(pyclingo-lpx)
-target_sources(pyclingo-lpx PRIVATE ${source})
+if(TARGET Python::SABIModule)
+    set(pyclingolpx_sabi USE_SABI 3.11)
+else()
+    set(pyclingolpx_sabi)
+endif()
+Python_add_library(pyclingo-lpx MODULE WITH_SOABI ${pyclingolpx_sabi} "${source}")
+# FindPython may pick the abi3t suffix for Python 3.15 and later but the
+# module targets abi3, which is only compatible with GIL-enabled builds
+get_target_property(pyclingolpx_suffix pyclingo-lpx SUFFIX)
+if(pyclingolpx_sabi AND pyclingolpx_suffix AND NOT Python_FREE_THREADED)
+    string(REPLACE ".abi3t" ".abi3" pyclingolpx_suffix "${pyclingolpx_suffix}")
+    set_target_properties(pyclingo-lpx PROPERTIES SUFFIX "${pyclingolpx_suffix}")
+endif()
 clingolpx_target_properties(TARGETS pyclingo-lpx FOLDER "lib" SUBDIR "python")
 set_target_properties(pyclingo-lpx PROPERTIES OUTPUT_NAME "clingolpx")
-target_link_libraries(pyclingo-lpx PRIVATE clingo-lpx Python::Module)
+target_link_libraries(pyclingo-lpx PRIVATE clingo-lpx)
+if(WIN32)
+    # rely on CMake for linking instead of the pragma in pyconfig.h (Python 3.14+)
+    target_compile_definitions(pyclingo-lpx PRIVATE Py_NO_LINK_LIB)
+endif()
 
 if(CLINGOLPX_INSTALL_WHEEL)
     install(TARGETS pyclingo-lpx
@@ -48,10 +63,10 @@ elseif(CLINGOLPX_INSTALL_DEFAULT)
     endif()
     message(STATUS "Python module path: ${python_install_dir}")
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/INSTALLER" "pip\n")
-    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/METADATA" "Metadata-Version: 1.1\nName: clingo\nVersion: ${CLINGOLPX_VERSION}\n")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/METADATA" "Metadata-Version: 1.1\nName: clingo-lpx\nVersion: ${CLINGOLPX_VERSION}\n")
     install(
         FILES "${CMAKE_CURRENT_BINARY_DIR}/INSTALLER" "${CMAKE_CURRENT_BINARY_DIR}/METADATA"
-        DESTINATION "${python_install_dir}/clingolpx-${CLINGOLPX_VERSION}.dist-info")
+        DESTINATION "${python_install_dir}/clingo_lpx-${CLINGOLPX_VERSION}.dist-info")
     install(
         TARGETS pyclingo-lpx
         RUNTIME DESTINATION "${python_install_dir}"

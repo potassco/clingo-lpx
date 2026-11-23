@@ -13,17 +13,16 @@ requirements:
   build:
   - cmake
   - ninja
-  - re2c
-  - python
-  - pytest
   - {{ compiler('c') }}
   - {{ compiler('cxx') }}
   host:
+  - pytest
   - python
-  - clingo
+  - clingo >=6
+  # the exact pin on clingo comes from the run_exports of clingo
   run:
   - python
-  - clingo
+  - clingo >=6
 
 build:
   number: {{ build }}
@@ -36,7 +35,7 @@ test:
 about:
   home: https://potassco.org/
   license: MIT
-  summary: A solver for logic programs with difference constraints.
+  summary: A solver for logic programs with linear constraints over rationals.
   description: >-
     Clingo-lpx is an extension of the clingo answer set programming system that
     integrates linear constraint solving. It enables modeling and solving
