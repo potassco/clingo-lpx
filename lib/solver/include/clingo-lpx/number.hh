@@ -61,6 +61,8 @@ class RationalQ {
 
     friend auto operator<<(std::ostream &out, RationalQ const &q) -> std::ostream &;
 
+    friend auto mul_div(RationalQ const &x, Integer const &a, Integer const &d) -> RationalQ;
+
     friend auto compare(RationalQ const &a, fixed_int b) -> int;
     friend auto compare(RationalQ const &a, Integer const &b) -> int;
     friend auto compare(RationalQ const &a, Rational const &b) -> int;
@@ -382,6 +384,11 @@ inline auto operator/=(RationalQ &a, Rational const &b) -> RationalQ & {
     a.c_ /= b;
     a.k_ /= b;
     return a;
+}
+
+//! Compute x * a / d.
+[[nodiscard]] inline auto mul_div(RationalQ const &x, Integer const &a, Integer const &d) -> RationalQ {
+    return RationalQ{mul_div(x.c_, a, d), mul_div(x.k_, a, d)};
 }
 
 // comparison

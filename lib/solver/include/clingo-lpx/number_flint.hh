@@ -656,6 +656,11 @@ inline auto operator/=(Rational &a, Rational const &b) -> Rational & {
     return a;
 }
 
+//! Compute x * a / d.
+[[nodiscard]] inline auto mul_div(Rational const &x, Integer const &a, Integer const &d) -> Rational {
+    return x * a / d;
+}
+
 // comparison
 
 [[nodiscard]] inline auto operator==(Rational const &a, fixed_int b) -> bool { return fmpq_equal_si(&a.num_, b) != 0; }

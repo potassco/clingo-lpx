@@ -535,7 +535,7 @@ template <typename Value> void Solver<Value>::optimize() {
             assert(i == y_i.reverse_index - n_non_basic_);
             Value const &v_i = increase ? y_i.upper() : y_i.lower();
             // we compute the updated value of x_e (see Solver::pivot_)
-            Value v = x_e.value + (v_i - y_i.value) / a_ie * d_i;
+            Value v = x_e.value + mul_div(v_i - y_i.value, d_i, a_ie);
             if (pos_a_ze ? x_e.has_upper() && v >= x_e.upper() : x_e.has_lower() && v <= x_e.lower()) {
                 return;
             }
@@ -740,13 +740,13 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::Assignment ass,
             auto &x_j = non_basic_(j);
             auto update_lower = [&](std::vector<Clingo::SolverLiteral> &clause, std::optional<Value> &bound) -> auto {
                 if (bound.has_value() && x_j.has_lower()) {
-                    *bound += x_j.lower() * a_ij / d_i;
+                    *bound += mul_div(x_j.lower(), a_ij, d_i);
                     clause.emplace_back(-x_j.lower_bound->lit);
                 }
             };
             auto update_upper = [&](std::vector<Clingo::SolverLiteral> &clause, std::optional<Value> &bound) -> auto {
                 if (bound.has_value() && x_j.has_upper()) {
-                    *bound += x_j.upper() * a_ij / d_i;
+                    *bound += mul_div(x_j.upper(), a_ij, d_i);
                     clause.emplace_back(-x_j.upper_bound->lit);
                 }
             };
@@ -858,7 +858,7 @@ template <typename Value> auto Solver<Value>::check_tableau_() -> bool {
     for (index_t i{0}; i < n_basic_; ++i) {
         Value v_i;
         tableau_.update_row(i, [&](index_t j, Integer const &a_ij, const Integer &d_i) -> auto {
-            v_i += non_basic_(j).value * a_ij / d_i;
+            v_i += mul_div(non_basic_(j).value, a_ij, d_i);
         });
         if (v_i != basic_(i).value) {
             return false;
@@ -907,8 +907,9 @@ template <typename Value> auto Solver<Value>::check_solution_() -> bool {
 
 template <typename Value> void Solver<Value>::update_(index_t level, index_t j, Value v) {
     auto &xj = non_basic_(j);
+    auto delta = v - xj.value;
     tableau_.update_col(j, [&](index_t i, Integer const &a_ij, const Integer &d_i) -> auto {
-        basic_(i).set_value(*this, level, (v - xj.value) * a_ij / d_i, true);
+        basic_(i).set_value(*this, level, mul_div(delta, a_ij, d_i), true);
         enqueue_(i);
     });
     xj.set_value(*this, level, std::move(v), false);
@@ -924,13 +925,13 @@ template <typename Value> void Solver<Value>::pivot_(index_t level, index_t i, i
     auto &xj = non_basic_(j);
 
     // adjust assignment
-    Value v_j = (v - xi.value) / *a_ij * *d_i;
+    Value v_j = mul_div(v - xi.value, *d_i, *a_ij);
 
     xi.set_value(*this, level, v, false);
     xj.set_value(*this, level, v_j, true);
     tableau_.update_col(j, [&](index_t k, Integer const &a_kj, Integer const &d_k) -> auto {
         if (k != i) {
-            basic_(k).set_value(*this, level, v_j * a_kj / d_k, true);
+            basic_(k).set_value(*this, level, mul_div(v_j, a_kj, d_k), true);
             enqueue_(k);
         }
     });

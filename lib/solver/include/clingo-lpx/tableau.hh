@@ -143,6 +143,10 @@ class Tableau {
 
     std::vector<Row> rows_;
     std::vector<std::vector<index_t>> cols_;
+    // buffers used during pivoting kept to reuse their memory
+    std::vector<size_t> pivot_sizes_;
+    std::vector<Cell> pivot_row_;
+    std::vector<index_t> pivot_col_buf_;
 };
 
 } // namespace ClingoLPX

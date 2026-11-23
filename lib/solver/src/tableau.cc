@@ -89,10 +89,10 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
 
     auto A_i0 = rows_[i].cells.begin();
     auto A_in = rows_[i].cells.end();
-    std::vector<size_t> sizes;
-    sizes.resize(rows_[i].cells.size());
-    std::vector<Cell> row;
-    std::vector<index_t> col_buf;
+    auto &sizes = pivot_sizes_;
+    sizes.assign(rows_[i].cells.size(), 0);
+    auto &row = pivot_row_;
+    auto &col_buf = pivot_col_buf_;
 
     update_row(i, [&](index_t k, Integer &a_il, Integer &d_i) -> void {
         static_cast<void>(d_i);

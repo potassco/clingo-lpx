@@ -28,6 +28,13 @@
 #include <intrin.h>
 #endif
 
+// NOTE: used to keep the slow path of operations on integers out of line
+#if defined(_MSC_VER) && !defined(__clang__)
+#define CLINGOLPX_NOINLINE __declspec(noinline)
+#else
+#define CLINGOLPX_NOINLINE __attribute__((noinline))
+#endif
+
 namespace ClingoLPX {
 
 constexpr int BASE = 10;
@@ -200,7 +207,7 @@ class Integer {
     void set_small_(std::int64_t v) noexcept;
     void set_mp_(mp_int z);
     void adopt_(Res &res) noexcept;
-    template <class F> auto mp_op_(Integer const &a, Integer const &b, F f) -> Integer &;
+    template <class F> CLINGOLPX_NOINLINE auto mp_op_(Integer const &a, Integer const &b, F f) -> Integer &;
 
     //! The value if mp_ is null.
     std::int64_t small_ = 0;
@@ -245,6 +252,7 @@ class Rational {
     auto set_mul(Rational const &a, Integer const &b) -> Rational &;
     auto set_div(Rational const &a, Rational const &b) -> Rational &;
     auto set_div(Rational const &a, Integer const &b) -> Rational &;
+    auto set_mul_div(Rational const &x, Integer const &a, Integer const &d) -> Rational &;
     //! @}
 
     [[nodiscard]] auto cmp(Rational const &b) const -> int;
@@ -398,7 +406,7 @@ inline void Integer::adopt_(Res &res) noexcept {
     }
 }
 
-template <class F> inline auto Integer::mp_op_(Integer const &a, Integer const &b, F f) -> Integer & {
+template <class F> CLINGOLPX_NOINLINE auto Integer::mp_op_(Integer const &a, Integer const &b, F f) -> Integer & {
     auto x = Arg{a};
     auto y = Arg{b};
     auto res = Res{};
@@ -934,6 +942,45 @@ inline auto Rational::set_div(Rational const &a, Integer const &b) -> Rational &
     return *this;
 }
 
+inline auto Rational::set_mul_div(Rational const &x, Integer const &a, Integer const &d) -> Rational & {
+    if (d == 0) {
+        throw std::domain_error("division by zero");
+    }
+    if (x.num_ == 0 || a == 0) {
+        set_zero_();
+        return *this;
+    }
+    // for x = n/m, cancel a against m, n against d, and the remaining a against
+    // the remaining d to keep the result canonical
+    auto n = x.num_;
+    auto m = x.den_;
+    auto ad = a;
+    auto dd = d;
+    if (m != 1) {
+        auto [g, ag, mg] = gcd_div(ad, m);
+        ad = std::move(ag);
+        m = std::move(mg);
+    }
+    if (dd != 1) {
+        auto [g, ng, dg] = gcd_div(n, dd);
+        n = std::move(ng);
+        dd = std::move(dg);
+    }
+    if (dd != 1) {
+        auto [g, ag, dg] = gcd_div(ad, dd);
+        ad = std::move(ag);
+        dd = std::move(dg);
+    }
+    n *= ad;
+    m *= dd;
+    if (m.sign() < 0) {
+        n.neg();
+        m.neg();
+    }
+    assign_(std::move(n), std::move(m));
+    return *this;
+}
+
 inline auto Rational::cmp(Rational const &b) const -> int {
     if (auto as = num_.sign(), bs = b.num_.sign(); as != bs) {
         return Detail::small_cmp(as, bs);
@@ -1109,6 +1156,13 @@ inline auto operator/=(Rational &a, fixed_int b) -> Rational & { return a.set_di
 inline auto operator/=(Rational &a, Integer const &b) -> Rational & { return a.set_div(a, b); }
 
 inline auto operator/=(Rational &a, Rational const &b) -> Rational & { return a.set_div(a, b); }
+
+//! Compute x * a / d.
+[[nodiscard]] inline auto mul_div(Rational const &x, Integer const &a, Integer const &d) -> Rational {
+    Rational c;
+    c.set_mul_div(x, a, d);
+    return c;
+}
 
 // comparison
 
