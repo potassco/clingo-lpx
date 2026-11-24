@@ -107,6 +107,14 @@ class Tableau {
     //! Runs in O(m).
     [[nodiscard]] auto size() const -> size_t;
 
+    //! Get an upper bound on the number of non-zero elements in column j.
+    //!
+    //! Column lists are cleaned lazily in update_col(), so they may contain
+    //! rows whose element became zero.
+    //!
+    //! Runs in O(1).
+    [[nodiscard]] auto col_size(index_t j) const -> size_t { return j < cols_.size() ? cols_[j].size() : 0; }
+
     //! Equivalent to `size() == 0`.
     //!
     //! Runs in O(m).

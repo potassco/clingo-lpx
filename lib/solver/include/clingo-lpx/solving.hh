@@ -231,8 +231,8 @@ template <typename Value> class Solver {
     //! Pivots basic variable `x_i` and non-basic variable `x_j`.
     void pivot_(index_t level, index_t i, index_t j, Value const &v);
 
-    //! Select pivot point using Bland's rule.
-    auto select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v) -> State;
+    //! Select pivot point preferring sparse columns or using Bland's rule.
+    auto select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v, bool bland) -> State;
 
     //! Get basic variable associated with row `i`.
     auto basic_(index_t i) -> Variable &;
