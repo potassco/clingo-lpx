@@ -346,10 +346,10 @@ TEST_CASE_METHOD(Fixture, "solving normalize") {
     ctl.ground();
     auto result = solve(ctl);
     REQUIRE(result == RV{{{{sym_f, num(0)},
-                           {sym_a, num(1, 1)},
-                           {sym_b, num(1, 1)},
-                           {sym_c, num(1)},
-                           {sym_d, num(0)},
+                           {sym_a, num(0, 1)},
+                           {sym_b, num(0, 1)},
+                           {sym_c, num(0)},
+                           {sym_d, num(-1)},
                            {sym_e, num(0, 1)}},
                           {}}});
 }

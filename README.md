@@ -1,137 +1,222 @@
-# clingo modulo simplex
+# clingo-lpx
 
-A simplistic simplex solver for checking satisfiability of a set of equations.
-
-## Examples
-
-There are some encodings for different systems in the `examples` folder:
-
-```
-$ clingo-lpx -c n=132 encoding-lp.lp tai4_4_1.lp
-clingo-lpx version 1.1.0
-Reading from encoding-lp.lp ...
-Solving...
-Answer: 1
-[...]
-Assignment:
-(1,1)=132 (1,2)=0  (1,3)=71  (1,4)=69  \
-(2,1)=19  (2,2)=98 (2,3)=126 (2,4)=28  \
-(3,1)=60  (3,2)=98 (3,3)=0   (3,4)=132 \
-(4,1)=132 (4,2)=98 (4,3)=21  (4,4)=28
-SATISFIABLE
-
-$ clingo-dl -c n=132 encoding-dl.lp tai4_4_1.lp
-[...]
-
-$ clingcon -c n=132 encoding-casp.lp tai4_4_1.lp
-[...]
-
-$ clingo -c n=132 encoding.lp tai4_4_1.lp
-[...]
-```
+clingo-lpx extends [clingo] with linear constraints over the rationals.
+Constraints are written as theory atoms and checked with a simplex solver
+integrated into the search of clingo. Strict constraints and linear objective
+functions are supported as well.
 
 ## Installation
 
 Precompiled packages are available:
 
-- https://anaconda.org/potassco/clingo-lpx
-- https://anaconda.org/conda-forge/clingo-lpx
-- https://pypi.org/project/clingo-lpx/
-- https://launchpad.net/~potassco/+archive/ubuntu/stable
+- <https://anaconda.org/potassco/clingo-lpx>
+- <https://anaconda.org/conda-forge/clingo-lpx>
+- <https://pypi.org/project/clingo-lpx/>
+- <https://launchpad.net/~potassco/+archive/ubuntu/stable>
 
-To install the conda packages, please install [miniconda] first.
-Note that packages from the [conda-forge] channel offer better performance than the ones from the potassco channel.
+To install the conda packages, please install [miniconda] first. Note that
+packages from the [conda-forge] channel offer better performance than the ones
+from the potassco channel.
 
-## Input format
+## Quick start
 
-The system supports `&sum` constraints over rationals with relations among `<=`, `>=`, and `=`.
-The elements of the sum constraints and terms of guards must be linear expressions.
-Quoted strings can be used to represent decimal numbers of arbitrary precision.
-Terms can be nested using operators `+`, `-`, `*`, `/`.
-Usage of multiplication and division is limited.
-Only expressions of form `c * t`, `t * c`, and `t / c` are accepted
-where `c` must not refer to variables and must be non-zero in the latter case.
-If functions are used as variable names, operators `+`, `-`, `*`, `/` in their arguments are evaluated as well.
-There is no special handling of strings for function arguments though.
+The following program (`examples/ship.lp`) ships at least 10 units using trucks
+and vans. An express delivery is optional but restricts the number of vans.
 
-For example, the following program is accepted:
 ```
-{ x }.
-&sum { 2*var(1+2) } = "0.3".
-&sum { var(3) } <= 3 * ("0.75"*z) :- x.
-&sum { var(3); (100*y)/2 } <= 0 :- not x.
+{ express }.
+&sum { truck; van } >= 10.
+&sum { truck } >= 0.
+&sum { van } >= 0.
+&sum { truck } <= 6.
+&sum { van } <= 8.
+&sum { truck } >= 6 :- express.
+&sum { van } <= 4 :- express.
+&minimize { 3*truck; 2*van }.
 ```
 
-Furthermore, `&dom` constraints are supported, which are shortcuts for `&sum` constraints.
-Terms in braces must be numbers and the right-hand-side must be a variable.
-The program
+Each stable model is printed together with an assignment of the variables:
+
 ```
-{ x }.
-&dom { 1..2 } = x.
-```
-is equivalent to
-```
-{ x }.
-&sum { x } >= 1.
-&sum { x } <= 2.
+$ clingo-lpx examples/ship.lp 0
+Answer: 1 (Model: 1 Time: 0.001s)
+
+Assignment:
+truck=2 van=8
+Objective: -22 [bounded]
+Answer: 2 (Model: 2 Time: 0.001s)
+express
+Assignment:
+truck=6 van=4
+Objective: -26 [bounded]
+SATISFIABLE
 ```
 
-Another shortcut (for compatibility with [clingo-dl]) are `&diff` constraints.
-The same relations as for &sum constraints are accepted.
-Terms in braces must should be variables and the right-hand-side should be a number.
-The program
+More examples can be found in the `examples` folder.
+
+## Input language
+
+### Linear constraints
+
+Linear constraints have the form
+
 ```
-{ x }.
-&diff { a-b } <= 5.
-```
-is equivalent to
-```
-{ x }.
-&sum { a-b } <= 5.
+&sum { e1; ...; en } rel rhs :- body.
 ```
 
-When option `--strict` is passed to the solver, then also strict constraints are supported:
+where `rel` is one of `<=`, `>=`, or `=`. Each element `ei` is a linear term
+optionally followed by a condition, as in `X*cost(X) : item(X)`. The right-hand
+side `rhs` is a linear term, too.
+
+- Variables are ground terms like `x`, `truck`, or `start(task(1))`. They live
+  in their own namespace, so a variable `x` and an atom `x` are unrelated.
+- Coefficients are integers or quoted decimals like `"0.75"`. Terms can be
+  built with `+`, `-`, `*`, and `/`, but multiplication and division need a
+  constant on one side, as in `3*x` or `x/2`.
+- Theory atoms may only occur in rule heads. The rule above means that the
+  constraint has to hold if the body holds. If the body does not hold, nothing
+  is required (in particular, not the negation of the constraint).
+
+For example:
+
 ```
-{ x }.
+p(1..3).
+{ q(X) : p(X) }.
+&sum { X*v(X) : p(X), q(X) } = 6.
+&sum { v(X) } >= 0 :- p(X).
+&sum { v(X) } <= 1 :- p(X).
+```
+
+For convenience, there are two shortcuts. The `&dom` constraint
+`&dom { 1..2 } = x` stands for `x >= 1` and `x <= 2`. The `&diff` constraint
+`&diff { a - b } <= 5` stands for `&sum { a - b } <= 5` and exists for
+compatibility with [clingo-dl].
+
+### Strict constraints
+
+With option `--strict`, relations `<` and `>` are available. Values may then
+contain a symbolic epsilon `e`, which stands for an arbitrarily small positive
+number:
+
+```
 &sum { x } > 1.
 &sum { x } < 2.
 ```
-The assignment will then contain an epsilon component for each variable.
-For example, with the above program, `x>=1+e` will appear in the output.
-This feature could also be used to support constraints in rule bodies and the `!=` relation;
-neither is implemented at the moment.
 
-Finally, the solver supports `&minimize` and `&maxmize` objectives where the former is a shortcut for the latter negating coefficients.
-The terms between the braces have the same syntax as for `&sum` constraints.
-However, objectives do not have a guard.
+```
+$ clingo-lpx --strict strict.lp
+Answer: 1 (Model: 1 Time: 0.001s)
 
-For example, the following objective is accepted:
+Assignment:
+x=1+e
+```
+
+The relation `!=` is not supported.
+
+### Optimization
+
+An objective function is given by a `&maximize` or `&minimize` directive,
+whose elements have the same syntax as in `&sum` constraints:
+
 ```
 &maximize { 2*x; -2*y }.
 ```
 
-By default, the optimal objective value is reported w.r.t. a stable model.
-Using option `--objective=global` together with `--models=0` can be used to enumerate globally optimal solutions.
-It is also possible to give a step value requiring the next objective to be greater than or equal to the current one plus the step value.
-In strict mode with option `--strict`, it is possible to use a symbolic epsilon value as step value,
-that is, by passing option `--objective=global,e`.
+Internally, the objective is always maximized, and `&minimize` simply negates
+the coefficients. Hence, the reported objective value of a `&minimize`
+directive is negated, like `-22` in the quick start example. The value is
+followed by `[bounded]` or `[unbounded]`, the latter indicating that the
+objective can be increased arbitrarily.
+
+By default (`--objective=local`), the objective is optimized for each stable
+model separately. With `--objective=global` and `0` models, each new model has
+to be at least as good as the previous one, so that the last model printed is
+globally optimal:
+
+```
+$ clingo-lpx --objective=global examples/ship.lp 0
+Answer: 1 (Model: 1 Time: 0.001s)
+
+Assignment:
+truck=2 van=8
+Objective: -22 [bounded]
+SATISFIABLE
+```
+
+A step value requires each new model to improve by at least the step, as in
+`--objective=global,1`. In strict mode, the step `e` requires models to be
+strictly better (`--objective=global,e`).
 
 ## Options
 
-| Option | Description |
-| :-- | :-- |
-| `--[no-]strict` | Enable support for strict constraints. |
-| `--[no-]propagate-conflicts` | Add binary clauses for conflicting bounds involving the same variable. |
-| `--[no-]propagate-bounds` | Enable propagation of conflicting bounds. The current algorithm should be considered preliminary. It is neither as exhaustive as it could be nor is it very efficient. |
-| `--objective={local,global[,step]}` | Configure how to treat the objective function. Values `local` and `global` compute optimal assignments w.r.t. to one and all stable models, respectively. When computing global optima, it is also possible to give a step value requiring the next objective to be greater than or equal to the current one plus the step value. In strict mode with option `--strict`, it is possible to use a symbolic epsilon value as step value, that is, by passing option `--objective=global,e`. |
-| `--select={none,match,conflict}` | Configure the sign heuristic for linear constraints. It can be set to `none` to use the sign heuristic of the ASP solver, `match` to make literals true whenever the corresponding constraint does not violate the current assignment, or `conflict` to do the opposite. |
-| `--store={no,partial,total}` | Configure whether to maintain satisfying assignments when backtracking. Value `partial` and `total` determine whether this is done w.r.t. to partial or total propagation fixed points. The latter is especially interesting when enumerating models to reduce the number of pivots. |
-| `--[no-]enable-python` | Enable Python script tags. Only works when running the python module, e.g., `python -m clingolpx`. |
+The most important options are listed below.
+Run `clingo-lpx --help` for the full list.
 
-## Profiling
+| Option                                   | Description                                                                                                                           |
+| :--------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `--strict`                               | Enable support for strict constraints.                                                                                                |
+| `--objective={local,global[,step]}`      | Optimize w.r.t. each stable model (`local`, default) or all of them (`global`).                                                       |
+| `--propagate-bounds={none,changed,full}` | Propagate bounds of constraints whose variables changed or of all constraints (default `none`).                                       |
+| `--propagate-conflicts`                  | Add binary clauses for conflicting bounds on the same variable.                                                                       |
+| `--select={none,match,conflict}`         | Sign heuristic for constraint literals: keep clasp's choice, prefer literals consistent with the current assignment, or the opposite. |
+| `--store={no,partial,total}`             | Keep satisfying assignments when backtracking, which can reduce the number of pivots when enumerating models.                         |
 
-To compile and profile the package, [cmake], [gperftools], [clingo], and a C++ compiler supporting C++17 have to be installed.
-All these requirements can be installed with [conda-forge].
+## Python API
+
+The Python package provides the `pyclingo-lpx` command, which works like
+`clingo-lpx` but additionally supports `#script (python)`. To use the solver
+from Python, create a theory object and pass it the control object:
+
+```python
+from clingo.control import Control
+from clingo.core import Library
+from clingo.theory import Theory
+from clingolpx import create_theory
+
+lib = Library()
+theory = Theory(lib, create_theory())
+ctl = Control(lib, ["0"])
+theory.register(ctl)
+ctl.config.lpx.objective = "global"  # same as --objective=global
+theory.rewrite_files(lib, ctl, ["examples/ship.lp"])
+ctl.ground()
+theory.prepare(ctl)
+
+
+def on_model(model):
+    theory.on_model(model)
+    values = {str(sym): val.string for sym, val in theory.assignment(model.thread_id)}
+    print(model, values)
+
+
+ctl.solve(on_model=on_model)
+```
+
+The steps are: register the theory, add the program, ground, prepare the
+theory, and solve. Programs given as strings can be added with
+`theory.rewrite_string(lib, ctl, program)`. The `on_model` callback has to call
+`theory.on_model` before the assignment can be queried. Values are strings like
+`"3/2"` or `"1+e"`. Models are also extended with atoms `__lpx(Var,"Value")`
+and `__lpx_objective("Value","bounded")`.
+
+The options above are available in the `lpx` group of the configuration with
+dashes replaced by underscores, e.g., `ctl.config.lpx.strict = "yes"` or
+`ctl.config.lpx.propagate_bounds = "changed"`.
+
+## Development
+
+### Math Libraries
+
+The project uses [FLINT] for arithmetic if it is available. Alternatively, the
+slower but more lightweight [IMath] library can be used by configuring with
+`CLINGOLPX_MATH_LIBRARY=imath`. Note that [IMath] uses the MIT and [FLINT] the
+LGPL license.
+
+### Profiling
+
+To compile and profile the package, [cmake], [gperftools], [clingo], and a C++
+compiler supporting C++20 have to be installed. All these requirements can be
+installed with [conda-forge].
 
 ```bash
 conda create -n profile -c conda-forge cmake libflint clingo cxx-compiler gperftools
@@ -147,18 +232,12 @@ CPUPROFILE_FREQUENCY=1000 ./build/bin/clingo-lpx examples/encoding-lp.lp example
 google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 ```
 
-## Literature
+### Literature
 
 - "Integrating Simplex with `DPLL(T)`" by Bruno Dutertre and Leonardo de Moura
 - "SPASS-SATT: A CDCL(LA) Solver" by Martin Bromberger, Mathias Fleury, Simon Schwarz, Christoph Weidenbach
 
-## Math Libraries
-
-The project currently uses [FLINT] for arithmetics.
-Alternatively, the slower but more lightwight [IMath] library can be used when configuring with `CLINGOLPX_MATH_LIBRARY=imath`.
-Furthermore, note that [IMath] uses the MIT and [FLINT] the LGPL license.
-
-[FLINT]: https://github.com/wbhart/flint2
+[FLINT]: https://github.com/flintlib/flint
 [IMath]: https://github.com/creachadair/imath
 [cmake]: https://cmake.org
 [clingo]: https://github.com/potassco/clingo
