@@ -178,9 +178,9 @@ void Tableau::pivot(index_t i, index_t j, Integer &a_ij, Integer &d_i) {
         // Use set_union for the general case.
         else {
             auto im = col.end() - static_cast<std::make_signed_t<std::size_t>>(*jt);
-            std::set_union(col.begin(), im, im, col.end(), std::back_inserter(col_buf));
+            col_buf.resize(col.size());
+            col_buf.erase(std::set_union(col.begin(), im, im, col.end(), col_buf.begin()), col_buf.end());
             std::swap(col_buf, col);
-            col_buf.clear();
         }
     }
 }
@@ -213,6 +213,13 @@ auto Tableau::empty() const -> bool {
 void Tableau::clear() {
     rows_.clear();
     cols_.clear();
+}
+
+void Tableau::clear_row(index_t i) {
+    if (i < rows_.size()) {
+        rows_[i].cells.clear();
+        rows_[i].den = 1;
+    }
 }
 
 auto Tableau::reserve_row_(index_t i) -> Tableau::Row & {

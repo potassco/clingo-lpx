@@ -9,6 +9,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -18,6 +19,37 @@ namespace ClingoLPX {
 constexpr int BASE = 10;
 
 using fixed_int = slong;
+
+namespace Detail {
+
+//! Check if an fmpz is stored as a machine integer.
+inline auto is_small(fmpz const &a) -> bool { return !COEFF_IS_MPZ(a); }
+
+//! Check if all given fmpzs are stored as machine integers.
+inline auto are_small(std::same_as<fmpz> auto const &...a) -> bool { return (is_small(a) && ...); }
+
+//! Compute c = a * b if a and b are small and the product does not overflow.
+inline auto mul_small(fmpz &c, fmpz const &a, fmpz const &b) -> bool {
+    slong r = 0;
+    if (are_small(a, b) && !__builtin_mul_overflow(a, b, &r)) {
+        fmpz_set_si(&c, r);
+        return true;
+    }
+    return false;
+}
+
+//! Compute c += a * b if all are small and there is no overflow.
+inline auto add_mul_small(fmpz &c, fmpz const &a, fmpz const &b) -> bool {
+    slong m = 0;
+    slong r = 0;
+    if (are_small(a, b, c) && !__builtin_mul_overflow(a, b, &m) && !__builtin_add_overflow(c, m, &r)) {
+        fmpz_set_si(&c, r);
+        return true;
+    }
+    return false;
+}
+
+} // namespace Detail
 
 class Integer;
 template <class T>
@@ -128,6 +160,7 @@ class Rational {
     friend auto compare(Rational const &a, fixed_int b) -> int;
     friend auto compare(Rational const &a, Integer const &b) -> int;
     friend auto compare(Rational const &a, Rational const &b) -> int;
+    friend auto mul_div(Rational const &x, Integer const &a, Integer const &d) -> Rational;
 
   public:
     Rational() noexcept;
@@ -189,12 +222,19 @@ inline Integer::~Integer() noexcept { fmpz_clear(&num_); }
 inline void Integer::swap(Integer &x) noexcept { fmpz_swap(&num_, &x.num_); }
 
 inline auto Integer::divide(Integer const &a) -> Integer & {
-    fmpz_divexact(&num_, &num_, &a.num_);
+    if (Detail::are_small(num_, a.num_)) {
+        // the result is small, too
+        num_ /= a.num_;
+    } else {
+        fmpz_divexact(&num_, &num_, &a.num_);
+    }
     return *this;
 }
 
 inline auto Integer::add_mul(Integer const &a, Integer const &b) & -> Integer & {
-    fmpz_addmul(&num_, &a.num_, &b.num_);
+    if (!Detail::add_mul_small(num_, a.num_, b.num_)) {
+        fmpz_addmul(&num_, &a.num_, &b.num_);
+    }
     return *this;
 }
 
@@ -317,7 +357,9 @@ inline auto operator-=(Integer &a, Integer const &b) -> Integer & {
         return ret;
     } else {
         Integer c;
-        fmpz_mul(&c.num_, &a.num_, &b.num_);
+        if (!Detail::mul_small(c.num_, a.num_, b.num_)) {
+            fmpz_mul(&c.num_, &a.num_, &b.num_);
+        }
         return c;
     }
 }
@@ -328,13 +370,17 @@ inline auto operator*=(Integer &a, fixed_int b) -> Integer & {
 }
 
 inline auto operator*=(Integer &a, Integer const &b) -> Integer & {
-    fmpz_mul(&a.num_, &a.num_, &b.num_);
+    if (!Detail::mul_small(a.num_, a.num_, b.num_)) {
+        fmpz_mul(&a.num_, &a.num_, &b.num_);
+    }
     return a;
 }
 
 // comparison
 
-[[nodiscard]] inline auto operator==(Integer const &a, fixed_int b) -> bool { return fmpz_equal_si(&a.num_, b) != 0; }
+[[nodiscard]] inline auto operator==(Integer const &a, fixed_int b) -> bool {
+    return Detail::is_small(a.num_) ? a.num_ == b : fmpz_equal_si(&a.num_, b) != 0;
+}
 [[nodiscard]] inline auto operator==(Integer const &a, Integer const &b) -> bool {
     return fmpz_equal(&a.num_, &b.num_) != 0;
 }
@@ -366,16 +412,37 @@ inline auto operator<<(std::ostream &out, Integer const &a) -> std::ostream & {
 
 [[nodiscard]] inline auto gcd(Integer const &a, Integer const &b) -> Integer {
     Integer g;
-    fmpz_gcd(&g.num_, &a.num_, &b.num_);
+    if (Detail::are_small(a.num_, b.num_)) {
+        // the result is non-negative and small
+        g.num_ = std::gcd(a.num_, b.num_);
+    } else {
+        fmpz_gcd(&g.num_, &a.num_, &b.num_);
+    }
     return g;
 }
 
 [[nodiscard]] inline auto gcd_div(Integer const &a, Integer const &b) -> std::tuple<Integer, Integer, Integer> {
     std::tuple<Integer, Integer, Integer> ret;
-    fmpz_gcd(&std::get<0>(ret).num_, &a.num_, &b.num_);
-    fmpz_divexact(&std::get<1>(ret).num_, &a.num_, &std::get<0>(ret).num_);
-    fmpz_divexact(&std::get<2>(ret).num_, &b.num_, &std::get<0>(ret).num_);
+    auto &[g, ag, bg] = ret;
+    if (Detail::are_small(a.num_, b.num_)) {
+        g.num_ = std::gcd(a.num_, b.num_);
+        if (g.num_ != 0) {
+            ag.num_ = a.num_ / g.num_;
+            bg.num_ = b.num_ / g.num_;
+        }
+    } else {
+        fmpz_gcd(&g.num_, &a.num_, &b.num_);
+        fmpz_divexact(&ag.num_, &a.num_, &g.num_);
+        fmpz_divexact(&bg.num_, &b.num_, &g.num_);
+    }
     return ret;
+}
+
+//! Compute the quotient a/b rounded towards negative infinity.
+[[nodiscard]] inline auto floor_div(Integer const &a, Integer const &b) -> Integer {
+    Integer q;
+    fmpz_fdiv_q(&q.impl(), &a.impl(), &b.impl());
+    return q;
 }
 
 // Rational
@@ -658,7 +725,45 @@ inline auto operator/=(Rational &a, Rational const &b) -> Rational & {
 
 //! Compute x * a / d.
 [[nodiscard]] inline auto mul_div(Rational const &x, Integer const &a, Integer const &d) -> Rational {
-    return x * a / d;
+    auto const &p = x.num().impl();
+    auto const &q = x.den().impl();
+    if (Detail::are_small(p, q, a.impl(), d.impl())) {
+        // We cancel common factors before multiplying. The result is
+        // canonical because x is canonical.
+        slong u = p;
+        slong v = q;
+        slong s = a.impl();
+        slong t = d.impl();
+        auto cancel = [](slong &m, slong &n) -> void {
+            if (m == 1 || m == -1 || n == 1 || n == -1) {
+                return;
+            }
+            if (auto g = std::gcd(m, n); g > 1) {
+                m /= g;
+                n /= g;
+            }
+        };
+        cancel(u, t);
+        cancel(s, v);
+        cancel(s, t);
+        auto num = static_cast<__int128>(u) * s;
+        auto den = static_cast<__int128>(v) * t;
+        if (den < 0) {
+            num = -num;
+            den = -den;
+        }
+        constexpr auto max = static_cast<__int128>(std::numeric_limits<slong>::max());
+        if (-max <= num && num <= max && den <= max) {
+            Rational r;
+            fmpz_set_si(&r.num().impl(), static_cast<slong>(num));
+            fmpz_set_si(&r.den().impl(), static_cast<slong>(den));
+            return r;
+        }
+    }
+    Rational r;
+    fmpq_mul_fmpz(&r.num_, &x.num_, &a.impl());
+    fmpq_div_fmpz(&r.num_, &r.num_, &d.impl());
+    return r;
 }
 
 // comparison
@@ -703,7 +808,22 @@ inline auto operator<<(std::ostream &out, Rational const &a) -> std::ostream & {
     return fmpq_cmp_fmpz(&a.num_, &b.impl());
 }
 
-[[nodiscard]] inline auto compare(Rational const &a, Rational const &b) -> int { return fmpq_cmp(&a.num_, &b.num_); }
+[[nodiscard]] inline auto compare(Rational const &a, Rational const &b) -> int {
+    auto const *an = fmpq_numref(&a.num_);
+    auto const *ad = fmpq_denref(&a.num_);
+    auto const *bn = fmpq_numref(&b.num_);
+    auto const *bd = fmpq_denref(&b.num_);
+    if (Detail::are_small(*an, *ad, *bn, *bd)) {
+        // denominators are positive
+        auto x = static_cast<__int128>(*an) * *bd;
+        auto y = static_cast<__int128>(*bn) * *ad;
+        if (x < y) {
+            return -1;
+        }
+        return x > y ? 1 : 0;
+    }
+    return fmpq_cmp(&a.num_, &b.num_);
+}
 
 } // namespace ClingoLPX
 

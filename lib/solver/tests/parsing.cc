@@ -23,7 +23,7 @@ struct Fixture {
     auto evaluate(std::string_view prg) {
         ctl.parse_string(prg);
         ctl.ground();
-        evaluate_theory(lib, ctl.base().theory(), Fixture::mapper, vars, eqs, objective);
+        evaluate_theory(lib, ctl.base().theory(), Fixture::mapper, vars, eqs, objective, integers);
     }
     static auto mapper(std::optional<Clingo::ProgramLiteral> lit) -> Clingo::ProgramLiteral {
         static_cast<void>(lit);
@@ -35,6 +35,7 @@ struct Fixture {
     VarMap vars;
     std::vector<Inequality> eqs;
     std::vector<Term> objective;
+    std::vector<Clingo::Symbol> integers;
 };
 
 } // namespace
@@ -75,6 +76,17 @@ TEST_CASE_METHOD(Fixture, "parsing complex") {
     REQUIRE(eqs.size() == 1);
     REQUIRE(objective.empty());
     REQUIRE(str(eqs.front()) == "-19/7*x + 6/7*y + z = -10");
+}
+
+TEST_CASE_METHOD(Fixture, "parsing integer") {
+    evaluate("&int { x; y(1) }. &int { x }. &sum { x; z } >= 1.");
+    REQUIRE(eqs.size() == 1);
+    REQUIRE(integers.size() == 3);
+    std::ranges::sort(integers);
+    REQUIRE(str(integers[0]) == "x");
+    REQUIRE(str(integers[1]) == "x");
+    REQUIRE(str(integers[2]) == "y(1)");
+    REQUIRE_THROWS(evaluate("&int { 1 }."));
 }
 
 TEST_CASE_METHOD(Fixture, "parsing string rational") {

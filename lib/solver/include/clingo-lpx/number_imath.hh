@@ -711,6 +711,20 @@ inline auto operator<<(std::ostream &out, Integer const &a) -> std::ostream & {
     return ret;
 }
 
+//! Compute the quotient a/b rounded towards negative infinity.
+[[nodiscard]] inline auto floor_div(Integer const &a, Integer const &b) -> Integer {
+    // set_divexact truncates towards zero if the division is not exact
+    Integer q;
+    q.set_divexact(a, b);
+    Integer r;
+    r.set_mul(q, b);
+    r.set_sub(a, r);
+    if (r.sign() != 0 && (r.sign() < 0) != (b.sign() < 0)) {
+        q.set_sub(q, 1);
+    }
+    return q;
+}
+
 // Rational
 
 inline Rational::Rational() noexcept { den_.small_ = 1; }

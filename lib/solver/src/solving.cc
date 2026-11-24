@@ -57,12 +57,55 @@ template <class Score, class Better = std::less<>> class Selector {
     Score score_{};
 };
 
-//! Compute the absolute value of an integer.
-auto magnitude(Integer a) -> Integer {
-    if (a < 0) {
-        a.neg();
+//! Round the bound of an expression that can only take integer values.
+//!
+//! Strict relations are replaced by non-strict ones. The function returns
+//! false if the relation is an equality with a fractional right-hand side.
+auto round_bound(Rational &rhs, Relation &rel) -> bool {
+    switch (rel) {
+        case Relation::LessEqual: {
+            rhs = as_rational(floor(rhs));
+            break;
+        }
+        case Relation::Less: {
+            rhs = as_rational(ceil(rhs) - 1);
+            rel = Relation::LessEqual;
+            break;
+        }
+        case Relation::GreaterEqual: {
+            rhs = as_rational(ceil(rhs));
+            break;
+        }
+        case Relation::Greater: {
+            rhs = as_rational(floor(rhs) + 1);
+            rel = Relation::GreaterEqual;
+            break;
+        }
+        case Relation::Equal: {
+            return is_integer(rhs);
+        }
     }
-    return a;
+    return true;
+}
+
+//! Scale the coefficients of a row to coprime integers.
+//!
+//! The scaling factor is positive and returned.
+auto scale_row(std::vector<std::pair<index_t, Rational>> &row) -> Rational {
+    Integer l{1};
+    for (auto const &[j, v] : row) {
+        l = lcm(l, v.den());
+    }
+    Integer g{0};
+    auto f = as_rational(std::move(l));
+    for (auto const &[j, v] : row) {
+        g = gcd(g, (v * f).num());
+    }
+    f /= g;
+    for (auto &[j, v] : row) {
+        v *= f;
+    }
+    return f;
 }
 
 } // namespace
@@ -148,6 +191,14 @@ template <typename Value> struct Solver<Value>::Prepare {
         auto jt = map.find(var);
         assert(jt != map.end());
         return slv.variables_[jt->second].reverse_index;
+    }
+
+    auto is_integer(std::vector<Term> const &x) -> bool {
+        return std::ranges::all_of(x, [this](Term const &term) -> bool {
+            auto jt = map.find(term.var);
+            assert(jt != map.end());
+            return slv.variables_[jt->second].integer;
+        });
     }
 
     auto add_basic() -> index_t {
@@ -302,8 +353,14 @@ template <typename Value> auto Solver<Value>::get_objective() const -> std::opti
 template <typename Value>
 auto Solver<Value>::prepare(Clingo::Assignment ass, Clingo::PropagateInit init, SymbolMap const &symbols,
                             std::vector<Inequality> const &inequalities, std::vector<Term> const &objective,
-                            bool master) -> bool {
+                            std::vector<index_t> const &integers, bool master) -> bool {
     Prepare prep{*this, symbols};
+    for (auto i : integers) {
+        variables_[i].integer = true;
+    }
+    ints_.active = !integers.empty();
+    // the inequality is false if there is no integer solution
+    auto reject = [&](Inequality const &x) -> bool { return !master || init.add_clause({-x.lit}); };
     for (auto const &x : inequalities) {
         if (ass.is_false(x.lit)) {
             continue;
@@ -311,6 +368,9 @@ auto Solver<Value>::prepare(Clingo::Assignment ass, Clingo::PropagateInit init, 
 
         // transform inequality into row suitable for tableau
         auto row = prep.add_row(x.lhs);
+        auto rhs = x.rhs;
+        auto rel = x.rel;
+        bool integer = ints_.active && !row.empty() && prep.is_integer(x.lhs);
 
         // check bound against 0
         if (row.empty()) {
@@ -353,18 +413,38 @@ auto Solver<Value>::prepare(Clingo::Assignment ass, Clingo::PropagateInit init, 
         // add a bound to a non-basic variable
         else if (row.size() == 1) {
             auto const &[j, v] = row.front();
-            auto rel = v < 0 ? invert(x.rel) : x.rel;
-            bounds_.emplace(x.lit,
-                            Bound{bound_val<Value>(x.rhs / v, rel), variables_[j].index, x.lit, bound_rel<Value>(rel)});
+            if (v < 0) {
+                rel = invert(rel);
+            }
+            rhs /= v;
+            if (integer && !round_bound(rhs, rel)) {
+                if (!reject(x)) {
+                    return false;
+                }
+                continue;
+            }
+            bounds_.emplace(
+                x.lit, Bound{bound_val<Value>(std::move(rhs), rel), variables_[j].index, x.lit, bound_rel<Value>(rel)});
         }
         // add an inequality
         else {
+            // scale rows over integer variables so that the slack variable is integer, too
+            if (integer) {
+                rhs *= scale_row(row);
+                if (!round_bound(rhs, rel)) {
+                    if (!reject(x)) {
+                        return false;
+                    }
+                    continue;
+                }
+            }
             auto i = prep.add_basic();
+            variables_.back().integer = integer;
             bounds_.emplace(x.lit, Bound{
-                                       bound_val<Value>(x.rhs, x.rel),
+                                       bound_val<Value>(std::move(rhs), rel),
                                        static_cast<index_t>(variables_.size() - 1),
                                        x.lit,
-                                       bound_rel<Value>(x.rel),
+                                       bound_rel<Value>(rel),
                                    });
             for (auto const &[j, v] : row) {
                 tableau_.set(i, j, v);
@@ -396,6 +476,7 @@ auto Solver<Value>::prepare(Clingo::Assignment ass, Clingo::PropagateInit init, 
     for (auto const &[lit, bound] : bounds_) {
         variables_[bound.variable].bounds.emplace_back(&bound);
     }
+    cuts_.offset = static_cast<index_t>(variables_.size());
     assert_extra(check_tableau_());
     assert_extra(check_basic_());
     assert_extra(check_non_basic_());
@@ -641,6 +722,7 @@ template <typename Value> void Solver<Value>::store_sat_assignment() {
         }
     }
     assignment_trail_.clear();
+    cuts_.fresh.clear();
 }
 
 template <typename Value>
@@ -915,7 +997,11 @@ template <typename Value> void Solver<Value>::undo() {
 
         trail_offset_.pop_back();
 
-        assert_extra(check_solution_());
+        if (!cuts_.fresh.empty()) {
+            refresh_cuts_();
+        }
+
+        assert_extra(check_solution_(false));
     } catch (...) {
         std::terminate();
     }
@@ -962,8 +1048,10 @@ template <typename Value> auto Solver<Value>::check_non_basic_() -> bool {
     return true;
 }
 
-template <typename Value> auto Solver<Value>::check_solution_() -> bool {
-    for (auto &x : variables_) {
+template <typename Value> auto Solver<Value>::check_solution_(bool cuts) -> bool {
+    auto n = cuts ? variables_.size() : cuts_.offset;
+    for (size_t i = 0; i < n; ++i) {
+        auto &x = variables_[i];
         if (x.has_lower() && x.lower() > x.value) {
             return false;
         }
@@ -971,7 +1059,7 @@ template <typename Value> auto Solver<Value>::check_solution_() -> bool {
             return false;
         }
     }
-    return check_tableau_() && check_basic_();
+    return check_tableau_() && check_basic_() && check_non_basic_();
 }
 
 template <typename Value> void Solver<Value>::update_(index_t level, index_t j, Value v) {
@@ -1133,23 +1221,39 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass
     evaluate_theory(
         *lib_, init.base().theory(),
         [&](std::optional<Clingo::SolverLiteral> lit) -> auto { return init.solver_literal(lit); }, aux_map_, iqs_,
-        objective_);
+        objective_, integers_);
+    n_vars_ = ass.size();
 
-    auto gather_vars = [this](std::vector<Term> const &terms) -> auto {
-        for (auto const &term : terms) {
-            if (var_map_.emplace(term.var, static_cast<index_t>(var_map_.size())).second) {
-                var_vec_.emplace_back(term.var);
-            }
+    auto add_var = [this](Clingo::Symbol const &var) -> void {
+        if (var_map_.emplace(var, static_cast<index_t>(var_map_.size())).second) {
+            var_vec_.emplace_back(var);
         }
     };
-    gather_vars(objective_);
+    for (auto const &term : objective_) {
+        add_var(term.var);
+    }
+    for (auto const &var : integers_) {
+        add_var(var);
+    }
+    for (auto &x : iqs_) {
+        for (auto const &term : x.lhs) {
+            add_var(term.var);
+        }
+    }
+
+    auto integers = collect_integers_();
+    auto is_integer = [&](Clingo::Symbol const &var) -> bool {
+        return std::ranges::binary_search(integers, var_map_.at(var));
+    };
     for (auto &x : iqs_) {
         if constexpr (std::is_same_v<Value, Rational>) {
-            if (x.rel == Relation::Less || x.rel == Relation::Greater) {
+            // strict inequalities over integer variables are turned into non-strict ones
+            if ((x.rel == Relation::Less || x.rel == Relation::Greater) &&
+                (x.lhs.empty() ||
+                 !std::ranges::all_of(x.lhs, [&](Term const &term) -> bool { return is_integer(term.var); }))) {
                 throw std::invalid_argument{"strict inequalities not enabled (try option --strict)"};
             }
         }
-        gather_vars(x.lhs);
         init.add_watch(x.lit);
     }
 
@@ -1159,29 +1263,66 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass
     slvs_.reserve(init.number_of_threads());
     for (size_t i = 0, e = init.number_of_threads(); i != e; ++i) {
         slvs_.emplace_back(std::piecewise_construct, std::forward_as_tuple(0), std::forward_as_tuple(options_));
-        if (!slvs_.back().second.prepare(ass, init, var_map_, iqs_, objective_, i == 0)) {
+        if (!slvs_.back().second.prepare(ass, init, var_map_, iqs_, objective_, integers, i == 0)) {
             return;
         }
     }
 }
 
+template <typename Value> auto Propagator<Value>::collect_integers_() const -> std::vector<index_t> {
+    // Collect the indices of integer variables. Auxiliary variables for
+    // conditional terms are integer if the term is integer.
+    std::vector<index_t> integers;
+    integers.reserve(integers_.size());
+    for (auto const &var : integers_) {
+        integers.emplace_back(var_map_.at(var));
+    }
+    auto sort_unique = [&integers]() -> void {
+        std::ranges::sort(integers);
+        integers.erase(std::ranges::unique(integers).begin(), integers.end());
+    };
+    sort_unique();
+    if (integers.empty()) {
+        return integers;
+    }
+    auto n = integers.size();
+    for (auto const &[key, aux] : aux_map_) {
+        auto it = var_map_.find(key.first);
+        auto jt = var_map_.find(aux);
+        if (jt != var_map_.end() &&
+            (is_constant(key.first) ||
+             (it != var_map_.end() &&
+              std::ranges::binary_search(integers.begin(), integers.begin() + static_cast<std::ptrdiff_t>(n),
+                                         it->second)))) {
+            integers.emplace_back(jt->second);
+        }
+    }
+    if (integers.size() != n) {
+        sort_unique();
+    }
+    return integers;
+}
+
 template <typename Value> void Propagator<Value>::on_statistics(Clingo::Stats step, Clingo::Stats accu) {
     auto step_simplex = step.map().insert("Simplex", Clingo::StatsType::map);
-    auto step_pivots = step_simplex.map().insert("Pivots", Clingo::StatsType::value);
-    auto step_propagated_bounds = step_simplex.map().insert("Bounds propagated", Clingo::StatsType::value);
     auto accu_simplex = accu.map().insert("Simplex", Clingo::StatsType::map);
-    auto accu_pivots = accu_simplex.map().insert("Pivots", Clingo::StatsType::value);
-    auto accu_propagated_bounds = accu_simplex.map().insert("Bounds propagated", Clingo::StatsType::value);
-    double pivots = 0;
-    double bounds = 0;
-    for (auto const &[offset, slv] : slvs_) {
-        pivots += slv.statistics().pivots;
-        bounds += slv.statistics().propagated_bounds;
+    auto add = [&](char const *name, size_t Statistics::*member) -> void {
+        double value = 0;
+        for (auto const &[offset, slv] : slvs_) {
+            value += static_cast<double>(slv.statistics().*member);
+        }
+        step_simplex.map().insert(name, Clingo::StatsType::value).value(value);
+        auto accu_value = accu_simplex.map().insert(name, Clingo::StatsType::value);
+        accu_value.value(accu_value.value() + value);
+    };
+    add("Pivots", &Statistics::pivots);
+    add("Bounds propagated", &Statistics::propagated_bounds);
+    if (!integers_.empty()) {
+        add("Branches", &Statistics::branches);
+        add("Cuts", &Statistics::cuts);
+        add("GCD conflicts", &Statistics::gcd_conflicts);
+        add("Fixed bounds", &Statistics::fixed_bounds);
     }
-    step_pivots.value(pivots);
-    accu_pivots.value(accu_pivots.value() + pivots);
-    step_propagated_bounds.value(bounds);
-    accu_propagated_bounds.value(accu_propagated_bounds.value() + bounds);
 }
 
 template <typename Value>
@@ -1218,6 +1359,10 @@ template <typename Value> void Propagator<Value>::do_check(Clingo::Assignment as
     if (ass.is_total()) {
         // Compute an optimal assignment.
         slv.optimize();
+        // Ensure that integer variables have integer values.
+        if (!slv.check_integers(ass, ctl)) {
+            return;
+        }
         // Store the current assignment in the hope that the next model can be
         // obtained from it with a small number of pivots.
         if (options_.store_sat_assignment >= StoreSATAssignments::Partial) {
@@ -1233,9 +1378,16 @@ template <typename Value> void Propagator<Value>::do_check(Clingo::Assignment as
 template <typename Value>
 void Propagator<Value>::do_propagate(Clingo::Assignment ass, Clingo::PropagateControl ctl,
                                      Clingo::SolverLiteralSpan changes) {
+    // Facts are collected by the first solver before the other solvers
+    // start. Note that checking the root level instead of decision level 0
+    // would also capture facts when solving under assumptions.
     if (ass.decision_level() == 0 && ass.thread_id() == 0) {
-        // Note to self: auxiliary variables introduced during solving cannot become facts
-        facts_.insert(facts_.end(), changes.begin(), changes.end());
+        // Literals introduced during solving are solver local and must not be shared.
+        for (auto lit : changes) {
+            if (std::cmp_less_equal(std::abs(lit), n_vars_)) {
+                facts_.emplace_back(lit);
+            }
+        }
     }
     auto &[offset, slv] = slvs_[ass.thread_id()];
     static_cast<void>(slv.solve(ass, ctl, changes));

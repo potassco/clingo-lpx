@@ -80,6 +80,10 @@ class RationalQ {
     void swap(RationalQ &q) noexcept;
     [[nodiscard]] auto is_rational() const -> bool;
     [[nodiscard]] auto as_rational() const -> Rational const &;
+    //! The rational component.
+    [[nodiscard]] auto c() const -> Rational const & { return c_; }
+    //! The coefficient of the infinitesimal component.
+    [[nodiscard]] auto k() const -> Rational const & { return k_; }
 
   private:
     Rational c_;
@@ -427,6 +431,70 @@ inline auto operator<<(std::ostream &out, RationalQ const &q) -> std::ostream & 
         out << "e";
     }
     return out;
+}
+
+//! Convert an integer into a rational number.
+[[nodiscard]] inline auto as_rational(Integer a) -> Rational { return Rational{std::move(a), Integer{1}}; }
+
+//! Compute the absolute value of an integer.
+[[nodiscard]] inline auto magnitude(Integer a) -> Integer {
+    if (a < 0) {
+        a.neg();
+    }
+    return a;
+}
+
+//! Check if numerator and denominator of a rational number fit into machine integers.
+[[nodiscard]] inline auto is_small(Rational const &a) -> bool {
+    return a.num().as_int().has_value() && a.den().as_int().has_value();
+}
+
+//! Get a rational number (for uniform treatment with RationalQ).
+//!
+//! The function must not be called with temporaries.
+// NOLINTNEXTLINE(bugprone-return-const-ref-from-parameter)
+[[nodiscard]] inline auto rational_part(Rational const &a) -> Rational const & { return a; }
+
+//! Check if a value has no infinitesimal component (always true for Rational).
+[[nodiscard]] inline auto is_rational(Rational const &a) -> bool {
+    static_cast<void>(a);
+    return true;
+}
+
+//! Round a rational number towards negative infinity.
+[[nodiscard]] inline auto floor(Rational const &a) -> Integer { return floor_div(a.num(), a.den()); }
+
+//! Round a rational number towards positive infinity.
+[[nodiscard]] inline auto ceil(Rational const &a) -> Integer { return -floor_div(-a.num(), a.den()); }
+
+//! Check whether a rational number is an integer.
+[[nodiscard]] inline auto is_integer(Rational const &a) -> bool { return a.den() == 1; }
+
+//! Check whether a rational number with an infinitesimal component is an integer.
+[[nodiscard]] inline auto is_integer(RationalQ const &a) -> bool {
+    return a.is_rational() && is_integer(a.as_rational());
+}
+
+//! Get the rational component of a value (which must not have an infinitesimal component).
+[[nodiscard]] inline auto rational_part(RationalQ const &a) -> Rational const & { return a.as_rational(); }
+
+//! Check if a value has no infinitesimal component.
+[[nodiscard]] inline auto is_rational(RationalQ const &a) -> bool { return a.is_rational(); }
+
+//! Round a rational number with an infinitesimal component towards negative infinity.
+//!
+//! The infinitesimal is assumed to be arbitrarily small but positive.
+[[nodiscard]] inline auto floor(RationalQ const &a) -> Integer {
+    if (is_integer(a.c())) {
+        return a.k() < 0 ? a.c().num() - 1 : a.c().num();
+    }
+    return floor(a.c());
+}
+
+//! Compute the least common multiple of two positive integers.
+[[nodiscard]] inline auto lcm(Integer const &a, Integer const &b) -> Integer {
+    auto [g, ag, bg] = gcd_div(a, b);
+    return std::move(ag) * b;
 }
 
 } // namespace ClingoLPX

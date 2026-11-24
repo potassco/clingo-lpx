@@ -20,8 +20,9 @@ from the potassco channel.
 
 ## Quick start
 
-The following program (`examples/ship.lp`) ships at least 10 units using trucks
-and vans. An express delivery is optional but restricts the number of vans.
+The following program (`examples/ship/ship.lp`) ships at least 10 units using
+trucks and vans. An express delivery is optional but restricts the number of
+vans.
 
 ```
 { express }.
@@ -38,7 +39,7 @@ and vans. An express delivery is optional but restricts the number of vans.
 Each stable model is printed together with an assignment of the variables:
 
 ```
-$ clingo-lpx examples/ship.lp 0
+$ clingo-lpx examples/ship/ship.lp 0
 Answer: 1 (Model: 1 Time: 0.001s)
 
 Assignment:
@@ -52,7 +53,9 @@ Objective: -26 [bounded]
 SATISFIABLE
 ```
 
-More examples can be found in the `examples` folder.
+More examples can be found in the [examples](examples) folder, among them a
+knapsack problem and a mixed integer program combining Boolean, integer, and
+continuous variables.
 
 ## Input language
 
@@ -113,6 +116,70 @@ x=1+e
 
 The relation `!=` is not supported.
 
+### Integer variables
+
+The `&int` directive declares variables that may only take integer values:
+
+```
+&int { x; y }.
+&sum { -x; y } <= 1.
+&sum { 3*x; 2*y } <= 12.
+&sum { 2*x; 3*y } <= 12.
+&sum { x } >= 0.
+&sum { y } >= 0.
+&maximize { y }.
+```
+
+```
+$ clingo-lpx --objective=global,1 examples/integer/integer.lp 0
+...
+Assignment:
+x=2 y=2
+Objective: 2 [bounded]
+SATISFIABLE
+```
+
+The relaxation of this problem has the optimum `y=14/5`. When the simplex
+algorithm finds an assignment where an integer variable has a fractional value
+`v`, the solver branches by introducing a literal `l` with `l -> x <= floor(v)`
+and `-l -> x >= floor(v)+1`. By default, the side closer to `v` is tried first
+(see option `--branch-polarity`). Like in an
+order encoding, the literals of branches on the same variable are connected by
+clauses such as `x <= 1 -> x <= 2`, and so are the literals of bounds in the
+program, such as `p` in `&sum { x } <= 1 :- p.`
+
+Before branching, the solver checks whether the rows of the tableau over
+integer variables admit integer solutions given the fixed variables (the GCD
+test). Optionally, Gomory cuts are derived from the tableau instead of
+branching (see option `--cut-period`). To keep the arithmetic cheap, cuts are
+weakened by rounding up coefficients with large denominators and by dropping
+terms of variables bounded on both sides. Cuts are added as new rows implied by
+the current bounds and replaced by newer ones once more than `--cut-limit` cuts
+are kept. With `--objective=global`, option `--fix-reduced-costs` additionally
+tightens bounds of integer variables that cannot improve on the best objective
+value found so far.
+
+Constraints over integer variables only are scaled to coprime integer
+coefficients and their bounds are rounded. For example, `&sum { 2*x; 2*y } =
+3` is false without search. Such constraints may also use the relations `<`
+and `>` without option `--strict`.
+
+Some remarks:
+
+- The directive is unconditional. Variables in conditional terms like `x : p`
+  are integer if `x` is.
+- With `--objective=local`, the reported assignment is integral and optimal
+  for the branch the solver ended up in, that is, among the assignments
+  respecting the bounds introduced by branching, but not necessarily for the
+  stable model. Hence, local optimization is mainly useful for linear
+  programs without integer variables. Use `--objective=global` (with a step
+  of `1` for integer objectives) to obtain the optimum.
+- The literals introduced for branching and cuts are not part of the output.
+  Hence, the same stable model and assignment can be printed multiple times
+  when enumerating models. Option `--project` avoids this.
+- Integer variables should be bounded. Otherwise, branching might not
+  terminate.
+
 ### Optimization
 
 An objective function is given by a `&maximize` or `&minimize` directive,
@@ -134,7 +201,7 @@ to be at least as good as the previous one, so that the last model printed is
 globally optimal:
 
 ```
-$ clingo-lpx --objective=global examples/ship.lp 0
+$ clingo-lpx --objective=global examples/ship/ship.lp 0
 Answer: 1 (Model: 1 Time: 0.001s)
 
 Assignment:
@@ -164,6 +231,12 @@ Run `clingo-lpx --help` for the full list.
 | `--pivot-non-basic={bland,sparse}`       | Pivot on the column with the smallest index or the fewest non-zero elements (`sparse`, default).                                      |
 | `--pivot-entering={bland,dantzig}`       | When optimizing, select the entering variable with the smallest index or the largest coefficient (`dantzig`, default).                |
 | `--bland-threshold=<n>`                  | Switch to Bland's rule after max(n, rows) pivots without progress to avoid cycling (default 128).                                     |
+| `--cut-period=<n>`                       | Try a Gomory cut instead of branching every n-th time an integer variable is fractional (default 0, which disables cuts).             |
+| `--cut-limit=<n>`                        | Keep at most n cuts per solver thread replacing inactive ones (default 64).                                                           |
+| `--[no-]order-branches`                  | Connect the literals of branches and bounds on the same variable like in an order encoding (enabled by default).                      |
+| `--branch-polarity={nearest,...}`        | Try the side of a branch closer to the current value first (`nearest`, default), the farther one, or always up or down.               |
+| `--[no-]gcd-test`                        | Before branching, check rows over integer variables for divisibility (enabled by default).                                            |
+| `--[no-]fix-reduced-costs`               | With `--objective=global`, tighten bounds of integer variables using reduced costs (disabled by default).                             |
 
 ## Python API
 
@@ -182,7 +255,7 @@ theory = Theory(lib, create_theory())
 ctl = Control(lib, ["0"])
 theory.register(ctl)
 ctl.config.lpx.objective = "global"  # same as --objective=global
-theory.rewrite_files(lib, ctl, ["examples/ship.lp"])
+theory.rewrite_files(lib, ctl, ["examples/ship/ship.lp"])
 ctl.ground()
 theory.prepare(ctl)
 
@@ -232,7 +305,7 @@ cmake --build build
 The resulting binary can then be profiled using the following calls:
 
 ```bash
-CPUPROFILE_FREQUENCY=1000 ./build/bin/clingo-lpx examples/encoding-lp.lp examples/tai4_4_1.lp --stats -c n=132 -q 0
+CPUPROFILE_FREQUENCY=1000 ./build/bin/clingo-lpx examples/open-shop/encoding-lp.lp examples/open-shop/tai4_4_1.lp --stats -c n=132 -q 0
 google-pprof --gv ./build/bin/clingo-lpx clingo-lpx-solve.prof
 ```
 

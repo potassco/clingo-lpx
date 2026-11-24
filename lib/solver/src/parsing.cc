@@ -16,11 +16,6 @@ namespace ClingoLPX {
 
 namespace {
 
-// NOLINTBEGIN(cppcoreguidelines-macro-usage)
-#define MATCHES(a, b) std::is_same_v<std::remove_reference_t<std::remove_cv_t<decltype(a)>>, b>
-#define FWD(a) std::forward<decltype(a)>(a)
-// NOLINTEND(cppcoreguidelines-macro-usage)
-
 constexpr auto dec_radix = 10;
 
 template <typename T = void> [[nodiscard]] auto throw_syntax_error(char const *message = "Invalid Syntax") -> T {
@@ -44,10 +39,6 @@ void check_syntax(bool condition, char const *message = "Invalid Syntax") {
 
 [[nodiscard]] auto is_string(Clingo::TheoryTerm const &term) -> bool {
     return term.type() == Clingo::TheoryTermType::symbol && is_string(term.name());
-}
-
-[[nodiscard]] auto is_invalid(Clingo::Symbol const &sym) -> bool {
-    return sym.type() == Clingo::SymbolType::number && sym.number() == 0;
 }
 
 [[nodiscard]] auto evaluate_cmp(std::string_view rel) -> Relation {
@@ -255,39 +246,37 @@ struct EvaluateNum {
     return std::visit(EvaluateNum{}, evaluate(lib, true, term));
 }
 
-auto parse_diff_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term) -> std::vector<Term> {
-    std::vector<Term> res;
-    if (match(term, "-", 2)) {
-        auto args = term.arguments();
-        std::visit(
-            [&res](auto &&a) -> auto {
-                if constexpr (MATCHES(a, Rational)) {
-                    res.emplace_back(Term{FWD(a), Clingo::Number(0)});
-                }
-                if constexpr (MATCHES(a, Clingo::Symbol)) {
-                    res.emplace_back(Term{Rational(1), FWD(a)});
-                }
-            },
-            evaluate(lib, true, args.front()));
-        std::visit(
-            [&res](auto &&a) -> auto {
-                if constexpr (MATCHES(a, Rational)) {
-                    res.emplace_back(Term{-FWD(a), Clingo::Number(0)});
-                }
-                if constexpr (MATCHES(a, Clingo::Symbol)) {
-                    res.emplace_back(Term{Rational(-1), FWD(a)});
-                }
-            },
-            evaluate(lib, true, args.back()));
-    } else {
-        throw_syntax_error("Invalid Syntax: invalid difference constraint");
+//! Negate the coefficients of the terms starting at the given position.
+void negate_from(std::vector<Term> &terms, size_t pos) {
+    for (auto it = terms.begin() + static_cast<ptrdiff_t>(pos), ie = terms.end(); it != ie; ++it) {
+        it->co.neg();
     }
+}
+
+//! Add a number or a variable with coefficient 1 or -1 to the terms.
+void add_term(std::vector<Term> &terms, std::variant<Rational, Clingo::Symbol> x, bool negative) {
+    if (auto *num = std::get_if<Rational>(&x)) {
+        if (negative) {
+            num->neg();
+        }
+        terms.emplace_back(Term{std::move(*num), constant_symbol()});
+    } else {
+        terms.emplace_back(Term{Rational{negative ? -1 : 1}, std::get<Clingo::Symbol>(x)});
+    }
+}
+
+auto parse_diff_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term) -> std::vector<Term> {
+    check_syntax(match(term, "-", 2), "Invalid Syntax: invalid difference constraint");
+    std::vector<Term> res;
+    auto args = term.arguments();
+    add_term(res, evaluate(lib, true, args.front()), false);
+    add_term(res, evaluate(lib, true, args.back()), true);
     return res;
 }
 
 void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, std::vector<Term> &res) {
     if (term.type() == Clingo::TheoryTermType::number) {
-        res.emplace_back(Term{FWD(term.number()), Clingo::Number(0)});
+        res.emplace_back(Term{term.number(), constant_symbol()});
     } else if (match(term, "+", 2)) {
         auto args = term.arguments();
         parse_sum_elem(lib, args.front(), res);
@@ -297,15 +286,11 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
         parse_sum_elem(lib, args.front(), res);
         auto pos = res.size();
         parse_sum_elem(lib, args.back(), res);
-        for (auto it = res.begin() + static_cast<ptrdiff_t>(pos), ie = res.end(); it != ie; ++it) {
-            it->co = -it->co;
-        }
+        negate_from(res, pos);
     } else if (match(term, "-", 1)) {
         auto pos = res.size();
         parse_sum_elem(lib, term.arguments().front(), res);
-        for (auto it = res.begin() + static_cast<ptrdiff_t>(pos), ie = res.end(); it != ie; ++it) {
-            it->co = -it->co;
-        }
+        negate_from(res, pos);
     } else if (match(term, "+", 1)) {
         parse_sum_elem(lib, term.arguments().front(), res);
     } else if (match(term, "*", 2)) {
@@ -316,8 +301,8 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
         parse_sum_elem(lib, args.back(), rhs);
         for (auto &[l_co, l_var] : lhs) {
             for (auto &[r_co, r_var] : rhs) {
-                check_syntax(is_invalid(l_var) || is_invalid(r_var));
-                auto var = is_invalid(l_var) ? r_var : l_var;
+                check_syntax(is_constant(l_var) || is_constant(r_var));
+                auto var = is_constant(l_var) ? r_var : l_var;
                 res.emplace_back(Term{l_co * r_co, var});
             }
         }
@@ -332,7 +317,7 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
         }
     } else if (is_string(term)) {
         if (auto num = as_num(term.name())) {
-            res.emplace_back(Term{*num, Clingo::Number(0)});
+            res.emplace_back(Term{*num, constant_symbol()});
         } else {
             res.emplace_back(Term{1, evaluate_var(lib, term)});
         }
@@ -361,7 +346,7 @@ void parse_sum_elem(Clingo::Library const &lib, Clingo::TheoryTerm const &term, 
                                                Clingo::Number(safe_cast<int>(var_map.size() + 1)));
                 if (res.second) {
                     iqs.emplace_back(Inequality{{{1, res.first->second}}, 0, Relation::Equal, -cond_lit});
-                    if (!is_invalid(it->var)) {
+                    if (!is_constant(it->var)) {
                         iqs.emplace_back(
                             Inequality{{{1, res.first->second}, {-1, it->var}}, 0, Relation::Equal, cond_lit});
                     } else {
@@ -383,7 +368,7 @@ auto simplify(std::unordered_map<Clingo::Symbol, Term &> &cos, std::vector<Term>
     // combine cofficients
     cos.clear();
     std::for_each(ib, ie, [&cos, &rhs](Term &term) -> void {
-        if (is_invalid(term.var)) {
+        if (is_constant(term.var)) {
             rhs -= term.co;
             term.co = 0;
         } else if (auto [jt, res] = cos.emplace(term.var, term); !res) {
@@ -398,10 +383,25 @@ auto simplify(std::unordered_map<Clingo::Symbol, Term &> &cos, std::vector<Term>
     return rhs;
 }
 
+//! Add the inequality lhs rel rhs to the inequalities.
+//!
+//! The terms of the right-hand side are moved to the left and the constants
+//! to the right.
+void add_inequality(Clingo::Library const &lib, std::unordered_map<Clingo::Symbol, Term &> &cos,
+                    std::vector<Inequality> &iqs, std::vector<Term> lhs, std::string_view rel,
+                    Clingo::TheoryTerm const &rhs, Clingo::ProgramLiteral lit) {
+    auto pos = lhs.size();
+    parse_sum_elem(lib, rhs, lhs);
+    negate_from(lhs, pos);
+    auto bound = simplify(cos, lhs);
+    iqs.emplace_back(Inequality{std::move(lhs), std::move(bound), evaluate_cmp(rel), lit});
+}
+
 // NOLINTBEGIN(bugprone-unchecked-optional-access)
 
 void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, LitMapper const &mapper,
-                  VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective) {
+                  VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective,
+                  std::vector<Clingo::Symbol> &integers) {
     std::unordered_map<Clingo::Symbol, Term &> cos;
     for (auto &&atom : theory) {
         auto name = atom.name();
@@ -426,35 +426,25 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
             check_syntax(guard.has_value() && elems.size() == 1, "&diff invalid difference constraint");
             auto tuple = elems.front().tuple();
             check_syntax(tuple.size() == 1 && elems.front().condition().empty(), "&diff invalid difference constraint");
-            auto lhs = parse_diff_elem(lib, tuple.front());
-            size_t n = lhs.size();
-            parse_sum_elem(lib, guard->second, lhs);
-            for (auto it = lhs.begin() + static_cast<ptrdiff_t>(n), ie = lhs.end(); it != ie; ++it) {
-                it->co.neg();
-            }
-            auto rhs = simplify(cos, lhs);
-            auto lit = mapper(atom.literal());
-            iqs.emplace_back(Inequality{std::move(lhs), std::move(rhs), evaluate_cmp(guard->first), lit});
+            add_inequality(lib, cos, iqs, parse_diff_elem(lib, tuple.front()), guard->first, guard->second,
+                           mapper(atom.literal()));
         } else if (match(name, "sum", 0)) {
             auto guard = atom.guard();
             check_syntax(guard.has_value(), "&sum constraints need guards");
             auto lhs = parse_sum_elems(lib, mapper, var_map, iqs, atom.elements());
-            size_t n = lhs.size();
-            parse_sum_elem(lib, guard->second, lhs);
-            for (auto it = lhs.begin() + static_cast<ptrdiff_t>(n), ie = lhs.end(); it != ie; ++it) {
-                it->co.neg();
-            }
-            auto rhs = simplify(cos, lhs);
-            auto lit = mapper(atom.literal());
-            iqs.emplace_back(Inequality{std::move(lhs), std::move(rhs), evaluate_cmp(guard->first), lit});
+            add_inequality(lib, cos, iqs, std::move(lhs), guard->first, guard->second, mapper(atom.literal()));
         } else if (match(name, "minimize", 0) || match(name, "maximize", 0)) {
             auto lhs = parse_sum_elems(lib, mapper, var_map, iqs, atom.elements());
             if (match(name, "minimize", 0)) {
-                for (auto &term : lhs) {
-                    term.co.neg();
-                }
+                negate_from(lhs, 0);
             }
             std::ranges::move(lhs, std::back_inserter(objective));
+        } else if (match(name, "int", 0)) {
+            for (auto &&elem : atom.elements()) {
+                auto tuple = elem.tuple();
+                check_syntax(tuple.size() == 1 && elem.condition().empty(), "&int expects variables");
+                integers.emplace_back(evaluate_var(lib, tuple.front()));
+            }
         }
     }
     auto rhs = simplify(cos, objective);
@@ -466,8 +456,9 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
 } // namespace
 
 void evaluate_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, LitMapper const &mapper,
-                     VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective) {
-    parse_theory(lib, theory, mapper, var_map, iqs, objective);
+                     VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective,
+                     std::vector<Clingo::Symbol> &integers) {
+    parse_theory(lib, theory, mapper, var_map, iqs, objective, integers);
 }
 
 } // namespace ClingoLPX

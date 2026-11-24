@@ -62,3 +62,38 @@ def test_error():
     res = run_app("--unknown-option")
     assert res.returncode == 65
     assert "unknown option" in res.stderr
+
+
+MIP = """\
+&int { x; y }.
+&sum { -x; y } <= 1.
+&sum { 3*x; 2*y } <= 12.
+&sum { 2*x; 3*y } <= 12.
+&sum { x } >= 0.
+&sum { y } >= 0.
+&maximize { y }.
+"""
+
+
+def test_integer():
+    """
+    Test global optimization with integer variables using different options.
+
+    The relaxation has the optimum y=14/5 but the integer optimum is y=2.
+    """
+    options = [
+        [],
+        ["--cut-period=1", "--cut-limit=1"],
+        ["--no-order-branches", "--no-gcd-test"],
+        ["--branch-polarity=farthest", "--fix-reduced-costs"],
+        ["-t", "3"],
+    ]
+    for opts in options:
+        res = run_app("--outf=2", "0", "--objective=global,1", *opts, program=MIP)
+        assert res.returncode == 30, (opts, res.stderr)
+        witnesses = json.loads(res.stdout)["Call"][0]["Witnesses"]
+        last = sorted(witnesses[-1]["Value"])
+        assert '__lpx(y,"2")' in last, opts
+        assert '__lpx_objective("2","bounded")' in last, opts
+        for wit in witnesses:
+            assert all("/" not in val for val in wit["Value"]), opts

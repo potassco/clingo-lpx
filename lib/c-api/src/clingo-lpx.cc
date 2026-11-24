@@ -32,9 +32,11 @@
 #include <clingo.h>
 #include <clingo/propagate.hh>
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstring>
+#include <deque>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -167,14 +169,29 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
     }
 
     void extend_model(Clingo::Library const &lib, Clingo::Model model) override {
+        // Creating symbols is expensive. Hence, the symbols of the last model
+        // of each thread are cached and reused for unchanged values.
         std::vector<Clingo::Symbol> symbols;
         auto thread_id = model.thread_id();
+        if (cache_.size() <= thread_id) {
+            cache_.resize(thread_id + 1);
+        }
+        auto &cache = cache_[thread_id];
 
         for (size_t i = 0; next(thread_id, i);) {
-            ss_.str("");
-            ss_ << prop_.get_value(thread_id, static_cast<index_t>(i - 1));
-            symbols.emplace_back(Clingo::Function(
-                lib, "__lpx", {prop_.get_symbol(static_cast<index_t>(i - 1)), Clingo::String(lib, ss_.view())}));
+            auto value = prop_.get_value(thread_id, static_cast<index_t>(i - 1));
+            if (cache.size() < i) {
+                cache.resize(i);
+            }
+            auto &entry = cache[i - 1];
+            if (!entry.has_value() || entry->first != value) {
+                ss_.str("");
+                ss_ << value;
+                auto sym = Clingo::Function(
+                    lib, "__lpx", {prop_.get_symbol(static_cast<index_t>(i - 1)), Clingo::String(lib, ss_.view())});
+                entry.emplace(std::move(value), sym);
+            }
+            symbols.emplace_back(entry->second);
         }
         auto objective = prop_.get_objective(thread_id);
         if (objective.has_value()) {
@@ -193,6 +210,8 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
   private:
     Propagator<Value> prop_; //!< The underlying LPX propagator.
     std::ostringstream ss_;
+    //! The values and symbols of the last model per thread.
+    std::vector<std::vector<std::optional<std::pair<Value, Clingo::Symbol>>>> cache_;
 };
 
 //! Ascii tolower conversion.
@@ -219,188 +238,189 @@ template <class T> auto c_parse(const char *value, size_t size, void *data) -> b
     CLINGO_CATCH;
 }
 
+//! A value of an enumeration with its name and description.
+template <typename Enum> struct EnumEntry {
+    std::string_view name;
+    Enum value;
+    std::string_view desc;
+};
+
+//! Format the values of an option for the help output.
+//!
+//! This gives a line like `<arg>: {a|b}` followed by one line per value with
+//! its description, which is how clasp describes its options.
+template <class Entries> auto describe_values(std::string_view arg, Entries const &entries) -> std::string {
+    size_t width = 0;
+    for (auto const &entry : entries) {
+        width = std::max(width, entry.name.size());
+    }
+    std::string res = "\n      ";
+    res.append(arg);
+    res.append(": {");
+    for (auto const &entry : entries) {
+        if (res.back() != '{') {
+            res += '|';
+        }
+        res.append(entry.name);
+    }
+    res += '}';
+    for (auto const &entry : entries) {
+        res.append("\n        ");
+        res.append(entry.name);
+        res.append(width - entry.name.size(), ' ');
+        res.append(": ");
+        res.append(entry.desc);
+    }
+    return res;
+}
+
+//! Map between the names and values of an enumeration.
 template <typename Enum, size_t N> class EnumStringMap {
   public:
-    constexpr explicit EnumStringMap(const std::array<std::pair<std::string_view, Enum>, N> &map) : map_{map} {}
+    constexpr explicit EnumStringMap(const std::array<EnumEntry<Enum>, N> &map) : map_{map} {}
 
     [[nodiscard]] auto from_string(std::string_view value) const -> Enum {
-        for (const auto &[name, mode] : map_) {
-            if (iequals(value, name)) {
-                return mode;
+        for (const auto &entry : map_) {
+            if (iequals(value, entry.name)) {
+                return entry.value;
             }
         }
         throw std::invalid_argument("invalid enum string");
     }
 
-    [[nodiscard]] auto to_string(Enum mode) const -> std::string_view {
-        for (const auto &[name, m] : map_) {
-            if (mode == m) {
-                return name;
+    [[nodiscard]] auto to_string(Enum value) const -> std::string_view {
+        for (const auto &entry : map_) {
+            if (value == entry.value) {
+                return entry.name;
             }
         }
         throw std::invalid_argument("invalid enum value");
     }
 
+    //! Describe the values for the help output.
+    [[nodiscard]] auto describe(std::string_view arg) const -> std::string { return describe_values(arg, map_); }
+
   private:
-    std::array<std::pair<std::string_view, Enum>, N> map_;
+    std::array<EnumEntry<Enum>, N> map_;
 };
 
 template <typename Enum, size_t N>
 // NOLINTNEXTLINE(modernize-avoid-c-arrays)
-constexpr auto make_enum_string_map(std::pair<std::string_view, Enum> const (&map)[N]) {
+constexpr auto make_enum_string_map(EnumEntry<Enum> const (&map)[N]) {
     return EnumStringMap<Enum, N>(std::to_array(map));
 }
 
-class ConfigPropagate {
+constexpr auto propagate_modes = make_enum_string_map<PropagateMode>({
+    {"none", PropagateMode::None, "Disable bound propagation"},
+    {"changed", PropagateMode::Changed, "Propagate constraints with changed variables"},
+    {"full", PropagateMode::Full, "Propagate all constraints"},
+});
+constexpr auto selection_heuristics = make_enum_string_map<SelectionHeuristic>({
+    {"none", SelectionHeuristic::None, "Keep the sign chosen by the solver"},
+    {"match", SelectionHeuristic::Match, "Prefer bounds satisfied by the assignment"},
+    {"conflict", SelectionHeuristic::Conflict, "Prefer bounds violated by the assignment"},
+});
+constexpr auto store_modes = make_enum_string_map<StoreSATAssignments>({
+    {"no", StoreSATAssignments::No, "Restore assignments"},
+    {"partial", StoreSATAssignments::Partial, "Keep assignments after propagation"},
+    {"total", StoreSATAssignments::Total, "Keep only total assignments"},
+});
+constexpr auto basic_rules = make_enum_string_map<BasicRule>({
+    {"bland", BasicRule::Bland, "Select the smallest index"},
+    {"violation", BasicRule::Violation, "Select the largest bound violation"},
+});
+constexpr auto non_basic_rules = make_enum_string_map<NonBasicRule>({
+    {"bland", NonBasicRule::Bland, "Select the smallest index"},
+    {"sparse", NonBasicRule::Sparse, "Select the sparsest column"},
+});
+constexpr auto entering_rules = make_enum_string_map<EnteringRule>({
+    {"bland", EnteringRule::Bland, "Select the smallest index"},
+    {"dantzig", EnteringRule::Dantzig, "Select the largest objective coefficient"},
+});
+constexpr auto branch_polarities = make_enum_string_map<BranchPolarity>({
+    {"nearest", BranchPolarity::Nearest, "Try the side closer to the value first"},
+    {"farthest", BranchPolarity::Farthest, "Try the side farther from the value first"},
+    {"up", BranchPolarity::Up, "Try increasing the variable first"},
+    {"down", BranchPolarity::Down, "Try decreasing the variable first"},
+});
+
+// The classes below configure a member of the options. They are used to
+// parse command line options and to provide clingo's configuration.
+
+//! Configure an option holding an enumeration.
+template <auto Member, auto const &Map> class ConfigEnum {
   public:
-    explicit ConfigPropagate(Options &opts) : opts_{&opts} {}
+    explicit ConfigEnum(Options &opts) : opts_{&opts} {}
 
-    void set(std::string_view value) { opts_->propagate_mode = map_.from_string(value); }
+    void set(std::string_view value) { opts_->*Member = map_.from_string(value); }
 
-    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->propagate_mode); }
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->*Member); }
 
-    static constexpr auto desc = //
-        "Configure bound propagation"sv;
+    [[nodiscard]] static auto describe(std::string_view arg) -> std::string { return map_.describe(arg); }
 
   private:
-    static constexpr auto map_ = make_enum_string_map<PropagateMode>({
-        {"none", PropagateMode::None},
-        {"changed", PropagateMode::Changed},
-        {"full", PropagateMode::Full},
-    });
-
+    // clang-tidy 23 mistakes the template parameter for a parenthesized
+    // expression and its fix removes it
+    // NOLINTNEXTLINE(readability-redundant-parentheses)
+    static constexpr auto const &map_ = Map;
     Options *opts_;
 };
 
-class ConfigSelect {
+//! Parse a non-negative integer.
+auto parse_size(std::string_view value) -> size_t {
+    size_t res = 0;
+    auto const *begin = value.data();
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    auto const *end = value.data() + value.size();
+    auto [ptr, ec] = std::from_chars(begin, end, res);
+    if (ec != std::errc{} || ptr != end) {
+        throw std::invalid_argument{"invalid number"};
+    }
+    return res;
+}
+
+//! Configure an option holding a non-negative integer.
+template <size_t Options::*Member> class ConfigSize {
   public:
-    explicit ConfigSelect(Options &opts) : opts_{&opts} {}
+    explicit ConfigSize(Options &opts) : opts_{&opts} {}
 
-    void set(std::string_view value) { opts_->select = map_.from_string(value); }
+    void set(std::string_view value) { opts_->*Member = parse_size(value); }
 
-    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->select); }
+    [[nodiscard]] auto get() const -> std::optional<std::string> { return std::to_string(opts_->*Member); }
 
-    static constexpr auto desc = //
-        "Choose phase selection heuristic"sv;
-
-  private:
-    static constexpr auto map_ = make_enum_string_map<SelectionHeuristic>({
-        {"none", SelectionHeuristic::None},
-        {"match", SelectionHeuristic::Match},
-        {"conflict", SelectionHeuristic::Conflict},
-    });
-
-    Options *opts_;
-};
-
-class ConfigStore {
-  public:
-    explicit ConfigStore(Options &opts) : opts_{&opts} {}
-
-    void set(std::string_view value) { opts_->store_sat_assignment = map_.from_string(value); }
-
-    [[nodiscard]] auto get() const -> std::optional<std::string_view> {
-        return map_.to_string(opts_->store_sat_assignment);
+    [[nodiscard]] static auto describe(std::string_view arg) -> std::string_view {
+        static_cast<void>(arg);
+        return {};
     }
 
-    static constexpr auto desc = //
-        "Whether to store SAT assignments"sv;
-
   private:
-    static constexpr auto map_ = make_enum_string_map<StoreSATAssignments>({
-        {"no", StoreSATAssignments::No},
-        {"partial", StoreSATAssignments::Partial},
-        {"total", StoreSATAssignments::Total},
-    });
-
     Options *opts_;
 };
 
-class ConfigBasicRule {
+//! Configure a Boolean option, which is a flag on the command line.
+template <bool Options::*Member> class ConfigFlag {
   public:
-    explicit ConfigBasicRule(Options &opts) : opts_{&opts} {}
-
-    void set(std::string_view value) { opts_->basic_rule = map_.from_string(value); }
-
-    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->basic_rule); }
-
-    static constexpr auto desc = //
-        "Choose the conflicting basic variable to pivot"sv;
-
-  private:
-    static constexpr auto map_ = make_enum_string_map<BasicRule>({
-        {"bland", BasicRule::Bland},
-        {"violation", BasicRule::Violation},
-    });
-
-    Options *opts_;
-};
-
-class ConfigNonBasicRule {
-  public:
-    explicit ConfigNonBasicRule(Options &opts) : opts_{&opts} {}
-
-    void set(std::string_view value) { opts_->non_basic_rule = map_.from_string(value); }
-
-    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->non_basic_rule); }
-
-    static constexpr auto desc = //
-        "Choose the non-basic variable to pivot"sv;
-
-  private:
-    static constexpr auto map_ = make_enum_string_map<NonBasicRule>({
-        {"bland", NonBasicRule::Bland},
-        {"sparse", NonBasicRule::Sparse},
-    });
-
-    Options *opts_;
-};
-
-class ConfigEnteringRule {
-  public:
-    explicit ConfigEnteringRule(Options &opts) : opts_{&opts} {}
-
-    void set(std::string_view value) { opts_->entering_rule = map_.from_string(value); }
-
-    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->entering_rule); }
-
-    static constexpr auto desc = //
-        "Choose the entering variable when optimizing"sv;
-
-  private:
-    static constexpr auto map_ = make_enum_string_map<EnteringRule>({
-        {"bland", EnteringRule::Bland},
-        {"dantzig", EnteringRule::Dantzig},
-    });
-
-    Options *opts_;
-};
-
-class ConfigBlandThreshold {
-  public:
-    explicit ConfigBlandThreshold(Options &opts) : opts_{&opts} {}
+    explicit ConfigFlag(Options &opts) : opts_{&opts} {}
 
     void set(std::string_view value) {
-        size_t res = 0;
-        auto const *begin = value.data();
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-        auto const *end = value.data() + value.size();
-        auto [ptr, ec] = std::from_chars(begin, end, res);
-        if (ec != std::errc{} || ptr != end) {
-            throw std::invalid_argument{"invalid threshold"};
+        if (iequals(value, "no") || iequals(value, "off") || iequals(value, "0")) {
+            opts_->*Member = false;
+        } else if (iequals(value, "yes") || iequals(value, "on") || iequals(value, "1")) {
+            opts_->*Member = true;
+        } else {
+            throw std::invalid_argument("invalid boolean value");
         }
-        opts_->bland_threshold = res;
     }
 
-    [[nodiscard]] auto get() const -> std::optional<std::string> { return std::to_string(opts_->bland_threshold); }
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return opts_->*Member ? "yes" : "no"; }
 
-    static constexpr auto desc = //
-        "Use Bland's rule after max(<n>,rows) pivots without progress"sv;
+    [[nodiscard]] auto target() const -> bool & { return opts_->*Member; }
 
   private:
     Options *opts_;
 };
 
+//! Configure the objective.
 class ConfigObjective {
   public:
     explicit ConfigObjective(Options &opts) : opts_{&opts} {}
@@ -439,41 +459,71 @@ class ConfigObjective {
         return "local";
     }
 
-    static constexpr auto desc = //
-        "Choose how to treat objective function"sv;
+    [[nodiscard]] static auto describe(std::string_view arg) -> std::string {
+        static constexpr auto entries = std::to_array<EnumEntry<int>>({
+            {"local", 0, "Optimize each stable model separately"},
+            {"global", 1, "Optimize across stable models"},
+        });
+        auto res = describe_values(arg, entries);
+        res.insert(res.find('}') + 1, "[,<step>]");
+        res.append("\n        <step>: Improve by at least <step> ({<n>|e}, e needs --strict)");
+        return res;
+    }
 
   private:
     Options *opts_;
 };
 
-class ConfigBool {
-  public:
-    explicit ConfigBool(bool &target) : target_{&target} {}
-
-    void set(std::string_view value) {
-        if (iequals(value, "no") || iequals(value, "off") || iequals(value, "0")) {
-            *target_ = false;
-        } else if (iequals(value, "yes") || iequals(value, "on") || iequals(value, "1")) {
-            *target_ = true;
-        } else {
-            throw std::invalid_argument("invalid boolean value");
-        }
-    }
-
-    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return *target_ ? "yes" : "no"; }
-
-  private:
-    bool *target_;
+//! An option with its name on the command line, the name of its argument,
+//! and a short description.
+struct OptionInfo {
+    std::string_view name;
+    std::string_view arg;
+    std::string_view desc;
 };
 
-constexpr auto desc_strict = "Enable support for strict constraints"sv;
-constexpr auto desc_conflicts = "Propagate conflicting bounds"sv;
+//! Call f(info, config) for each option.
+//!
+//! The config is one of the classes above. Flags are listed first and have
+//! no argument.
+template <typename F> void for_each_option(Options &opts, F const &f) {
+    f(OptionInfo{"strict", "", "Enable strict constraints using < and >"}, ConfigFlag<&Options::strict>{opts});
+    f(OptionInfo{"propagate-conflicts", "", "Add binary clauses for conflicting bounds"},
+      ConfigFlag<&Options::propagate_conflicts>{opts});
+    f(OptionInfo{"order-branches", "", "Link branches and bounds like an order encoding"},
+      ConfigFlag<&Options::order_branches>{opts});
+    f(OptionInfo{"gcd-test", "", "Check integer rows for divisibility before branching"},
+      ConfigFlag<&Options::gcd_test>{opts});
+    f(OptionInfo{"fix-reduced-costs", "", "Tighten integer bounds via reduced costs"},
+      ConfigFlag<&Options::fix_reduced_costs>{opts});
+    f(OptionInfo{"objective", "<mode>", "Configure optimization"}, ConfigObjective{opts});
+    f(OptionInfo{"propagate-bounds", "<mode>", "Propagate bounds of constraints"},
+      ConfigEnum<&Options::propagate_mode, propagate_modes>{opts});
+    f(OptionInfo{"select", "<sign>", "Configure sign heuristic for bound literals"},
+      ConfigEnum<&Options::select, selection_heuristics>{opts});
+    f(OptionInfo{"store", "<mode>", "Keep satisfying assignments when backtracking"},
+      ConfigEnum<&Options::store_sat_assignment, store_modes>{opts});
+    f(OptionInfo{"pivot-basic", "<rule>", "Select the conflicting basic variable"},
+      ConfigEnum<&Options::basic_rule, basic_rules>{opts});
+    f(OptionInfo{"pivot-non-basic", "<rule>", "Select the non-basic variable"},
+      ConfigEnum<&Options::non_basic_rule, non_basic_rules>{opts});
+    f(OptionInfo{"pivot-entering", "<rule>", "Select the entering variable when optimizing"},
+      ConfigEnum<&Options::entering_rule, entering_rules>{opts});
+    f(OptionInfo{"bland-threshold", "<n>", "Use Bland's rule after max(<n>,rows) stalled pivots"},
+      ConfigSize<&Options::bland_threshold>{opts});
+    f(OptionInfo{"branch-polarity", "<sign>", "Select the side of a branch to try first"},
+      ConfigEnum<&Options::branch_polarity, branch_polarities>{opts});
+    f(OptionInfo{"cut-period", "<n>", "Cut instead of branching every <n>-th time (0=off)"},
+      ConfigSize<&Options::cut_period>{opts});
+    f(OptionInfo{"cut-limit", "<n>", "Keep at most <n> cuts per thread"}, ConfigSize<&Options::cut_limit>{opts});
+}
 
 struct clingolpx_theory {
     Clingo::Library lib;
     std::unique_ptr<PropagatorFacade> clingolpx{nullptr};
     Options options;
-    bool strict{false};
+    //! Storage for strings passed to clingo (a deque does not move its elements).
+    std::deque<std::string> strings;
 
     static auto info([[maybe_unused]] void *self, clingo_string_t *name, int *major, int *minor, int *patch,
                      clingo_string_t *hash) -> bool {
@@ -512,16 +562,13 @@ struct clingolpx_theory {
             handle_error(clingo_control_parse_string(control, THEORY, std::strlen(THEORY)));
             auto cfg = Clingo::Control{control, true}.config();
             cfg.add("lpx", "Clingo.LPX configuration");
-            cfg.add("lpx.strict", desc_strict, ConfigBool{theory->strict});
-            cfg.add("lpx.propagate_conflicts", desc_conflicts, ConfigBool{theory->options.propagate_conflicts});
-            cfg.add("lpx.objective", ConfigObjective::desc, ConfigObjective{theory->options});
-            cfg.add("lpx.propagate_bounds", ConfigPropagate::desc, ConfigPropagate{theory->options});
-            cfg.add("lpx.select", ConfigSelect::desc, ConfigSelect{theory->options});
-            cfg.add("lpx.store", ConfigStore::desc, ConfigStore{theory->options});
-            cfg.add("lpx.pivot_basic", ConfigBasicRule::desc, ConfigBasicRule{theory->options});
-            cfg.add("lpx.pivot_non_basic", ConfigNonBasicRule::desc, ConfigNonBasicRule{theory->options});
-            cfg.add("lpx.pivot_entering", ConfigEnteringRule::desc, ConfigEnteringRule{theory->options});
-            cfg.add("lpx.bland_threshold", ConfigBlandThreshold::desc, ConfigBlandThreshold{theory->options});
+            for_each_option(theory->options, [&](OptionInfo const &info, auto config) -> void {
+                // the configuration uses underscores instead of dashes
+                auto &key = theory->strings.emplace_back("lpx.");
+                key.append(info.name);
+                std::ranges::replace(key, '-', '_');
+                cfg.add(key, info.desc, std::move(config));
+            });
         }
 
         CLINGO_CATCH;
@@ -536,7 +583,7 @@ struct clingolpx_theory {
         CLINGO_TRY {
             auto *theory = static_cast<clingolpx_theory *>(self);
             if (theory->clingolpx == nullptr) {
-                if (!theory->strict) {
+                if (!theory->options.strict) {
                     theory->clingolpx =
                         std::make_unique<LPXPropagatorFacade<Rational>>(theory->lib, control, theory->options);
                 } else {
@@ -573,16 +620,21 @@ struct clingolpx_theory {
                     clingo_options_set_default_value(options, name.data(), name.size(), value.data(), value.size()));
             };
 
-            flag("strict", desc_strict, theory->strict);
-            flag("propagate-conflicts", desc_conflicts, theory->options.propagate_conflicts);
-            opt("propagate-bounds", ConfigPropagate::desc, c_parse<ConfigPropagate>, false, "{none,changed,full}");
-            opt("objective", ConfigObjective::desc, c_parse<ConfigObjective>, false, "{local,global[,step]}");
-            opt("select", ConfigSelect::desc, c_parse<ConfigSelect>, false, "{none,match,conflict}");
-            opt("store", ConfigStore::desc, c_parse<ConfigStore>, false, "{no,partial,total}");
-            opt("pivot-basic", ConfigBasicRule::desc, c_parse<ConfigBasicRule>, false, "{bland,violation}");
-            opt("pivot-non-basic", ConfigNonBasicRule::desc, c_parse<ConfigNonBasicRule>, false, "{bland,sparse}");
-            opt("pivot-entering", ConfigEnteringRule::desc, c_parse<ConfigEnteringRule>, false, "{bland,dantzig}");
-            opt("bland-threshold", ConfigBlandThreshold::desc, c_parse<ConfigBlandThreshold>, false, "<n>");
+            // the help shows the default values and the details of the arguments
+            auto defaults = Options{};
+            for_each_option(theory->options, [&](OptionInfo const &info, auto config) -> void {
+                using Config = decltype(config);
+                if constexpr (requires { config.target(); }) {
+                    flag(info.name, info.desc, config.target());
+                } else {
+                    auto &desc = theory->strings.emplace_back(info.desc);
+                    desc.append(" [");
+                    desc.append(*Config{defaults}.get());
+                    desc.append("]");
+                    desc.append(Config::describe(info.arg));
+                    opt(info.name, desc, c_parse<Config>, false, info.arg);
+                }
+            });
 
             def("out-assign", "__lpx/2");
             def("out-cost", "Objective:,__lpx_objective/2:%0 [%1]");
@@ -593,7 +645,7 @@ struct clingolpx_theory {
     static auto validate_options(void *self) -> bool {
         CLINGO_TRY {
             auto *theory = static_cast<clingolpx_theory *>(self);
-            if (!theory->strict && theory->options.global_objective.has_value() &&
+            if (!theory->options.strict && theory->options.global_objective.has_value() &&
                 !theory->options.global_objective->is_rational()) {
                 throw std::invalid_argument{"objective step value requires strict mode"};
             }

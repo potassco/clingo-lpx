@@ -186,7 +186,7 @@ bound(104).
                 }
             }
             std::ranges::sort(sol);
-            for (auto s : m.symbols()) {
+            for (auto const &s : m.symbols()) {
                 sol_bool.emplace_back(s);
             }
             std::ranges::sort(sol_bool);
@@ -377,6 +377,95 @@ TEST_CASE_METHOD(Fixture, "solving task-assignment") {
     REQUIRE(result == sols());
 }
 
+TEST_CASE_METHOD(Fixture, "solving integer") {
+    auto x = Clingo::Function(lib, "x");
+    auto y = Clingo::Function(lib, "y");
+    SECTION("branch") {
+        theory.rewrite(lib, ctl, "&int { x }. &sum { 2*x } >= 1. &sum { 2*x } <= 3.\n");
+        ctl.ground();
+        REQUIRE(solve(ctl) == RV{{{{x, num(1)}}, {}}});
+    }
+    SECTION("strict") {
+        // strict constraints over integer variables do not need option strict
+        theory.rewrite(lib, ctl, "&int { x }. &sum { x } > 1/2. &sum { x } < 2.\n");
+        ctl.ground();
+        REQUIRE(solve(ctl) == RV{{{{x, num(1)}}, {}}});
+    }
+    SECTION("unsat") {
+        theory.rewrite(lib, ctl, "&int { x; y }. &sum { 2*x; 2*y } = 1.\n");
+        ctl.ground();
+        REQUIRE(solve(ctl).empty());
+    }
+    SECTION("optimize") {
+        // NOLINTNEXTLINE(modernize-use-trailing-return-type)
+        cfg["solve.parallel_mode"] = GENERATE("1", "3");
+        cfg["lpx.objective"] = "global,1";
+        theory.rewrite(lib, ctl,
+                       "&int { x; y }.\n"
+                       "&sum { -x; y } <= 1.\n"
+                       "&sum { 3*x; 2*y } <= 12.\n"
+                       "&sum { 2*x; 3*y } <= 12.\n"
+                       "&sum { x } >= 0.\n"
+                       "&sum { y } >= 0.\n"
+                       "&maximize { y }.\n");
+        ctl.ground();
+        auto result = solve(ctl);
+        // all models are integral and the relaxation has the optimum y=14/5
+        REQUIRE(!result.empty());
+        for (auto const &[ass, syms] : result) {
+            for (auto const &[var, val] : ass) {
+                REQUIRE(val.string().find('/') == std::string_view::npos);
+            }
+        }
+        REQUIRE(std::ranges::find(result, SP{{{x, num(2)}, {y, num(2)}}, {}}) != result.end());
+    }
+}
+
+TEST_CASE_METHOD(Fixture, "solving integer multi-shot") {
+    // NOLINTNEXTLINE(modernize-use-trailing-return-type)
+    cfg["solve.parallel_mode"] = GENERATE("1", "2");
+    cfg["lpx.objective"] = "global,1";
+    auto x = Clingo::Function(lib, "x");
+    auto y = Clingo::Function(lib, "y");
+    auto integral = [](RV const &result) -> bool {
+        return std::ranges::all_of(result, [](SP const &sol) -> bool {
+            return std::ranges::all_of(sol.first, [](A const &ass) -> bool {
+                return ass.second.string().find('/') == std::string_view::npos;
+            });
+        });
+    };
+    auto contains = [](RV const &result, SP const &sol) -> bool {
+        return std::ranges::find(result, sol) != result.end();
+    };
+    // the relaxation has the optimum x=9/5 and y=14/5
+    theory.rewrite(lib, ctl,
+                   "&sum { -x; y } <= 1.\n"
+                   "&sum { 3*x; 2*y } <= 12.\n"
+                   "&sum { 2*x; 3*y } <= 12.\n"
+                   "&sum { x } >= 0.\n"
+                   "&sum { y } >= 0.\n"
+                   "&maximize { y }.\n");
+    ctl.ground();
+    auto result = solve(ctl);
+    REQUIRE(contains(result, SP{{{x, rat(9, 5)}, {y, rat(14, 5)}}, {}}));
+    // declaring the variables integer in a later step requires branching
+    theory.rewrite(lib, ctl,
+                   "#program int.\n"
+                   "&int { x; y }.\n");
+    ctl.ground({{"int", {}}});
+    result = solve(ctl);
+    REQUIRE(integral(result));
+    REQUIRE(contains(result, SP{{{x, num(2)}, {y, num(2)}}, {}}));
+    // a further bound changes the optimum
+    theory.rewrite(lib, ctl,
+                   "#program more.\n"
+                   "&sum { 2*x } <= 3.\n");
+    ctl.ground({{"more", {}}});
+    result = solve(ctl);
+    REQUIRE(integral(result));
+    REQUIRE(contains(result, SP{{{x, num(1)}, {y, num(2)}}, {}}));
+}
+
 TEST_CASE_METHOD(Fixture, "config") {
     using namespace std::string_view_literals;
     for (auto val : std::array{"yes"sv, "no"sv}) {
@@ -402,6 +491,22 @@ TEST_CASE_METHOD(Fixture, "config") {
     for (auto val : std::array{"local"sv, "global"sv, "global,e"sv, "global,1"sv}) {
         cfg["lpx.objective"] = val;
         REQUIRE(cfg["lpx.objective"].value() == val);
+    }
+    for (auto const *key : {"lpx.order_branches", "lpx.gcd_test", "lpx.fix_reduced_costs"}) {
+        for (auto val : std::array{"yes"sv, "no"sv}) {
+            cfg[key] = val;
+            REQUIRE(cfg[key].value() == val);
+        }
+    }
+    for (auto val : std::array{"nearest"sv, "farthest"sv, "up"sv, "down"sv}) {
+        cfg["lpx.branch_polarity"] = val;
+        REQUIRE(cfg["lpx.branch_polarity"].value() == val);
+    }
+    for (auto const *key : {"lpx.cut_period", "lpx.cut_limit"}) {
+        for (auto val : std::array{"0"sv, "4"sv}) {
+            cfg[key] = val;
+            REQUIRE(cfg[key].value() == val);
+        }
     }
 }
 

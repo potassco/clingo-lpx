@@ -1,6 +1,7 @@
 # [[[header: include
 set(ide_header_group "Header Files")
 set(header-group-include-clingo-lpx
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/integer.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/number.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/number_flint.hh"
     "${CMAKE_CURRENT_SOURCE_DIR}/include/clingo-lpx/number_imath.hh"
@@ -16,6 +17,7 @@ set(header
 # [[[source: src
 set(ide_source_group "Source Files")
 set(source-group
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/integer.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/problem.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/solving.cc"
@@ -27,6 +29,8 @@ set(source
 # [[[test: tests
 set(ide_test_group "Test Files")
 set(test-group-tests
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/helpers.hh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/integer.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/number.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/parsing.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/solving.cc"

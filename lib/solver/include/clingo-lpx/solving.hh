@@ -1,5 +1,6 @@
 #pragma once
 
+#include "integer.hh"
 #include "parsing.hh"
 #include "problem.hh"
 #include "tableau.hh"
@@ -53,7 +54,17 @@ enum class EnteringRule : uint8_t {
     Dantzig = 1, //!< Select the variable with the largest coefficient in the objective.
 };
 
+//! Rule to select which side of a branch x <= k or x >= k + 1 is tried first.
+enum class BranchPolarity : uint8_t {
+    Nearest = 0,  //!< Try the side closer to the current value.
+    Farthest = 1, //!< Try the side farther from the current value.
+    Up = 2,       //!< Try x >= k + 1 first.
+    Down = 3,     //!< Try x <= k first.
+};
+
 static constexpr auto default_bland_threshold = 128;
+static constexpr auto default_cut_period = 0;
+static constexpr auto default_cut_limit = 64;
 
 struct Options {
     SelectionHeuristic select = SelectionHeuristic::None;
@@ -68,6 +79,24 @@ struct Options {
     //!
     //! The actual threshold is the maximum of this value and the number of rows.
     size_t bland_threshold = default_bland_threshold;
+    //! Try a Gomory cut instead of branching every n-th time an integer
+    //! variable has a fractional value (0 disables cuts).
+    size_t cut_period = default_cut_period;
+    //! The maximum number of cut rows per solver thread.
+    //!
+    //! If the limit is reached, inactive cut rows are replaced by new ones.
+    size_t cut_limit = default_cut_limit;
+    //! Connect the literals of branches and bounds on the same variable like in
+    //! an order encoding.
+    bool order_branches = true;
+    //! Which side of a branch to try first.
+    BranchPolarity branch_polarity = BranchPolarity::Nearest;
+    //! Check rows over integer variables for divisibility before branching.
+    bool gcd_test = true;
+    //! Tighten bounds of integer variables using reduced costs when optimizing globally.
+    bool fix_reduced_costs = false;
+    //! Whether strict constraints are supported (which selects the number type).
+    bool strict = false;
 };
 
 struct Statistics {
@@ -75,6 +104,10 @@ struct Statistics {
 
     size_t pivots{0};
     size_t propagated_bounds{0};
+    size_t branches{0};
+    size_t cuts{0};
+    size_t gcd_conflicts{0};
+    size_t fixed_bounds{0};
 };
 
 //! Helper to distribute current best objective to solver threads.
@@ -161,6 +194,53 @@ template <typename Value> class Solver {
         bool queued{false};
         //! Whether this variales is in the queue of (non-basic) variables to porpagate.
         bool propagate{false};
+        //! Whether this variable has to take integer values.
+        bool integer{false};
+    };
+    //! A row added to the tableau during search.
+    struct CutRow {
+        //! The slack variable of the cut.
+        index_t var{0};
+        //! The literal associated with the bound of the cut.
+        Clingo::SolverLiteral lit{0};
+        //! The definition of the slack variable in terms of variables that are
+        //! not slack variables of cuts.
+        std::vector<std::pair<index_t, Rational>> def;
+    };
+    //! The state of the cuts (see integer.cc).
+    struct Cuts {
+        //! The rows added during search.
+        //!
+        //! The slack variable of the i-th cut has index offset + i.
+        std::vector<CutRow> rows;
+        //! The index of the first slack variable of a cut.
+        index_t offset{0};
+        //! The next candidate cut to replace when the limit of cuts is reached.
+        size_t next{0};
+        //! Cuts whose values have to be recomputed when backtracking.
+        //!
+        //! The trail cannot restore their values for decision levels before
+        //! they were added.
+        std::vector<size_t> fresh;
+        //! Buffer for the terms of a cut.
+        std::vector<CutTerm> terms;
+        //! Buffer for a cut.
+        Cut cut;
+        //! Buffer to compute the definition of a cut.
+        std::vector<std::pair<index_t, Rational>> def;
+    };
+    //! The state for integer variables (see integer.cc).
+    struct Integers {
+        //! The order literals for each structural variable.
+        std::vector<OrderLiterals> orders;
+        //! Buffer for implications between order literals.
+        std::vector<Implication> implications;
+        //! Buffer for the columns, bound literals, and coefficients of the objective row.
+        std::vector<std::tuple<index_t, Clingo::SolverLiteral, Integer>> fix_reasons;
+        //! Number of times an integer variable with a fractional value was found.
+        size_t fractional{0};
+        //! Whether there are integer variables.
+        bool active{false};
     };
     struct TrailOffset {
         index_t level;
@@ -192,9 +272,12 @@ template <typename Value> class Solver {
     explicit Solver(Options const &options);
 
     //! Prepare inequalities for solving.
+    //!
+    //! The (sorted) indices in integers refer to variables in symbols that
+    //! have to take integer values.
     [[nodiscard]] auto prepare(Clingo::Assignment ass, Clingo::PropagateInit init, SymbolMap const &symbols,
                                std::vector<Inequality> const &inequalities, std::vector<Term> const &objective,
-                               bool master) -> bool;
+                               std::vector<index_t> const &integers, bool master) -> bool;
 
     //! Solve the (previously prepared) problem.
     [[nodiscard]] auto solve(Clingo::Assignment ass, Clingo::PropagateControl ctl, Clingo::SolverLiteralSpan lits)
@@ -221,6 +304,13 @@ template <typename Value> class Solver {
     //! Ensure that the current (SAT) assignment will not be backtracked.
     void store_sat_assignment();
 
+    //! Check an optimal total assignment w.r.t. the integer variables.
+    //!
+    //! The function returns true if the assignment is accepted. Otherwise, it
+    //! added literals or clauses, for example, bounds tightened via reduced
+    //! costs, a conflict detected by the GCD test, a cut, or a branch.
+    [[nodiscard]] auto check_integers(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool;
+
     //! Return the solve statistics.
     [[nodiscard]] auto statistics() const -> Statistics const &;
 
@@ -236,7 +326,11 @@ template <typename Value> class Solver {
     //! Check if bounds of non-basic variables are satisfied.
     [[nodiscard]] auto check_non_basic_() -> bool;
     //! Check if the current assignment is a solution.
-    [[nodiscard]] auto check_solution_() -> bool;
+    //!
+    //! If cuts is false, the bounds of cuts are not checked, which might be
+    //! violated after backtracking if they were added after the last
+    //! satisfying assignment.
+    [[nodiscard]] auto check_solution_(bool cuts = true) -> bool;
     //! Print a readable representation of the internal problem to stderr.
     void debug_();
     //! Propagate (some) bounds.
@@ -247,6 +341,44 @@ template <typename Value> class Solver {
 
     //! Insert a new bound dynamically.
     [[nodiscard]] auto assert_bound_(Clingo::PropagateControl ctl, Value value) -> bool;
+
+    // The functions below for integer variables are implemented in
+    // integer.cc. Functions returning bool return true if the assignment is
+    // accepted and false if they added literals or clauses.
+
+    //! Tighten bounds of integer variables using reduced costs.
+    //!
+    //! This requires an optimal assignment w.r.t. the objective and a bound on
+    //! the objective from the global optimization.
+    [[nodiscard]] auto fix_reduced_costs_(Clingo::PropagateControl ctl) -> bool;
+    //! Check whether all integer variables have integer values and otherwise
+    //! add a GCD conflict, a cut, or branch.
+    [[nodiscard]] auto check_integrality_(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool;
+    //! Check if a row over integer variables has no integer solution.
+    [[nodiscard]] auto gcd_test_(Clingo::PropagateControl ctl) -> bool;
+    //! Branch on the fractional integer variable with the given index.
+    void branch_(Clingo::PropagateControl ctl, index_t ii);
+    //! Get the order literal l <-> x_ii <= k creating it if necessary.
+    //!
+    //! Returns std::nullopt if adding a clause failed.
+    [[nodiscard]] auto order_lit_(Clingo::PropagateControl ctl, index_t ii, Integer k, bool prefer_upper)
+        -> std::optional<Clingo::SolverLiteral>;
+    //! Get the order literals of the given variable collecting the bounds of
+    //! the program if necessary.
+    auto orders_(index_t ii) -> OrderLiterals &;
+    //! Try to add a Gomory cut.
+    [[nodiscard]] auto cut_(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool;
+    //! Derive a Gomory cut from the given row into cuts_.cut.
+    //!
+    //! Returns false if no cut could be derived.
+    [[nodiscard]] auto derive_cut_(index_t i) -> bool;
+    //! Add the cut in cuts_.cut as a new row.
+    [[nodiscard]] auto add_cut_(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool;
+    //! Get the slack variable for a new cut reusing an inactive one if the
+    //! limit of cuts is reached.
+    auto cut_slot_(Clingo::Assignment ass) -> std::optional<size_t>;
+    //! Recompute values of cuts added since the last satisfying assignment.
+    void refresh_cuts_();
 
     //! Enqueue basic variable `x_i` if it is conflicting.
     void enqueue_(index_t i);
@@ -297,6 +429,10 @@ template <typename Value> class Solver {
     index_t n_basic_{0};
     //! The objective function.
     Objective objective_;
+    //! The state of the cuts.
+    Cuts cuts_;
+    //! The state for integer variables.
+    Integers ints_;
 };
 
 template <typename Value> class Propagator : public Clingo::Heuristic {
@@ -319,13 +455,19 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     void do_undo(Clingo::Assignment ass, Clingo::SolverLiteralSpan changes) override;
     auto do_decide(Clingo::Assignment ass, Clingo::SolverLiteral fallback) -> Clingo::SolverLiteral override;
 
+    //! Collect the sorted indices of the integer variables.
+    [[nodiscard]] auto collect_integers_() const -> std::vector<index_t>;
+
     Clingo::Library const *lib_;
     VarMap aux_map_;
     SymbolMap var_map_;
     SymbolVec var_vec_;
     std::vector<Term> objective_;
     std::vector<Inequality> iqs_;
+    std::vector<Clingo::Symbol> integers_;
     size_t facts_offset_{0};
+    //! The number of variables before solving (larger ones are solver local).
+    size_t n_vars_{0};
     std::vector<Clingo::SolverLiteral> facts_;
     std::vector<std::pair<size_t, Solver<Value>>> slvs_;
     ObjectiveState<Value> objective_state_;

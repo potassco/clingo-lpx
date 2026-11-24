@@ -125,6 +125,13 @@ class Tableau {
     //! Runs in O(1).
     void clear();
 
+    //! Set all elements in row A_i to zero.
+    //!
+    //! Column lists are cleaned lazily.
+    //!
+    //! Runs in O(n).
+    void clear_row(index_t i);
+
     //! Print tableau to stderr for debugging purposes.
     void debug(char const *indent) const;
 
