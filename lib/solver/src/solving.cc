@@ -466,7 +466,7 @@ template <typename Value> void Solver<Value>::optimize() {
     //   Case a_le < 0.
     //      Here we try to decrease x_l to increase x_e.
     //      Case x_l has no lower bound or setting x_l to its lower bound would
-    //      violate x_e's lower bound (or make it tight).
+    //      violate x_e's upper bound (or make it tight).
     //        The row is unbounded.
     //      Case x_l can be set to its lower bound.
     //        We obtain an increase of x_e smaller than its upper bound.
@@ -475,15 +475,22 @@ template <typename Value> void Solver<Value>::optimize() {
     //   Case all rows for leaving variables candidates are unbounded.
     //     We can set x_e to its upper bound and adjust the corresponding
     //     values of the x_l without causing conflicts. At this point x_e is no
-    //     entering variable anymore.
-    //   Case there is an x_l that can be set to its lower bound to make a
+    //     entering variable anymore. If x_e has no upper bound, the objective
+    //     is unbounded.
+    //   Case there is an x_l that can be set to its bound to make a
     //   constraint tight.
     //     We select the leaving variable that causes the least change to x_e
     //     to guarantee that no bounds are violated. This is the standard
     //     pivoting case. Unlike in algorithm to find a basic feasible
     //     solution, this pivot cannot cause a conflict.
-    // Case a_ze > 0:
+    // Case a_ze < 0:
     //   symmetric
+    //
+    // Both the entering and the leaving variable are chosen with the smallest
+    // variable index among the candidates (Bland's rule). This guarantees
+    // termination in the presence of degenerate pivots. The objective variable
+    // never leaves the basis because it has no bounds (the bounds for the
+    // global objective are added to the copy objective_.bound_var).
     if (!objective_) {
         return;
     }
@@ -509,7 +516,7 @@ template <typename Value> void Solver<Value>::optimize() {
             }
         });
 
-        // the solution is optimal if there is no exiting variable
+        // the solution is optimal if there is no entering variable
         if (ee == variables_.size()) {
             assert_extra(check_solution_());
             objective_.bounded = true;
