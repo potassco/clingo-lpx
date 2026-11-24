@@ -280,6 +280,10 @@ CONFIGS = [
     ["--select=match"],
     ["--objective=global"],
     ["--objective=global", "--store=no"],
+    ["--pivot-basic=violation"],
+    ["--pivot-basic=violation", "--bland-threshold=0", "--objective=global"],
+    ["--pivot-non-basic=bland", "--pivot-entering=bland"],
+    ["--bland-threshold=0"],
 ]
 
 

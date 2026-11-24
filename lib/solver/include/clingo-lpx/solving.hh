@@ -9,7 +9,6 @@
 
 #include <deque>
 #include <optional>
-#include <queue>
 #include <shared_mutex>
 #include <unordered_map>
 
@@ -36,12 +35,39 @@ enum class PropagateMode : uint8_t {
     Full = 2,
 };
 
+//! Rule to select the conflicting basic variable when searching for a solution.
+enum class BasicRule : uint8_t {
+    Bland = 0,     //!< Select the variable with the smallest index.
+    Violation = 1, //!< Select the variable violating its bound the most.
+};
+
+//! Rule to select the non-basic variable when searching for a solution.
+enum class NonBasicRule : uint8_t {
+    Bland = 0,  //!< Select the variable with the smallest index.
+    Sparse = 1, //!< Select the variable with the fewest non-zero elements in its column.
+};
+
+//! Rule to select the entering variable when optimizing.
+enum class EnteringRule : uint8_t {
+    Bland = 0,   //!< Select the variable with the smallest index.
+    Dantzig = 1, //!< Select the variable with the largest coefficient in the objective.
+};
+
+static constexpr auto default_bland_threshold = 128;
+
 struct Options {
     SelectionHeuristic select = SelectionHeuristic::None;
     StoreSATAssignments store_sat_assignment = StoreSATAssignments::No;
     std::optional<RationalQ> global_objective = std::nullopt;
     PropagateMode propagate_mode = PropagateMode::None;
     bool propagate_conflicts = false;
+    BasicRule basic_rule = BasicRule::Bland;
+    NonBasicRule non_basic_rule = NonBasicRule::Sparse;
+    EnteringRule entering_rule = EnteringRule::Dantzig;
+    //! Number of pivots without progress after which Bland's rule is used.
+    //!
+    //! The actual threshold is the maximum of this value and the number of rows.
+    size_t bland_threshold = default_bland_threshold;
 };
 
 struct Statistics {
@@ -231,8 +257,12 @@ template <typename Value> class Solver {
     //! Pivots basic variable `x_i` and non-basic variable `x_j`.
     void pivot_(index_t level, index_t i, index_t j, Value const &v);
 
-    //! Select pivot point preferring sparse columns or using Bland's rule.
+    //! Select a conflicting basic variable using the given rule.
+    auto select_basic_(BasicRule rule) -> std::optional<index_t>;
+    //! Select a pivot point using the configured rules or Bland's rule.
     auto select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v, bool bland) -> State;
+    //! Get the number of pivots without progress after which Bland's rule is used.
+    [[nodiscard]] auto bland_threshold_() const -> size_t;
 
     //! Get basic variable associated with row `i`.
     auto basic_(index_t i) -> Variable &;
@@ -253,8 +283,8 @@ template <typename Value> class Solver {
     Tableau tableau_;
     //! The non-basic and basic variables.
     std::vector<Variable> variables_;
-    //! The set of conflicting variables.
-    std::priority_queue<index_t, std::vector<index_t>, std::greater<>> conflicts_;
+    //! The set of conflicting variables (organized as a min-heap).
+    std::vector<index_t> conflicts_;
     //! The conflict clause.
     std::vector<Clingo::SolverLiteral> conflict_clause_;
     //! The vector of non-basic variables to propagate.

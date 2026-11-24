@@ -33,10 +33,13 @@
 #include <clingo/propagate.hh>
 
 #include <array>
+#include <charconv>
 #include <cstring>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
+#include <string>
+#include <system_error>
 
 using namespace ClingoLPX;
 
@@ -313,6 +316,91 @@ class ConfigStore {
     Options *opts_;
 };
 
+class ConfigBasicRule {
+  public:
+    explicit ConfigBasicRule(Options &opts) : opts_{&opts} {}
+
+    void set(std::string_view value) { opts_->basic_rule = map_.from_string(value); }
+
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->basic_rule); }
+
+    static constexpr auto desc = //
+        "Choose the conflicting basic variable to pivot"sv;
+
+  private:
+    static constexpr auto map_ = make_enum_string_map<BasicRule>({
+        {"bland", BasicRule::Bland},
+        {"violation", BasicRule::Violation},
+    });
+
+    Options *opts_;
+};
+
+class ConfigNonBasicRule {
+  public:
+    explicit ConfigNonBasicRule(Options &opts) : opts_{&opts} {}
+
+    void set(std::string_view value) { opts_->non_basic_rule = map_.from_string(value); }
+
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->non_basic_rule); }
+
+    static constexpr auto desc = //
+        "Choose the non-basic variable to pivot"sv;
+
+  private:
+    static constexpr auto map_ = make_enum_string_map<NonBasicRule>({
+        {"bland", NonBasicRule::Bland},
+        {"sparse", NonBasicRule::Sparse},
+    });
+
+    Options *opts_;
+};
+
+class ConfigEnteringRule {
+  public:
+    explicit ConfigEnteringRule(Options &opts) : opts_{&opts} {}
+
+    void set(std::string_view value) { opts_->entering_rule = map_.from_string(value); }
+
+    [[nodiscard]] auto get() const -> std::optional<std::string_view> { return map_.to_string(opts_->entering_rule); }
+
+    static constexpr auto desc = //
+        "Choose the entering variable when optimizing"sv;
+
+  private:
+    static constexpr auto map_ = make_enum_string_map<EnteringRule>({
+        {"bland", EnteringRule::Bland},
+        {"dantzig", EnteringRule::Dantzig},
+    });
+
+    Options *opts_;
+};
+
+class ConfigBlandThreshold {
+  public:
+    explicit ConfigBlandThreshold(Options &opts) : opts_{&opts} {}
+
+    void set(std::string_view value) {
+        size_t res = 0;
+        auto const *begin = value.data();
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        auto const *end = value.data() + value.size();
+        auto [ptr, ec] = std::from_chars(begin, end, res);
+        if (ec != std::errc{} || ptr != end) {
+            throw std::invalid_argument{"invalid threshold"};
+        }
+        opts_->bland_threshold = res;
+    }
+
+    [[nodiscard]] auto get() const -> std::optional<std::string> { return std::to_string(opts_->bland_threshold); }
+
+    static constexpr auto desc = //
+        "Use Bland's rule after max(<n>,rows) pivots without progress"sv;
+
+  private:
+    Options *opts_;
+};
+
 class ConfigObjective {
   public:
     explicit ConfigObjective(Options &opts) : opts_{&opts} {}
@@ -430,6 +518,10 @@ struct clingolpx_theory {
             cfg.add("lpx.propagate_bounds", ConfigPropagate::desc, ConfigPropagate{theory->options});
             cfg.add("lpx.select", ConfigSelect::desc, ConfigSelect{theory->options});
             cfg.add("lpx.store", ConfigStore::desc, ConfigStore{theory->options});
+            cfg.add("lpx.pivot_basic", ConfigBasicRule::desc, ConfigBasicRule{theory->options});
+            cfg.add("lpx.pivot_non_basic", ConfigNonBasicRule::desc, ConfigNonBasicRule{theory->options});
+            cfg.add("lpx.pivot_entering", ConfigEnteringRule::desc, ConfigEnteringRule{theory->options});
+            cfg.add("lpx.bland_threshold", ConfigBlandThreshold::desc, ConfigBlandThreshold{theory->options});
         }
 
         CLINGO_CATCH;
@@ -487,6 +579,10 @@ struct clingolpx_theory {
             opt("objective", ConfigObjective::desc, c_parse<ConfigObjective>, false, "{local,global[,step]}");
             opt("select", ConfigSelect::desc, c_parse<ConfigSelect>, false, "{none,match,conflict}");
             opt("store", ConfigStore::desc, c_parse<ConfigStore>, false, "{no,partial,total}");
+            opt("pivot-basic", ConfigBasicRule::desc, c_parse<ConfigBasicRule>, false, "{bland,violation}");
+            opt("pivot-non-basic", ConfigNonBasicRule::desc, c_parse<ConfigNonBasicRule>, false, "{bland,sparse}");
+            opt("pivot-entering", ConfigEnteringRule::desc, c_parse<ConfigEnteringRule>, false, "{bland,dantzig}");
+            opt("bland-threshold", ConfigBlandThreshold::desc, c_parse<ConfigBlandThreshold>, false, "<n>");
 
             def("out-assign", "__lpx/2");
             def("out-cost", "Objective:,__lpx_objective/2:%0 [%1]");

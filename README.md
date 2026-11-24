@@ -160,6 +160,10 @@ Run `clingo-lpx --help` for the full list.
 | `--propagate-conflicts`                  | Add binary clauses for conflicting bounds on the same variable.                                                                       |
 | `--select={none,match,conflict}`         | Sign heuristic for constraint literals: keep clasp's choice, prefer literals consistent with the current assignment, or the opposite. |
 | `--store={no,partial,total}`             | Keep satisfying assignments when backtracking, which can reduce the number of pivots when enumerating models.                         |
+| `--pivot-basic={bland,violation}`        | Fix the conflicting basic variable with the smallest index (default) or the largest bound violation first.                            |
+| `--pivot-non-basic={bland,sparse}`       | Pivot on the column with the smallest index or the fewest non-zero elements (`sparse`, default).                                      |
+| `--pivot-entering={bland,dantzig}`       | When optimizing, select the entering variable with the smallest index or the largest coefficient (`dantzig`, default).                |
+| `--bland-threshold=<n>`                  | Switch to Bland's rule after max(n, rows) pivots without progress to avoid cycling (default 128).                                     |
 
 ## Python API
 

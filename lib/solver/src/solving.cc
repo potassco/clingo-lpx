@@ -7,6 +7,8 @@
 #include <clingo/stats.hh>
 #include <cstddef>
 #include <exception>
+#include <functional>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <ostream>
@@ -25,6 +27,42 @@ auto as_value(RationalQ const &a, RationalQ *b) -> RationalQ {
 auto as_value(RationalQ const &a, Rational *b) -> Rational {
     static_cast<void>(b);
     return a.as_rational();
+}
+
+//! Select the candidate with the best score breaking ties by the smallest index.
+//!
+//! With a constant score, this selects the candidate with the smallest index
+//! (Bland's rule).
+template <class Score, class Better = std::less<>> class Selector {
+  public:
+    //! Offer a candidate and return true if it is the best one so far.
+    auto offer(index_t index, Score score) -> bool {
+        if (empty() || Better{}(score, score_) || (!Better{}(score_, score) && index < index_)) {
+            index_ = index;
+            score_ = std::move(score);
+            return true;
+        }
+        return false;
+    }
+
+    //! Check whether a candidate has been offered.
+    [[nodiscard]] auto empty() const -> bool { return index_ == none; }
+
+    //! Get the index of the best candidate.
+    [[nodiscard]] auto index() const -> index_t { return index_; }
+
+  private:
+    static constexpr index_t none = std::numeric_limits<index_t>::max();
+    index_t index_ = none;
+    Score score_{};
+};
+
+//! Compute the absolute value of an integer.
+auto magnitude(Integer a) -> Integer {
+    if (a < 0) {
+        a.neg();
+    }
+    return a;
 }
 
 } // namespace
@@ -241,7 +279,8 @@ template <typename Value> void Solver<Value>::enqueue_(index_t i) {
     auto ii = variables_[i + n_non_basic_].index;
     auto &xi = variables_[ii];
     if (!xi.queued && xi.has_conflict()) {
-        conflicts_.emplace(ii);
+        conflicts_.emplace_back(ii);
+        std::ranges::push_heap(conflicts_, std::greater<>{});
         xi.queued = true;
     }
     // Note that this explicitely marks the row not the variable to propagate.
@@ -487,18 +526,17 @@ template <typename Value> void Solver<Value>::optimize() {
     // Case a_ze < 0:
     //   symmetric
     //
-    // The entering variable is chosen with the largest coefficient |a_ze|
-    // (Dantzig's rule). Because all coefficients in the objective row share
-    // the denominator d_z, comparing the numerators suffices. This rule
+    // By default, the entering variable is chosen with the largest coefficient
+    // |a_ze| (Dantzig's rule). Because all coefficients in the objective row
+    // share the denominator d_z, comparing the numerators suffices. This rule
     // usually needs few pivots but can cycle on degenerate pivots, which do
-    // not change the objective value. After more consecutive degenerate
-    // pivots than there are rows (but at least min_degenerate), we switch to
-    // choosing the entering variable with the smallest variable index
-    // (Bland's rule) until the objective improves again. The leaving variable
-    // is always chosen with the smallest variable index among the candidates.
-    // Bland's rule cannot cycle, so each phase of degenerate pivots ends, and
-    // since every other step strictly improves the objective, the algorithm
-    // terminates.
+    // not change the objective value. After a number of consecutive
+    // degenerate pivots (see bland_threshold_()), we switch to choosing the
+    // entering variable with the smallest variable index (Bland's rule) until
+    // the objective improves again. The leaving variable is always chosen
+    // with the smallest variable index among the candidates. Bland's rule
+    // cannot cycle, so each phase of degenerate pivots ends, and since every
+    // other step strictly improves the objective, the algorithm terminates.
     //
     // The objective variable never leaves the basis because it has no bounds
     // (the bounds for the global objective are added to the copy
@@ -507,11 +545,8 @@ template <typename Value> void Solver<Value>::optimize() {
         return;
     }
 
-    constexpr size_t min_degenerate = 64;
-    auto max_degenerate = std::max<size_t>(min_degenerate, n_basic_);
+    auto threshold = bland_threshold_();
     size_t degenerate = 0;
-    Integer a_max;
-    Integer a_min;
 
     assert_extra(check_solution_());
     while (true) {
@@ -519,44 +554,30 @@ template <typename Value> void Solver<Value>::optimize() {
         auto z = variables_[objective_.var].reverse_index - n_non_basic_;
 
         // select entering variable x_e
-        auto ee = static_cast<index_t>(variables_.size());
         bool pos_a_ze = false;
-        bool bland = degenerate >= max_degenerate;
-        tableau_.update_row(z, [&, this](index_t j, Integer const &a_zj, Integer const &d_z) -> auto {
+        bool dantzig = degenerate < threshold && options_.entering_rule == EnteringRule::Dantzig;
+        auto sel = Selector<Integer, std::greater<>>{};
+        tableau_.update_row(z, [&, this](index_t j, Integer const &a_zj, Integer const &d_z) -> void {
             auto jj = variables_[j].index;
-            if (bland && jj >= ee) {
-                return;
-            }
             auto &x_j = variables_[jj];
             bool pos_a_zj = (a_zj > 0) == (d_z > 0);
             if (pos_a_zj ? x_j.has_upper() && x_j.value >= x_j.upper() : x_j.has_lower() && x_j.value <= x_j.lower()) {
                 return;
             }
-            if (!bland && ee != variables_.size()) {
-                // compare |a_zj| with the largest coefficient a_max = -a_min
-                auto cmp = a_zj > 0 ? a_zj <=> a_max : a_min <=> a_zj;
-                // NOLINTNEXTLINE
-                if (cmp < 0 || (cmp == 0 && jj > ee)) {
-                    return;
-                }
-            }
-            ee = jj;
-            pos_a_ze = pos_a_zj;
-            if (!bland) {
-                a_max = a_zj;
-                a_min = a_zj;
-                (a_zj > 0 ? a_min : a_max).neg();
+            if (sel.offer(jj, dantzig ? magnitude(a_zj) : Integer{})) {
+                pos_a_ze = pos_a_zj;
             }
         });
 
         // the solution is optimal if there is no entering variable
-        if (ee == variables_.size()) {
+        if (sel.empty()) {
             assert_extra(check_solution_());
             objective_.bounded = true;
             return;
         }
 
         // select leaving variable y_l
+        auto ee = sel.index();
         auto &x_e = variables_[ee];
         auto v_e = Value{};
         auto e = x_e.reverse_index;
@@ -721,13 +742,12 @@ auto Solver<Value>::solve(Clingo::Assignment ass, Clingo::PropagateControl ctl, 
     assert_extra(check_basic_());
     assert_extra(check_non_basic_());
 
-    // Pivots prefer sparse columns. Because this can cycle, we switch to
-    // Bland's rule after a number of pivots (see select_()).
-    constexpr size_t min_pivots = 256;
-    auto max_pivots = std::max<size_t>(min_pivots, 2 * static_cast<size_t>(n_basic_));
+    // The configured selection rules can cycle, so we switch to Bland's rule
+    // after a number of pivots.
+    auto threshold = bland_threshold_();
     size_t pivots = 0;
     while (true) {
-        switch (select_(i, j, v, pivots >= max_pivots)) {
+        switch (select_(i, j, v, pivots >= threshold)) {
             case State::Satisfiable: {
                 if (options_.store_sat_assignment == StoreSATAssignments::Partial) {
                     store_sat_assignment();
@@ -888,9 +908,10 @@ template <typename Value> void Solver<Value>::undo() {
         assignment_trail_.resize(offset.assignment);
 
         // empty queue
-        for (; !conflicts_.empty(); conflicts_.pop()) {
-            variables_[conflicts_.top()].queued = false;
+        for (auto ii : conflicts_) {
+            variables_[ii].queued = false;
         }
+        conflicts_.clear();
 
         trail_offset_.pop_back();
 
@@ -999,75 +1020,85 @@ template <typename Value> void Solver<Value>::pivot_(index_t level, index_t i, i
     assert_extra(check_non_basic_());
 }
 
+template <typename Value> auto Solver<Value>::bland_threshold_() const -> size_t {
+    return std::max<size_t>(options_.bland_threshold, n_basic_);
+}
+
+template <typename Value> auto Solver<Value>::select_basic_(BasicRule rule) -> std::optional<index_t> {
+    // The queue might contain variables that meanwhile became non-basic or are
+    // no longer conflicting. The selected variable stays in the queue until it
+    // left the basis.
+    auto conflicting = [this](index_t ii) -> bool {
+        auto &xi = variables_[ii];
+        return xi.reverse_index >= n_non_basic_ && xi.has_conflict();
+    };
+    if (rule == BasicRule::Bland) {
+        for (; !conflicts_.empty(); std::ranges::pop_heap(conflicts_, std::greater<>{}), conflicts_.pop_back()) {
+            auto ii = conflicts_.front();
+            variables_[ii].queued = false;
+            if (conflicting(ii)) {
+                return ii;
+            }
+        }
+        return std::nullopt;
+    }
+    auto sel = Selector<Value, std::greater<>>{};
+    std::erase_if(conflicts_, [&](index_t ii) -> bool {
+        auto &xi = variables_[ii];
+        if (!conflicting(ii)) {
+            xi.queued = false;
+            return true;
+        }
+        sel.offer(ii, xi.has_lower() && xi.value < xi.lower() ? xi.lower() - xi.value : xi.value - xi.upper());
+        return false;
+    });
+    std::ranges::make_heap(conflicts_, std::greater<>{});
+    if (sel.empty()) {
+        return std::nullopt;
+    }
+    variables_[sel.index()].queued = false;
+    return sel.index();
+}
+
 template <typename Value>
 auto Solver<Value>::select_(index_t &ret_i, index_t &ret_j, Value const *&ret_v, bool bland) -> Solver<Value>::State {
-    // The basic variable is selected with the smallest index among the
-    // conflicting ones. The non-basic variable is selected with the fewest
-    // non-zero elements in its column to keep pivots cheap and the tableau
-    // sparse (ties are broken by the smallest index). If bland is set, the
-    // non-basic variable with the smallest index is selected instead (Bland's
+    // First, a conflicting basic variable x_i is selected. Then, a non-basic
+    // variable x_j is selected that can be changed to move x_i towards its
+    // violated bound. The configured rules can cycle. If bland is set, the
+    // variables with the smallest indices are selected instead (Bland's
     // rule), which guarantees termination.
-
-    for (; !conflicts_.empty(); conflicts_.pop()) {
-        auto ii = conflicts_.top();
-        auto &xi = variables_[ii];
-        auto i = xi.reverse_index;
-        assert(ii == variables_[i].index);
-        xi.queued = false;
-        // the queue might contain variables that meanwhile became basic
-        if (i < n_non_basic_) {
-            continue;
-        }
-        i -= n_non_basic_;
-
-        bool lower = xi.has_lower() && xi.value < xi.lower();
-        if (lower || (xi.has_upper() && xi.value > xi.upper())) {
-            conflict_clause_.clear();
-            conflict_clause_.emplace_back(lower ? -xi.lower_bound->lit : -xi.upper_bound->lit);
-            auto kk = static_cast<index_t>(variables_.size());
-            size_t kk_size = 0;
-            tableau_.update_row(i, [&](index_t j, Integer const &a_ij, Integer const &d_i) -> auto {
-                auto jj = variables_[j].index;
-                // skip over the variable if we already have a better one
-                // according to blands rule (no candidate is skipped if
-                // there is a conflict)
-                if (bland && jj > kk) {
-                    return;
-                }
-                auto &x_j = variables_[jj];
-                bool upper = lower == ((a_ij > 0) == (d_i > 0));
-                // preemptively add bound to conflict clause if it can be increased no further
-                if (upper ? x_j.has_upper() && x_j.value >= x_j.upper() : x_j.has_lower() && x_j.value <= x_j.lower()) {
-                    conflict_clause_.emplace_back(upper ? -x_j.upper_bound->lit : -x_j.lower_bound->lit);
-                }
-                // we can set x_i to one of its bounds to get rid of the conflict
-                else if (!bland) {
-                    auto size = tableau_.col_size(j);
-                    if (kk == variables_.size() || size < kk_size || (size == kk_size && jj < kk)) {
-                        kk = jj;
-                        kk_size = size;
-                        ret_i = i;
-                        ret_j = j;
-                        ret_v = lower ? &xi.lower() : &xi.upper();
-                    }
-                } else {
-                    kk = jj;
-                    ret_i = i;
-                    ret_j = j;
-                    ret_v = lower ? &xi.lower() : &xi.upper();
-                }
-            });
-            // the constraint determining x_i is tight - the conflict clause captures the reason
-            if (kk == variables_.size()) {
-                return State::Unsatisfiable;
-            }
-            return State::Unknown;
-        }
+    auto ii = select_basic_(bland ? BasicRule::Bland : options_.basic_rule);
+    if (!ii.has_value()) {
+        assert_extra(check_solution_());
+        return State::Satisfiable;
     }
+    auto &xi = variables_[*ii];
+    assert(*ii == variables_[xi.reverse_index].index);
+    bool lower = xi.has_lower() && xi.value < xi.lower();
+    bool sparse = !bland && options_.non_basic_rule == NonBasicRule::Sparse;
 
-    assert_extra(check_solution_());
-
-    return State::Satisfiable;
+    conflict_clause_.clear();
+    conflict_clause_.emplace_back(lower ? -xi.lower_bound->lit : -xi.upper_bound->lit);
+    auto sel = Selector<size_t>{};
+    ret_i = xi.reverse_index - n_non_basic_;
+    tableau_.update_row(ret_i, [&](index_t j, Integer const &a_ij, Integer const &d_i) -> void {
+        auto &x_j = variables_[variables_[j].index];
+        bool upper = lower == ((a_ij > 0) == (d_i > 0));
+        // preemptively add bound to conflict clause if it can be increased no further
+        if (upper ? x_j.has_upper() && x_j.value >= x_j.upper() : x_j.has_lower() && x_j.value <= x_j.lower()) {
+            conflict_clause_.emplace_back(upper ? -x_j.upper_bound->lit : -x_j.lower_bound->lit);
+        }
+        // we can set x_i to one of its bounds to get rid of the conflict
+        else if (sel.offer(variables_[j].index, sparse ? tableau_.col_size(j) : 0)) {
+            ret_j = j;
+        }
+    });
+    // the constraint determining x_i is tight - the conflict clause captures the reason
+    if (sel.empty()) {
+        return State::Unsatisfiable;
+    }
+    ret_v = lower ? &xi.lower() : &xi.upper();
+    return State::Unknown;
 }
 
 template <typename Value> auto Solver<Value>::adjust(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral {
