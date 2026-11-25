@@ -17,7 +17,11 @@ endif()
 add_library(clingo-lpx-math INTERFACE)
 clingolpx_target_properties(TARGETS clingo-lpx-math TYPE extra)
 if(_CLINGOLPX_MATH_LIBRARY STREQUAL "imath")
+    # NOTE: A static clingo also contains imath. To link both statically into
+    # one program, keep this copy at the same version and configuration (e.g.,
+    # USE_32BIT_WORDS) as clingo's; the linker picks one copy for both.
     add_library(imath STATIC)
+    clingolpx_target_properties(TARGETS imath TYPE extra)
     target_sources(imath PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/imath/imath.c
         ${CMAKE_CURRENT_SOURCE_DIR}/imath/imrat.c)
@@ -32,6 +36,11 @@ if(_CLINGOLPX_MATH_LIBRARY STREQUAL "imath")
 else()
     target_link_libraries(clingo-lpx-math INTERFACE FLINT::FLINT)
     target_compile_definitions(clingo-lpx-math INTERFACE CLINGOLPX_USE_FLINT)
+    if(CLINGOLPX_INSTALL_EXTRA)
+        install(FILES "${PROJECT_SOURCE_DIR}/cmake/FindFLINT.cmake"
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/clingo-lpx")
+        set(CLINGOLPX_CONFIG_FLINT ON PARENT_SCOPE)
+    endif()
 endif()
 add_library(math::math ALIAS clingo-lpx-math)
 

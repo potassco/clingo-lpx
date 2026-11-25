@@ -1,3 +1,11 @@
 @PACKAGE_INIT@
-include("${CMAKE_CURRENT_LIST_DIR}/clingo-dl-targets.cmake")
-check_required_components(clingo-dl)
+
+include(CMakeFindDependencyMacro)
+find_dependency(clingo 6.0.0)
+if(@CLINGOLPX_CONFIG_FLINT@)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+    find_dependency(FLINT)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/clingo-lpx-targets.cmake")
+check_required_components(clingo-lpx)

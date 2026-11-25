@@ -633,7 +633,7 @@ struct clingolpx_theory {
             auto defaults = Options{};
             for_each_option(theory->options, [&](OptionInfo const &info, auto config) -> void {
                 using Config = decltype(config);
-                if constexpr (requires { config.target(); }) {
+                if constexpr (requires(Config &cfg) { cfg.target(); }) {
                     flag(info.name, info.desc, config.target());
                 } else {
                     auto &desc = theory->strings.emplace_back(info.desc);

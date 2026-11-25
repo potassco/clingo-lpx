@@ -41,7 +41,7 @@ set(test
     ${test-group-tests})
 # ]]]
 
-add_library(clingo-lpx-solver STATIC)
+add_library(clingo-lpx-solver OBJECT)
 clingolpx_target_properties(TARGETS clingo-lpx-solver FOLDER "lib" TYPE "extra")
 target_sources(clingo-lpx-solver PRIVATE ${header} ${source})
 target_include_directories(clingo-lpx-solver PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
