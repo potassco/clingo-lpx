@@ -62,6 +62,12 @@ enum class BranchPolarity : uint8_t {
     Down = 3,     //!< Try x <= k first.
 };
 
+//! Rule to select the sign when deciding a branch literal.
+enum class BranchPhase : uint8_t {
+    Saved = 0, //!< Keep the sign chosen by the solver.
+    Value = 1, //!< Select the side containing the current value or the nearer side.
+};
+
 static constexpr auto default_bland_threshold = 128;
 static constexpr auto default_cut_period = 0;
 static constexpr auto default_cut_limit = 64;
@@ -70,7 +76,7 @@ struct Options {
     SelectionHeuristic select = SelectionHeuristic::None;
     StoreSATAssignments store_sat_assignment = StoreSATAssignments::No;
     std::optional<RationalQ> global_objective = std::nullopt;
-    PropagateMode propagate_mode = PropagateMode::None;
+    PropagateMode propagate_mode = PropagateMode::Changed;
     bool propagate_conflicts = false;
     BasicRule basic_rule = BasicRule::Bland;
     NonBasicRule non_basic_rule = NonBasicRule::Sparse;
@@ -97,6 +103,8 @@ struct Options {
     bool fix_reduced_costs = false;
     //! Whether strict constraints are supported (which selects the number type).
     bool strict = false;
+    //! The sign when deciding literals introduced during solving.
+    BranchPhase branch_phase = BranchPhase::Value;
 };
 
 struct Statistics {
@@ -317,6 +325,9 @@ template <typename Value> class Solver {
     //! Adjust the sign of the given literal so that it does not conflict with
     //! the current tableau.
     [[nodiscard]] auto adjust(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral;
+
+    //! Adjust the sign of a literal introduced during solving.
+    [[nodiscard]] auto adjust_branch(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral;
 
   private:
     //! Check if the tableau.

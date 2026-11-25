@@ -143,10 +143,11 @@ The relaxation of this problem has the optimum `y=14/5`. When the simplex
 algorithm finds an assignment where an integer variable has a fractional value
 `v`, the solver branches by introducing a literal `l` with `l -> x <= floor(v)`
 and `-l -> x >= floor(v)+1`. By default, the side closer to `v` is tried first
-(see option `--branch-polarity`). Like in an
-order encoding, the literals of branches on the same variable are connected by
-clauses such as `x <= 1 -> x <= 2`, and so are the literals of bounds in the
-program, such as `p` in `&sum { x } <= 1 :- p.`
+(see option `--branch-polarity`). When such a literal is decided again later,
+the side containing the current value of the variable is selected (see option
+`--branch-phase`). Like in an order encoding, the literals of branches on the
+same variable are connected by clauses such as `x <= 1 -> x <= 2`, and so are
+the literals of bounds in the program, such as `p` in `&sum { x } <= 1 :- p.`
 
 Before branching, the solver checks whether the rows of the tableau over
 integer variables admit integer solutions given the fixed variables (the GCD
@@ -223,7 +224,7 @@ Run `clingo-lpx --help` for the full list.
 | :--------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
 | `--strict`                               | Enable support for strict constraints.                                                                                                |
 | `--objective={local,global[,step]}`      | Optimize w.r.t. each stable model (`local`, default) or all of them (`global`).                                                       |
-| `--propagate-bounds={none,changed,full}` | Propagate bounds of constraints whose variables changed or of all constraints (default `none`).                                       |
+| `--propagate-bounds={none,changed,full}` | Propagate bounds of constraints whose variables changed (`changed`, default), of all constraints, or none.                            |
 | `--propagate-conflicts`                  | Add binary clauses for conflicting bounds on the same variable.                                                                       |
 | `--select={none,match,conflict}`         | Sign heuristic for constraint literals: keep clasp's choice, prefer literals consistent with the current assignment, or the opposite. |
 | `--store={no,partial,total}`             | Keep satisfying assignments when backtracking, which can reduce the number of pivots when enumerating models.                         |
@@ -235,6 +236,7 @@ Run `clingo-lpx --help` for the full list.
 | `--cut-limit=<n>`                        | Keep at most n cuts per solver thread replacing inactive ones (default 64).                                                           |
 | `--[no-]order-branches`                  | Connect the literals of branches and bounds on the same variable like in an order encoding (enabled by default).                      |
 | `--branch-polarity={nearest,...}`        | Try the side of a branch closer to the current value first (`nearest`, default), the farther one, or always up or down.               |
+| `--branch-phase={saved,value}`           | When deciding branch literals, select the side containing the current value (`value`, default) or keep the solver's sign.             |
 | `--[no-]gcd-test`                        | Before branching, check rows over integer variables for divisibility (enabled by default).                                            |
 | `--[no-]fix-reduced-costs`               | With `--objective=global`, tighten bounds of integer variables using reduced costs (disabled by default).                             |
 
@@ -278,7 +280,7 @@ and `__lpx_objective("Value","bounded")`.
 
 The options above are available in the `lpx` group of the configuration with
 dashes replaced by underscores, e.g., `ctl.config.lpx.strict = "yes"` or
-`ctl.config.lpx.propagate_bounds = "changed"`.
+`ctl.config.lpx.propagate_bounds = "full"`.
 
 ## Development
 

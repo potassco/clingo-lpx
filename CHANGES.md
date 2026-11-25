@@ -1,15 +1,14 @@
 # Changes
 
-## clingo-lpx 1.5.0
-
-- add `&int` directive for integer variables
-- add branching and Gomory cuts for integer variables
-- reorganize examples and add knapsack and facility location examples
-
 ## clingo-lpx 1.4.0
 
 - switch to clingo 6.0 API
 - fix various bugs
+- add `&int` directive for integer variables
+- add branching and Gomory cuts for integer variables
+- reorganize examples and add knapsack and facility location examples
+- speed up bound propagation and enable it by default
+- select the side of a branch containing the current value when deciding branch literals
 
 ## clingo-lpx 1.3.0
 

@@ -628,6 +628,37 @@ template <typename Value> auto Solver<Value>::fix_reduced_costs_(Clingo::Propaga
     return !added;
 }
 
+// {{{1 Solver: decisions on branch literals
+
+template <typename Value> auto Solver<Value>::adjust_branch(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral {
+    // After backtracking, the value of a variable often lies on one side of
+    // an earlier branch x <= k or x >= k + 1. Selecting this side keeps the
+    // current assignment, which usually avoids pivots. If the value is
+    // fractional, the nearer side is selected like in Solver::branch_.
+    if (options_.branch_phase == BranchPhase::Saved) {
+        return lit;
+    }
+    Bound const *upper = nullptr;
+    for (auto l : {lit, -lit}) {
+        for (auto it = bounds_.find(l), ie = bounds_.end(); it != ie && it->first == l; ++it) {
+            auto const &bound = it->second;
+            if (bound.compare(variables_[bound.variable].value)) {
+                return l;
+            }
+            if (bound.rel == BoundRelation::LessEqual) {
+                upper = &bound;
+            }
+        }
+    }
+    // literals of cuts only have a bound for the positive literal
+    if (upper == nullptr) {
+        return lit;
+    }
+    auto const &v = variables_[upper->variable].value;
+    bool nearer_upper = v - upper->value < Value{Rational{Integer{1}, Integer{2}}};
+    return nearer_upper == (upper->lit == lit) ? lit : -lit;
+}
+
 // }}}1
 
 // The solver is instantiated in solving.cc. The functions here are only
@@ -635,6 +666,8 @@ template <typename Value> auto Solver<Value>::fix_reduced_costs_(Clingo::Propaga
 template auto Solver<Rational>::check_integers(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool;
 template auto Solver<RationalQ>::check_integers(Clingo::Assignment ass, Clingo::PropagateControl ctl) -> bool;
 template void Solver<Rational>::refresh_cuts_();
+template auto Solver<Rational>::adjust_branch(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral;
+template auto Solver<RationalQ>::adjust_branch(Clingo::SolverLiteral lit) const -> Clingo::SolverLiteral;
 template void Solver<RationalQ>::refresh_cuts_();
 
 } // namespace ClingoLPX

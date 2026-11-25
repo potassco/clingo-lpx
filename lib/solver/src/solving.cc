@@ -867,8 +867,31 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::Assignment ass,
     std::vector<Clingo::SolverLiteral> upper_clause;
     auto propagate_row = [&](index_t i) -> auto {
         variables_[i].propagate = false;
-        std::optional<Value> lower = Value{0};
-        std::optional<Value> upper = Value{0};
+        // An upper bound on y_i can only falsify bound literals of y_i with
+        // relation >= or = and a lower bound only ones with relation <= or =.
+        // Hence, we only compute the bounds that might be used. (Checking the
+        // assignment here would be more precise but is expensive.)
+        auto &y_i = basic_(i);
+        bool need_upper = false;
+        bool need_lower = false;
+        for (auto const *bound : y_i.bounds) {
+            need_upper = need_upper || bound->rel != BoundRelation::LessEqual;
+            need_lower = need_lower || bound->rel != BoundRelation::GreaterEqual;
+            if (need_upper && need_lower) {
+                break;
+            }
+        }
+        if (!need_upper && !need_lower) {
+            return true;
+        }
+        std::optional<Value> lower;
+        std::optional<Value> upper;
+        if (need_lower) {
+            lower = Value{0};
+        }
+        if (need_upper) {
+            upper = Value{0};
+        }
         // check if a constraint provides a bound
         tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) -> auto {
             auto &x_j = non_basic_(j);
@@ -885,30 +908,44 @@ template <typename Value> auto Solver<Value>::propagate_(Clingo::Assignment ass,
         }
         lower_clause.clear();
         upper_clause.clear();
-        // compute the bound
+        // Compute the bounds. All terms of a row share the denominator d_i, so
+        // we sum a_ij * v_j for the bounds v_j and divide once. Integer bounds,
+        // which are common, are summed using integer arithmetic.
+        Integer lower_int{0};
+        Integer upper_int{0};
+        Value lower_rest;
+        Value upper_rest;
+        Integer const *den = nullptr;
         tableau_.update_row(i, [&, this](index_t j, Integer const &a_ij, Integer const &d_i) -> auto {
+            den = &d_i;
             auto &x_j = non_basic_(j);
-            auto update_lower = [&](std::vector<Clingo::SolverLiteral> &clause, std::optional<Value> &bound) -> auto {
-                if (bound.has_value() && x_j.has_lower()) {
-                    *bound += mul_div(x_j.lower(), a_ij, d_i);
-                    clause.emplace_back(-x_j.lower_bound->lit);
-                }
-            };
-            auto update_upper = [&](std::vector<Clingo::SolverLiteral> &clause, std::optional<Value> &bound) -> auto {
-                if (bound.has_value() && x_j.has_upper()) {
-                    *bound += mul_div(x_j.upper(), a_ij, d_i);
-                    clause.emplace_back(-x_j.upper_bound->lit);
+            auto add = [&](std::vector<Clingo::SolverLiteral> &clause, std::optional<Value> const &bound,
+                           Integer &sum_int, Value &sum_rest, Bound const *x_bound) -> void {
+                if (bound.has_value() && x_bound != nullptr) {
+                    if (is_integer(x_bound->value)) {
+                        sum_int.add_mul(a_ij, rational_part(x_bound->value).num());
+                    } else {
+                        sum_rest += x_bound->value * a_ij;
+                    }
+                    clause.emplace_back(-x_bound->lit);
                 }
             };
             if ((a_ij > 0) == (d_i > 0)) {
-                update_lower(lower_clause, lower);
-                update_upper(upper_clause, upper);
+                add(lower_clause, lower, lower_int, lower_rest, x_j.lower_bound);
+                add(upper_clause, upper, upper_int, upper_rest, x_j.upper_bound);
             } else {
-                update_upper(lower_clause, lower);
-                update_lower(upper_clause, upper);
+                add(lower_clause, lower, lower_int, lower_rest, x_j.upper_bound);
+                add(upper_clause, upper, upper_int, upper_rest, x_j.lower_bound);
             }
         });
-        auto &y_i = basic_(i);
+        auto finish = [&](std::optional<Value> &bound, Integer &sum_int, Value &sum_rest) -> void {
+            if (bound.has_value() && den != nullptr) {
+                sum_rest += Value{as_rational(std::move(sum_int))};
+                *bound = mul_div(sum_rest, Integer{1}, *den);
+            }
+        };
+        finish(lower, lower_int, lower_rest);
+        finish(upper, upper_int, upper_rest);
         auto propagate = [&, this](std::vector<Clingo::SolverLiteral> &clause, Bound const &bound) -> auto {
             clause.emplace_back(-bound.lit);
             bool ret = ctl.add_clause(clause) && ctl.propagate();
@@ -1327,7 +1364,15 @@ template <typename Value> void Propagator<Value>::on_statistics(Clingo::Stats st
 
 template <typename Value>
 auto Propagator<Value>::do_decide(Clingo::Assignment ass, Clingo::SolverLiteral fallback) -> Clingo::SolverLiteral {
-    return slvs_[ass.thread_id()].second.adjust(fallback);
+    // Literals introduced during solving keep their sign. The sign of order
+    // literals is chosen when branching (see Solver::branch_), and the values
+    // of integer variables are fractional, so they satisfy neither side of a
+    // branch.
+    auto const &slv = slvs_[ass.thread_id()].second;
+    if (std::cmp_greater(std::abs(fallback), n_vars_)) {
+        return slv.adjust_branch(fallback);
+    }
+    return slv.adjust(fallback);
 }
 
 template <typename Value> void Propagator<Value>::on_model(Clingo::Model const &model) {

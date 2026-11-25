@@ -12,9 +12,9 @@ variables for the number of copies. Instance `small.lp` has one resource and
 ```
 $ clingo-lpx --objective=global,1 encoding.lp small.lp 0
 ...
-pack(rope) pack(stove) pack(tent) pack(water)
+pack(stove) pack(tent) pack(water)
 Assignment:
-copies(food)=0 copies(rope)=3 copies(stove)=1 copies(tent)=1 copies(water)=2
+copies(food)=0 copies(rope)=0 copies(stove)=1 copies(tent)=1 copies(water)=4
 Objective: 116 [bounded]
 ```
 

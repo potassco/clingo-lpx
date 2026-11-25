@@ -423,6 +423,7 @@ TEST_CASE("integer-random") {
         opts.gcd_test = it % 11 != 0;
         opts.fix_reduced_costs = it % 13 != 0;
         opts.branch_polarity = static_cast<BranchPolarity>(it % 4);
+        opts.branch_phase = static_cast<BranchPhase>((it / 3) % 2);
         auto threads = it % 5 == 0 ? 3 : 1;
         INFO("cut_period=" << opts.cut_period << " cut_limit=" << opts.cut_limit << " threads=" << threads);
         opts.global_objective = RationalQ{0};
@@ -458,6 +459,7 @@ TEST_CASE("integer-equalities-random") {
         opts.gcd_test = it % 11 != 0;
         opts.fix_reduced_costs = it % 13 != 0;
         opts.branch_polarity = static_cast<BranchPolarity>(it % 4);
+        opts.branch_phase = static_cast<BranchPhase>((it / 3) % 2);
         auto threads = it % 5 == 0 ? 3 : 1;
         INFO("cut_period=" << opts.cut_period << " cut_limit=" << opts.cut_limit << " threads=" << threads);
         opts.global_objective = RationalQ{0};

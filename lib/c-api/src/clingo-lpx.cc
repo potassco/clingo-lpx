@@ -133,7 +133,9 @@ template <typename Value> class LPXPropagatorFacade : public PropagatorFacade {
             init<Value>, nullptr, propagate<Value>, undo<Value>, check<Value>, nullptr, nullptr,
         };
         handle_error(clingo_control_register_propagator(
-            control, options.select != SelectionHeuristic::None ? &prp : &heu, &prop_));
+            control,
+            options.select != SelectionHeuristic::None || options.branch_phase != BranchPhase::Saved ? &prp : &heu,
+            &prop_));
     }
 
     auto lookup_symbol(Clingo::Symbol const &name, size_t &index) -> bool override {
@@ -344,6 +346,11 @@ constexpr auto branch_polarities = make_enum_string_map<BranchPolarity>({
     {"down", BranchPolarity::Down, "Try decreasing the variable first"},
 });
 
+constexpr auto branch_phases = make_enum_string_map<BranchPhase>({
+    {"saved", BranchPhase::Saved, "Keep the sign chosen by the solver"},
+    {"value", BranchPhase::Value, "Select the side containing the value or the nearer one"},
+});
+
 // The classes below configure a member of the options. They are used to
 // parse command line options and to provide clingo's configuration.
 
@@ -513,6 +520,8 @@ template <typename F> void for_each_option(Options &opts, F const &f) {
       ConfigSize<&Options::bland_threshold>{opts});
     f(OptionInfo{"branch-polarity", "<sign>", "Select the side of a branch to try first"},
       ConfigEnum<&Options::branch_polarity, branch_polarities>{opts});
+    f(OptionInfo{"branch-phase", "<mode>", "Select the sign when deciding branch literals"},
+      ConfigEnum<&Options::branch_phase, branch_phases>{opts});
     f(OptionInfo{"cut-period", "<n>", "Cut instead of branching every <n>-th time (0=off)"},
       ConfigSize<&Options::cut_period>{opts});
     f(OptionInfo{"cut-limit", "<n>", "Keep at most <n> cuts per thread"}, ConfigSize<&Options::cut_limit>{opts});
