@@ -481,6 +481,7 @@ template <typename Value> class Propagator : public Clingo::Heuristic {
     std::vector<Inequality> iqs_;
     std::vector<Clingo::Symbol> integers_;
     size_t facts_offset_{0};
+    bool strict_checked_{false};
     //! The number of variables before solving (larger ones are solver local).
     size_t n_vars_{0};
     std::vector<Clingo::SolverLiteral> facts_;

@@ -285,6 +285,32 @@ TEST_CASE_METHOD(Fixture, "solving strict") {
                       }));
 }
 
+TEST_CASE("solving strict warning") {
+    auto warnings = std::vector<std::string>{};
+    auto lib = Clingo::Library{Clingo::LibraryFlags::none, [&](Clingo::MessageCode code, std::string_view msg) -> void {
+                                   if (code == Clingo::MessageCode::warn) {
+                                       warnings.emplace_back(msg);
+                                   }
+                               }};
+    auto theory = Clingo::Theory{lib, clingolpx_create};
+    auto ctl = Clingo::Control{lib, {"0"}};
+    theory.register_theory(ctl);
+    ctl.config()["lpx.strict"] = "on";
+    // NOLINTNEXTLINE(modernize-use-trailing-return-type)
+    auto [prg, warn] = GENERATE(Catch::Generators::table<std::string_view, bool>({
+        {"&sum { x } >= 1.", true},
+        {"&int { x }. &sum { x } > 1.", true},
+        {"&sum { x } > 1.", false},
+    }));
+    theory.rewrite(lib, ctl, prg);
+    ctl.ground();
+    theory.prepare(ctl);
+    for (auto &&m : ctl.start_solve({}, Clingo::SolveFlags::yield)) {
+        static_cast<void>(m);
+    }
+    REQUIRE(warnings.size() == (warn ? 1 : 0));
+}
+
 TEST_CASE_METHOD(Fixture, "solving rat") {
     theory.rewrite(lib, ctl, "&sum { a } >= \"0.5\" * 3.\n");
     ctl.ground();

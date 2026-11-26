@@ -1292,16 +1292,26 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass
     auto is_integer = [&](Clingo::Symbol const &var) -> bool {
         return std::ranges::binary_search(integers, var_map_.at(var));
     };
+    auto needs_strict = false;
     for (auto &x : iqs_) {
-        if constexpr (std::is_same_v<Value, Rational>) {
-            // strict inequalities over integer variables are turned into non-strict ones
-            if ((x.rel == Relation::Less || x.rel == Relation::Greater) &&
-                (x.lhs.empty() ||
-                 !std::ranges::all_of(x.lhs, [&](Term const &term) -> bool { return is_integer(term.var); }))) {
+        // strict inequalities over integer variables are turned into non-strict ones
+        if ((x.rel == Relation::Less || x.rel == Relation::Greater) &&
+            (x.lhs.empty() ||
+             !std::ranges::all_of(x.lhs, [&](Term const &term) -> bool { return is_integer(term.var); }))) {
+            if constexpr (std::is_same_v<Value, Rational>) {
                 throw std::invalid_argument{"strict inequalities not enabled (try option --strict)"};
             }
+            needs_strict = true;
         }
         init.add_watch(x.lit);
+    }
+    if constexpr (std::is_same_v<Value, RationalQ>) {
+        // the number type is fixed in the first step, so later steps are not checked
+        if (!strict_checked_ && !needs_strict &&
+            (!options_.global_objective.has_value() || options_.global_objective->is_rational())) {
+            lib_->report(Clingo::MessageCode::warn, "option --strict is not needed for the current program");
+        }
+        strict_checked_ = true;
     }
 
     objective_state_.reset();
