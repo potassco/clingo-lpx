@@ -76,9 +76,10 @@ side `rhs` is a linear term, too.
 - Coefficients are integers or quoted decimals like `"0.75"`. Terms can be
   built with `+`, `-`, `*`, and `/`, but multiplication and division need a
   constant on one side, as in `3*x` or `x/2`.
-- Theory atoms may only occur in rule heads. The rule above means that the
-  constraint has to hold if the body holds. If the body does not hold, nothing
-  is required (in particular, not the negation of the constraint).
+- Theory atoms may only occur in rule heads (see [Rewriting
+  constraints](#rewriting-constraints) for an exception). The rule above means
+  that the constraint has to hold if the body holds. If the body does not hold,
+  nothing is required (in particular, not the negation of the constraint).
 
 For example:
 
@@ -114,7 +115,10 @@ Assignment:
 x=1+e
 ```
 
-The relation `!=` is not supported.
+Strict mode makes the arithmetic more expensive. Hence, clingo-lpx warns if
+option `--strict` is not needed for the program. The relation `!=` is only
+available with option `--rewrite-constraints` (see [Rewriting
+constraints](#rewriting-constraints)).
 
 ### Integer variables
 
@@ -181,6 +185,58 @@ Some remarks:
 - Integer variables should be bounded. Otherwise, branching might not
   terminate.
 
+### Rewriting constraints
+
+With option `--rewrite-constraints`, `&sum` and `&diff` constraints may also
+occur in rule bodies and use the relation `!=`. Both are rewritten into the
+constraints supported by the solver:
+
+- A constraint in a rule body holds if and only if its atom is true. For
+  `a :- &sum { x } >= 1.`, the solver adds `x >= 1` if the atom is true and
+  `x < 1` if it is false.
+- A disequality `&sum { x } != 1` is split into `x < 1` and `x > 1` using two
+  new literals, of which exactly one is true if the atom is true. The negation
+  of an equality in a body is a disequality.
+
+Atoms in rule heads and bodies are distinct. For example,
+`&sum { x } >= 5 :- &sum { x } >= 5.` has two stable models, one where the
+constraint holds and one where it does not.
+
+The rewriting introduces the strict relations `<` and `>`. Over rational
+variables, they need option `--strict`. Constraints over integer variables
+only are rounded as described in [Integer variables](#integer-variables) and
+work without option `--strict`. For example, `&sum { x/2; y/3 } != 1` becomes
+`3*x + 2*y <= 5` or `3*x + 2*y >= 7` if `x` and `y` are integer.
+
+Like the literals introduced for branching, the new literals are not part of
+the output. Hence, the same stable model can be printed multiple times:
+
+```
+&int { x }.
+&sum { x } >= 0.
+&sum { x } <= 2.
+a :- &sum { x } != 1.
+```
+
+```
+$ clingo-lpx --rewrite-constraints neq.lp 0
+Answer: 1 (Time: 0.005s)
+
+Assignment:
+x=1
+Answer: 2 (Time: 0.005s)
+a
+Assignment:
+x=2
+Answer: 3 (Time: 0.005s)
+a
+Assignment:
+x=0
+SATISFIABLE
+```
+
+Option `--project` prints each stable model once.
+
 ### Optimization
 
 An objective function is given by a `&maximize` or `&minimize` directive,
@@ -223,6 +279,7 @@ Run `clingo-lpx --help` for the full list.
 | Option                                   | Description                                                                                                                           |
 | :--------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
 | `--strict`                               | Enable support for strict constraints.                                                                                                |
+| `--rewrite-constraints`                  | Enable constraints in rule bodies and the relation `!=`.                                                                              |
 | `--objective={local,global[,step]}`      | Optimize w.r.t. each stable model (`local`, default) or all of them (`global`).                                                       |
 | `--propagate-bounds={none,changed,full}` | Propagate bounds of constraints whose variables changed (`changed`, default), of all constraints, or none.                            |
 | `--propagate-conflicts`                  | Add binary clauses for conflicting bounds on the same variable.                                                                       |
