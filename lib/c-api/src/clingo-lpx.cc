@@ -495,6 +495,8 @@ struct OptionInfo {
 //! no argument.
 template <typename F> void for_each_option(Options &opts, F const &f) {
     f(OptionInfo{"strict", "", "Enable strict constraints using < and >"}, ConfigFlag<&Options::strict>{opts});
+    f(OptionInfo{"rewrite-constraints", "", "Enable constraints in rule bodies and the relation !="},
+      ConfigFlag<&Options::rewrite_constraints>{opts});
     f(OptionInfo{"propagate-conflicts", "", "Add binary clauses for conflicting bounds"},
       ConfigFlag<&Options::propagate_conflicts>{opts});
     f(OptionInfo{"order-branches", "", "Link branches and bounds like an order encoding"},
@@ -583,9 +585,13 @@ struct clingolpx_theory {
         CLINGO_CATCH;
     }
 
-    static auto rewrite_ast([[maybe_unused]] void *self, clingo_ast_t *ast, clingo_theory_ast_callback_t add,
-                            void *data) -> bool {
-        return add(ast, data);
+    static auto rewrite_ast(void *self, clingo_ast_t *ast, clingo_theory_ast_callback_t add, void *data) -> bool {
+        CLINGO_TRY {
+            auto *theory = static_cast<clingolpx_theory *>(self);
+            rewrite(theory->lib, Clingo::AST::Node{ast, true},
+                    [add, data](Clingo::AST::Node const &ast) -> void { handle_error(add(c_cast(ast), data)); });
+        }
+        CLINGO_CATCH;
     }
 
     static auto prepare(void *self, clingo_control_t *control) -> bool {

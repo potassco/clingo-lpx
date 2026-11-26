@@ -1255,10 +1255,20 @@ template <typename Value> void Propagator<Value>::do_init(Clingo::Assignment ass
         init.check_mode(Clingo::PropagatorCheckMode::both);
     }
 
+    auto split = [&](Clingo::SolverLiteral lit) -> std::pair<Clingo::SolverLiteral, Clingo::SolverLiteral> {
+        auto a = init.add_literal();
+        auto b = init.add_literal();
+        // the clauses cannot conflict because a and b are fresh
+        std::ignore = init.add_clause({-lit, a, b});
+        std::ignore = init.add_clause({-a, -b});
+        std::ignore = init.add_clause({lit, -a});
+        std::ignore = init.add_clause({lit, -b});
+        return {a, b};
+    };
     evaluate_theory(
         *lib_, init.base().theory(),
-        [&](std::optional<Clingo::SolverLiteral> lit) -> auto { return init.solver_literal(lit); }, aux_map_, iqs_,
-        objective_, integers_);
+        [&](std::optional<Clingo::SolverLiteral> lit) -> auto { return init.solver_literal(lit); },
+        options_.rewrite_constraints ? LitSplitter{split} : LitSplitter{}, aux_map_, iqs_, objective_, integers_);
     n_vars_ = ass.size();
 
     auto add_var = [this](Clingo::Symbol const &var) -> void {

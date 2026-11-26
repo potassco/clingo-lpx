@@ -383,24 +383,63 @@ auto simplify(std::unordered_map<Clingo::Symbol, Term &> &cos, std::vector<Term>
     return rhs;
 }
 
+[[nodiscard]] auto negate_cmp(std::string_view rel) -> std::string_view {
+    if (rel == "<=") {
+        return ">";
+    }
+    if (rel == ">=") {
+        return "<";
+    }
+    if (rel == "<") {
+        return ">=";
+    }
+    if (rel == ">") {
+        return "<=";
+    }
+    if (rel == "=") {
+        return "!=";
+    }
+    if (rel == "!=") {
+        return "=";
+    }
+    return throw_syntax_error<std::string_view>();
+}
+
+//! Add the constraint lhs rel rhs implied by lit to the inequalities.
+void add_constraint(LitSplitter const &split, std::vector<Inequality> &iqs, std::vector<Term> lhs, Rational rhs,
+                    std::string_view rel, Clingo::ProgramLiteral lit) {
+    if (rel == "!=") {
+        check_syntax(split != nullptr, "relation != not enabled (try option --rewrite-constraints)");
+        auto [lt, gt] = split(lit);
+        iqs.emplace_back(Inequality{lhs, rhs, Relation::Less, lt});
+        iqs.emplace_back(Inequality{std::move(lhs), std::move(rhs), Relation::Greater, gt});
+    } else {
+        iqs.emplace_back(Inequality{std::move(lhs), std::move(rhs), evaluate_cmp(rel), lit});
+    }
+}
+
 //! Add the inequality lhs rel rhs to the inequalities.
 //!
 //! The terms of the right-hand side are moved to the left and the constants
-//! to the right.
+//! to the right. Constraints in bodies are equivalent to their literal.
 void add_inequality(Clingo::Library const &lib, std::unordered_map<Clingo::Symbol, Term &> &cos,
-                    std::vector<Inequality> &iqs, std::vector<Term> lhs, std::string_view rel,
-                    Clingo::TheoryTerm const &rhs, Clingo::ProgramLiteral lit) {
+                    LitSplitter const &split, std::vector<Inequality> &iqs, std::vector<Term> lhs, std::string_view rel,
+                    Clingo::TheoryTerm const &rhs, Clingo::ProgramLiteral lit, bool body) {
     auto pos = lhs.size();
     parse_sum_elem(lib, rhs, lhs);
     negate_from(lhs, pos);
     auto bound = simplify(cos, lhs);
-    iqs.emplace_back(Inequality{std::move(lhs), std::move(bound), evaluate_cmp(rel), lit});
+    if (body) {
+        check_syntax(split != nullptr, "constraints in rule bodies not enabled (try option --rewrite-constraints)");
+        add_constraint(split, iqs, lhs, bound, negate_cmp(rel), -lit);
+    }
+    add_constraint(split, iqs, std::move(lhs), std::move(bound), rel, lit);
 }
 
 // NOLINTBEGIN(bugprone-unchecked-optional-access)
 
 void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, LitMapper const &mapper,
-                  VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective,
+                  LitSplitter const &split, VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective,
                   std::vector<Clingo::Symbol> &integers) {
     std::unordered_map<Clingo::Symbol, Term &> cos;
     for (auto &&atom : theory) {
@@ -420,19 +459,20 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
             auto args = term.arguments();
             iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(lib, args.back()), Relation::LessEqual, lit});
             iqs.emplace_back(Inequality{{{1, var}}, evaluate_num(lib, args.front()), Relation::GreaterEqual, lit});
-        } else if (match(name, "diff", 0)) {
+        } else if (match(name, "diff", 0) || match(name, "__diff_b", 0)) {
             auto guard = atom.guard();
             auto elems = atom.elements();
             check_syntax(guard.has_value() && elems.size() == 1, "&diff invalid difference constraint");
             auto tuple = elems.front().tuple();
             check_syntax(tuple.size() == 1 && elems.front().condition().empty(), "&diff invalid difference constraint");
-            add_inequality(lib, cos, iqs, parse_diff_elem(lib, tuple.front()), guard->first, guard->second,
-                           mapper(atom.literal()));
-        } else if (match(name, "sum", 0)) {
+            add_inequality(lib, cos, split, iqs, parse_diff_elem(lib, tuple.front()), guard->first, guard->second,
+                           mapper(atom.literal()), match(name, "__diff_b", 0));
+        } else if (match(name, "sum", 0) || match(name, "__sum_b", 0)) {
             auto guard = atom.guard();
             check_syntax(guard.has_value(), "&sum constraints need guards");
             auto lhs = parse_sum_elems(lib, mapper, var_map, iqs, atom.elements());
-            add_inequality(lib, cos, iqs, std::move(lhs), guard->first, guard->second, mapper(atom.literal()));
+            add_inequality(lib, cos, split, iqs, std::move(lhs), guard->first, guard->second, mapper(atom.literal()),
+                           match(name, "__sum_b", 0));
         } else if (match(name, "minimize", 0) || match(name, "maximize", 0)) {
             auto lhs = parse_sum_elems(lib, mapper, var_map, iqs, atom.elements());
             if (match(name, "minimize", 0)) {
@@ -456,9 +496,58 @@ void parse_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, 
 } // namespace
 
 void evaluate_theory(Clingo::Library const &lib, Clingo::TheoryBase const &theory, LitMapper const &mapper,
-                     VarMap &var_map, std::vector<Inequality> &iqs, std::vector<Term> &objective,
-                     std::vector<Clingo::Symbol> &integers) {
-    parse_theory(lib, theory, mapper, var_map, iqs, objective, integers);
+                     LitSplitter const &split, VarMap &var_map, std::vector<Inequality> &iqs,
+                     std::vector<Term> &objective, std::vector<Clingo::Symbol> &integers) {
+    parse_theory(lib, theory, mapper, split, var_map, iqs, objective, integers);
+}
+
+void rewrite(Clingo::Library const &lib, Clingo::AST::Node const &ast, NodeCallback const &cb) {
+    using namespace Clingo::AST;
+    auto tagged = [](std::string_view name) -> std::optional<std::string> {
+        if (name == "sum" || name == "diff") {
+            return "__" + std::string{name} + "_b";
+        }
+        return std::nullopt;
+    };
+    auto tag = [&](Node const &name) -> std::optional<Node> {
+        if (name.type() == NodeType::term_symbolic) {
+            auto sym = name.symbol(Attribute::symbol);
+            if (sym.type() != Clingo::SymbolType::function || !sym.arguments().empty()) {
+                return std::nullopt;
+            }
+            if (auto res = tagged(sym.name()); res.has_value()) {
+                return Node::create<NodeType::term_symbolic>(lib, name.location(Attribute::location),
+                                                             Clingo::Function(lib, *res, {}));
+            }
+        }
+        if (name.type() == NodeType::term_function && name.number(Attribute::external) == 0) {
+            auto pool = name.nodes(Attribute::pool);
+            if (auto res = tagged(name.string(Attribute::name));
+                res.has_value() && pool.size() == 1 && pool.front().nodes(Attribute::arguments).empty()) {
+                return name.update<NodeType::term_function>(lib, [&]<Attribute Attr>() -> auto {
+                    if constexpr (Attr == Attribute::name) {
+                        return *res;
+                    }
+                });
+            }
+        }
+        return std::nullopt;
+    };
+    Transformer trans = [&](Node const &node) -> std::optional<Node> {
+        if (node.type() == NodeType::body_theory_atom) {
+            if (auto name = tag(node.node(Attribute::name)); name.has_value()) {
+                return node.update<NodeType::body_theory_atom>(lib, [&]<Attribute Attr>() -> auto {
+                    if constexpr (Attr == Attribute::name) {
+                        return *name;
+                    }
+                });
+            }
+            return std::nullopt;
+        }
+        return node.accept(lib, trans);
+    };
+    auto res = trans(ast);
+    cb(res.has_value() ? *res : ast);
 }
 
 } // namespace ClingoLPX

@@ -421,6 +421,54 @@ TEST_CASE_METHOD(Fixture, "solving integer") {
     }
 }
 
+TEST_CASE_METHOD(Fixture, "solving rewrite constraints") {
+    auto x = Clingo::Function(lib, "x");
+    auto const *dom = "&int { x }. &sum { x } >= 0. &sum { x } <= 2.\n";
+    SECTION("disabled") {
+        theory.rewrite(lib, ctl, dom);
+        // NOLINTNEXTLINE(modernize-use-trailing-return-type)
+        theory.rewrite(lib, ctl, GENERATE("&sum { x } != 1.\n", "a :- &sum { x } >= 1.\n"));
+        ctl.ground();
+        REQUIRE_THROWS(solve(ctl));
+    }
+    SECTION("enabled") {
+        cfg["lpx.rewrite_constraints"] = "on";
+        theory.rewrite(lib, ctl, dom);
+        SECTION("body") {
+            theory.rewrite(lib, ctl, "a :- &sum { x } >= 1.\n");
+            ctl.ground();
+            REQUIRE(solve(ctl) == RV{{{{x, num(0)}}, {}}, {{{x, num(1)}}, {sym_a}}});
+        }
+        SECTION("body equal") {
+            theory.rewrite(lib, ctl, "a :- &sum { x } = 1.\n");
+            ctl.ground();
+            REQUIRE(solve(ctl) == RV{{{{x, num(0)}}, {}}, {{{x, num(1)}}, {sym_a}}, {{{x, num(2)}}, {}}});
+        }
+        SECTION("head and body") {
+            // the atoms in head and body are distinct
+            theory.rewrite(lib, ctl, "&sum { x } >= 1 :- &sum { x } >= 1.\n");
+            ctl.ground();
+            REQUIRE(solve(ctl) == RV{{{{x, num(0)}}, {}}, {{{x, num(1)}}, {}}});
+        }
+        SECTION("head") {
+            theory.rewrite(lib, ctl, "&sum { x } != 1.\n");
+            ctl.ground();
+            REQUIRE(solve(ctl) == RV{{{{x, num(0)}}, {}}, {{{x, num(2)}}, {}}});
+        }
+        SECTION("body not equal") {
+            theory.rewrite(lib, ctl, "a :- &sum { x } != 1.\n");
+            ctl.ground();
+            REQUIRE(solve(ctl) == RV{{{{x, num(0)}}, {sym_a}}, {{{x, num(1)}}, {}}, {{{x, num(2)}}, {sym_a}}});
+        }
+        SECTION("strict") {
+            // negating constraints over rational variables needs option strict
+            theory.rewrite(lib, ctl, "a :- &sum { y } >= 1.\n");
+            ctl.ground();
+            REQUIRE_THROWS(solve(ctl));
+        }
+    }
+}
+
 TEST_CASE_METHOD(Fixture, "solving integer multi-shot") {
     // NOLINTNEXTLINE(modernize-use-trailing-return-type)
     cfg["solve.parallel_mode"] = GENERATE("1", "2");

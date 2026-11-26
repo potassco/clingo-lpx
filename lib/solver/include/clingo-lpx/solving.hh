@@ -103,6 +103,10 @@ struct Options {
     bool fix_reduced_costs = false;
     //! Whether strict constraints are supported (which selects the number type).
     bool strict = false;
+    //! Whether constraints in rule bodies and disequalities are supported.
+    //!
+    //! Both introduce auxiliary choices, which can lead to repeated stable models.
+    bool rewrite_constraints = false;
     //! The sign when deciding literals introduced during solving.
     BranchPhase branch_phase = BranchPhase::Value;
 };
